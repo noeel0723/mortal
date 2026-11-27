@@ -5,6 +5,7 @@ export type Background = 'working-class' | 'middle-income' | 'affluent';
 export type Talent = 'academic' | 'athletic' | 'creative' | 'social';
 export type City = 'Alder Bay' | 'Bellmere' | 'Northwick';
 export type Education = 'early' | 'primary' | 'secondary' | 'high' | 'completed';
+export type SchoolStage = 'primary' | 'secondary' | 'high';
 export type Category = 'life' | 'family' | 'school' | 'health' | 'community' | 'decision';
 
 export type ProfileInput = {
@@ -27,17 +28,20 @@ export type Character = ProfileInput & {
   causeOfDeath: string | null;
 };
 
-export type Person = {
+export type Person<Role = 'Mother' | 'Father'> = {
   id: string;
   name: string;
   age: number;
-  role: 'Mother' | 'Father';
+  role: Role;
   occupation: string;
   city: City;
   health: number;
   alive: boolean;
   bond: { affection: number; trust: number; respect: number; compatibility: number; resentment: number; familiarity: number };
 };
+
+export type SchoolContact = Person<'Teacher' | 'Classmate'> & { stage: SchoolStage; friend: boolean };
+export type Contact = Person | SchoolContact;
 
 export type Effect = Partial<Record<Stat | 'bank', number>>;
 export type JournalEntry = {
@@ -73,6 +77,7 @@ export type Life = {
   character: Character;
   year: number;
   family: Person[];
+  schoolContacts: SchoolContact[];
   journal: JournalEntry[];
   seen: string[];
   pending: string | null;
@@ -85,4 +90,5 @@ export type Action =
   | { type: 'age' }
   | { type: 'choose'; event: string; choice: string }
   | { type: 'activity'; activity: 'read' | 'rest' | 'walk' | 'study' }
-  | { type: 'talk'; person: string };
+  | { type: 'talk'; person: string }
+  | { type: 'befriend'; person: string };

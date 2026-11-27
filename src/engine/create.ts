@@ -83,6 +83,7 @@ export function createLife(seed: number, profile?: ProfileInput): Life {
     character: { ...input, firstName, lastName, age: 0, attributes, bank, personality, education: 'early', causeOfDeath: null },
     year: input.birthYear,
     family,
+    schoolContacts: [],
     journal: [{ age: 0, category: 'life', text: `I was born in ${input.city}, Veyra.`, changes: {} }],
     seen: [],
     pending: null,

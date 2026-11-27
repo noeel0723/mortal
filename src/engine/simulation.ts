@@ -1,11 +1,13 @@
 import { eventById, events } from '../data/events.ts';
 import { educationLabels } from '../data/veyra.ts';
 import { seededRandom } from './random.ts';
+import { createSchoolClass, educationAt, findContact, isSchoolStage } from './school.ts';
 import { stats } from './types.ts';
-import type { Action, Category, Education, Effect, Life } from './types.ts';
+import type { Action, Category, Contact, Effect, Life } from './types.ts';
 
 export const maxAge = 115;
 export const clamp = (value: number) => Math.max(0, Math.min(100, value));
+export const friendshipEnergyCost = 6;
 
 export const activities = {
   read: { age: 5, energy: 10, effects: { smarts: 3, happiness: 2 }, text: 'I spent an afternoon with a good book.' },
@@ -14,14 +16,6 @@ export const activities = {
   study: { age: 6, energy: 16, effects: { smarts: 4, discipline: 3, stress: 3 }, text: 'I spent extra time reviewing my schoolwork.' },
 } as const;
 type Activity = keyof typeof activities;
-
-function educationAt(age: number): Education {
-  if (age < 6) return 'early';
-  if (age < 12) return 'primary';
-  if (age < 15) return 'secondary';
-  if (age < 18) return 'high';
-  return 'completed';
-}
 
 function record(life: Life, category: Category, text: string, effects: Effect = {}) {
   const changes: Effect = {};
@@ -62,9 +56,16 @@ function ageUp(life: Life) {
       record(life, 'family', `My ${person.role.toLowerCase()}, ${person.name}, died at age ${person.age}.`, { happiness: -10, stress: 10 });
     }
   }
+  for (const person of life.schoolContacts) {
+    if (!person.alive) continue;
+    person.age += 1;
+    if (person.age > 60) person.health = clamp(person.health - 2);
+    if (person.age >= maxAge || person.health === 0) person.alive = false;
+  }
   const education = educationAt(age);
   if (education !== character.education) {
     character.education = education;
+    if (isSchoolStage(education)) life.schoolContacts.push(...createSchoolClass(life, education));
     const text = education === 'completed' ? 'I graduated from high school.' : `I started ${educationLabels[education].toLowerCase()}.`;
     record(life, 'school', text, { smarts: 2, discipline: 1 });
   }
@@ -103,12 +104,32 @@ export function activityIssue(life: Life, activity: Activity) {
   return null;
 }
 
+function contactIssue(life: Life, person: Contact) {
+  if (!person.alive) return 'This person is no longer available.';
+  if ('stage' in person && !person.friend && person.stage !== life.character.education) {
+    return 'This contact is from a previous class.';
+  }
+  return null;
+}
+
 export function talkIssue(life: Life, id: string) {
-  const person = life.family.find((npc) => npc.id === id);
-  if (!person?.alive) return 'This person is no longer available.';
+  const person = findContact(life, id);
+  if (!person) return 'This person is no longer available.';
+  const issue = contactIssue(life, person);
+  if (issue) return issue;
   if (life.character.age < 3) return 'Available from age 3.';
   if (life.usedActions.includes(`talk:${id}`)) return 'Already done this year.';
   if (life.character.attributes.energy < 8) return 'You need more energy.';
+  return null;
+}
+
+export function befriendIssue(life: Life, id: string) {
+  const person = life.schoolContacts.find((contact) => contact.id === id);
+  if (!person || person.role !== 'Classmate') return 'You can only befriend a classmate.';
+  if (person.friend) return 'You are already friends.';
+  const issue = contactIssue(life, person);
+  if (issue) return issue;
+  if (life.character.attributes.energy < friendshipEnergyCost) return 'You need more energy.';
   return null;
 }
 
@@ -141,12 +162,24 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
     case 'talk': {
       const issue = talkIssue(life, action.person);
       if (issue) return { error: issue };
-      const person = life.family.find(({ id }) => id === action.person)!;
+      const person = findContact(life, action.person)!;
       life.usedActions.push(`talk:${person.id}`);
       person.bond.affection = clamp(person.bond.affection + 3);
       person.bond.trust = clamp(person.bond.trust + 2);
       person.bond.familiarity = clamp(person.bond.familiarity + 4);
-      record(life, 'family', `I caught up with ${person.name} about what we had been doing lately.`, { energy: -8, happiness: 3 });
+      record(life, 'stage' in person ? 'community' : 'family',
+        `I caught up with ${person.name} about what we had been doing lately.`, { energy: -8, happiness: 3 });
+      break;
+    }
+    case 'befriend': {
+      const issue = befriendIssue(life, action.person);
+      if (issue) return { error: issue };
+      const person = life.schoolContacts.find(({ id }) => id === action.person)!;
+      person.friend = true;
+      person.bond.affection = clamp(person.bond.affection + 8);
+      person.bond.trust = clamp(person.bond.trust + 5);
+      person.bond.familiarity = clamp(person.bond.familiarity + 6);
+      record(life, 'school', `I became friends with ${person.name} from my class.`, { energy: -friendshipEnergyCost, happiness: 5 });
       break;
     }
   }
@@ -158,6 +191,7 @@ function structuredCloneLife(life: Life): Life {
     ...life,
     character: { ...life.character, attributes: { ...life.character.attributes } },
     family: life.family.map((person) => ({ ...person, bond: { ...person.bond } })),
+    schoolContacts: life.schoolContacts.map((person) => ({ ...person, bond: { ...person.bond } })),
     journal: [...life.journal],
     seen: [...life.seen],
     scheduled: [...life.scheduled],

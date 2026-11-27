@@ -12,7 +12,7 @@ export const radius = { sm: 8, md: 12, lg: 18, pill: 999 } as const;
 
 export const emoji = {
   life: '📖', career: '💼', relationships: '🤝', age: '⏳', assets: '💰', activities: '🎯',
-  world: '🌐', settings: '⚙️', school: '📚', study: '📖', family: '🏡', tree: '🌳',
+  world: '🌐', settings: '⚙️', school: '📚', classroom: '👥', study: '📖', family: '🏡', tree: '🌳',
   bank: '💳', health: '🩺', rest: '🛌', walk: '🚶', art: '🎨',
   new: '🌱', continue: '▶️', save: '💾', load: '📂', back: '◀️', accept: '✅',
   decline: '↩️', close: '✖️', trophy: '🏆', history: '📜', stats: '📊', custom: '✍️',

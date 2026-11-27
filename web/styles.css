@@ -283,7 +283,7 @@ button.play-row:disabled .play-row-icon { background: #edf2f7; opacity: .65; }
 .play-row-detail { overflow-wrap: anywhere; }
 .play-row-value { flex: none; max-width: 38%; color: var(--blue-dark); font-size: .85rem; font-weight: 730; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .play-empty { padding: .8rem .75rem; }
-.bond-preview {
+.play-meter {
   display: grid;
   grid-template-columns: auto minmax(.9rem, 1fr) auto;
   gap: .38rem;
@@ -294,7 +294,7 @@ button.play-row:disabled .play-row-icon { background: #edf2f7; opacity: .65; }
   font-size: .75rem;
   font-variant-numeric: tabular-nums;
 }
-.bond-preview progress {
+.play-meter progress {
   appearance: none;
   width: 100%;
   height: .36rem;
@@ -304,9 +304,9 @@ button.play-row:disabled .play-row-icon { background: #edf2f7; opacity: .65; }
   overflow: hidden;
   accent-color: #4a9b83;
 }
-.bond-preview progress::-webkit-progress-bar { background: #e3eceb; }
-.bond-preview progress::-webkit-progress-value { background: #4a9b83; border-radius: 1rem; }
-.bond-preview progress::-moz-progress-bar { background: #4a9b83; border-radius: 1rem; }
+.play-meter progress::-webkit-progress-bar { background: #e3eceb; }
+.play-meter progress::-webkit-progress-value { background: #4a9b83; border-radius: 1rem; }
+.play-meter progress::-moz-progress-bar { background: #4a9b83; border-radius: 1rem; }
 .character {
   flex: none;
   display: flex;

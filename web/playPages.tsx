@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { backgroundLabels, cities, cityDescriptions, educationLabels, talentLabels } from '../src/data/veyra';
-import { activities, activityIssue, talkIssue } from '../src/engine/simulation';
+import { currentClass, isSchoolStage } from '../src/engine/school';
+import { activities, activityIssue, befriendIssue, friendshipEnergyCost, talkIssue } from '../src/engine/simulation';
 import { stats } from '../src/engine/types';
-import type { Life, Person } from '../src/engine/types';
+import type { Contact, Life } from '../src/engine/types';
 import { en, money, statLabels } from '../src/i18n/en';
 import type { Emoji } from '../src/theme/tokens';
 import { useGame } from './browserStore';
@@ -14,6 +15,9 @@ export const pageTitles = {
   journal: en.lifeJournal,
   career: 'Career',
   education: 'Education',
+  class: 'Class',
+  'class-person': 'Class Member',
+  'class-person-info': 'Character Profile',
   relationships: 'Relationships',
   person: 'Family Member',
   'person-info': 'Character Profile',
@@ -35,6 +39,9 @@ type DetailPage = Exclude<GamePage, 'journal'>;
 
 const parentPages: Partial<Record<DetailPage, GamePage>> = {
   education: 'career',
+  class: 'education',
+  'class-person': 'class',
+  'class-person-info': 'class-person',
   person: 'relationships',
   'person-info': 'person',
   'family-tree': 'relationships',
@@ -43,19 +50,29 @@ const parentPages: Partial<Record<DetailPage, GamePage>> = {
   achievements: 'menu',
 };
 
-export function PlayPageHeader({ page, person, go }: { page: DetailPage; person?: Person; go: Navigate }) {
-  const parent = page === 'person-info' && !person ? 'relationships' : parentPages[page] ?? 'journal';
-  const title = page === 'person' && person ? person.role : pageTitles[page];
+export function PlayPageHeader({ page, person, enrolled, go }: { page: DetailPage; person?: Contact; enrolled: boolean; go: Navigate }) {
+  let parent = parentPages[page] ?? 'journal';
+  if (page === 'education' && enrolled) parent = 'journal';
+  if (!person && page === 'person-info') parent = 'relationships';
+  if (!person && page === 'class-person-info') parent = 'class';
+  const titleFor = (target: GamePage) => {
+    if (target === 'education' && enrolled) return 'School';
+    if ((target === 'person' || target === 'class-person') && person) {
+      return target === 'person' && 'stage' in person && person.friend ? 'Friend' : person.role;
+    }
+    return pageTitles[target];
+  };
+  const title = titleFor(page);
   const isRoot = parent === 'journal';
-  const parentTitle = parent === 'person' && person ? person.role : pageTitles[parent];
+  const returnToPerson = parent === 'person' || parent === 'class-person';
   const heading = useRef<HTMLHeadingElement>(null);
   const personId = person?.id;
   useEffect(() => { heading.current?.focus({ preventScroll: true }); }, [page, personId]);
   return (
     <header className="play-page-header">
       <button type="button" className={`play-page-return ${isRoot ? 'play-page-return--close' : ''}`}
-        aria-label={isRoot ? `Close ${title}` : `Back to ${parentTitle}`}
-        onClick={() => go(parent, parent === 'person' ? person?.id : undefined)}>
+        aria-label={isRoot ? `Close ${title}` : `Back to ${titleFor(parent)}`}
+        onClick={() => go(parent, returnToPerson ? person?.id : undefined)}>
         <span aria-hidden="true">{isRoot ? '×' : 'Back'}</span>
       </button>
       <h1 id="play-page-title" ref={heading} tabIndex={-1}>{title}</h1>
@@ -74,34 +91,43 @@ function MenuRow({ title, detail, icon, avatar, value, children, onClick, disabl
   const id = useId();
   const titleId = `${id}-title`;
   const detailId = `${id}-detail`;
+  const extraId = `${id}-extra`;
+  const description = [detail && detailId, children && extraId].filter(Boolean).join(' ');
   const content = <>
     {avatar ? <span className="play-row-avatar" aria-hidden="true">{avatar}</span> :
       icon ? <span className="play-row-icon"><Icon name={icon} /></span> : null}
     <span className="play-row-main">
       <strong id={titleId}>{title}</strong>
       {detail && <span id={detailId} className="play-row-detail">{detail}</span>}
-      {children}
+      {children && <span id={extraId}>{children}</span>}
     </span>
     {value && <span className="play-row-value">{value}</span>}
   </>;
   const className = `play-row${!icon && !avatar ? ' play-row--unadorned' : ''}`;
   return onClick
     ? <button type="button" className={className} disabled={disabled} onClick={onClick} aria-labelledby={titleId}
-        aria-describedby={detail ? detailId : undefined}>{content}</button>
+        aria-describedby={description || undefined}>{content}</button>
     : <div className={className}>{content}</div>;
 }
 
-function PersonRow({ person, onClick }: { person: Person; onClick?: () => void }) {
+function PageMeter({ label, value }: { label: string; value: number }) {
+  return <span className="play-meter">
+    <span>{label}</span>
+    <progress aria-label={label} max={100} value={value} />
+    <span>{value}%</span>
+  </span>;
+}
+
+function PersonRow({ person, onClick }: { person: Contact; onClick?: () => void }) {
   const initials = person.name.split(/\s+/).slice(0, 2).map((part) => Array.from(part)[0]).join('').toUpperCase();
+  const role = 'stage' in person && person.friend ? 'Friend' : person.role;
   return <MenuRow title={person.name} avatar={initials} onClick={onClick}
-    detail={`${person.role} · ${person.alive ? en.age(person.age) : 'Deceased'}`}>
-    <span className="bond-preview">
-      <span>Affection</span>
-      <progress aria-label="Affection" max={100} value={person.bond.affection} />
-      <span>{person.bond.affection}%</span>
-    </span>
+    detail={`${role} · ${person.alive ? en.age(person.age) : 'Deceased'}`}>
+    <PageMeter label="Affection" value={person.bond.affection} />
   </MenuRow>;
 }
+
+const schoolNames = { primary: 'Primary School', secondary: 'Secondary School', high: 'High School' } as const;
 
 const activityOptions = [
   { id: 'walk', icon: 'walk', label: 'Take a Walk', description: 'Improves health and reduces stress.' },
@@ -110,7 +136,7 @@ const activityOptions = [
 ] as const;
 
 export function PlayPage({ life, page, person, go, home, newLife }: {
-  life: Life; page: DetailPage; person?: Person; go: Navigate; home: () => void; newLife: () => void;
+  life: Life; page: DetailPage; person?: Contact; go: Navigate; home: () => void; newLife: () => void;
 }) {
   const { busy, dispatch, save } = useGame();
   const { character, family } = life;
@@ -125,54 +151,101 @@ export function PlayPage({ life, page, person, go, home, newLife }: {
     case 'education': {
       const issue = blocked ?? activityIssue(life, 'study');
       const schoolAge = [6, 12, 15, 18].find((age) => age > character.age);
+      const stage = character.education;
+      const study = <MenuRow icon="study" title="Study Harder"
+        detail={issue ?? 'Uses 16 energy. Improves smarts and discipline.'} disabled={busy || !!issue}
+        onClick={() => void dispatch({ type: 'activity', activity: 'study' })} />;
+      if (isSchoolStage(stage)) {
+        const classmates = currentClass(life).filter((contact) => contact.role === 'Classmate');
+        const popularity = Math.round(classmates.reduce((total, contact) => total + contact.bond.affection, 0) / (classmates.length || 1));
+        const grades = Math.round((character.attributes.smarts * 2 + character.attributes.discipline) / 3);
+        return <>
+          <PageGroup title="Enrollment">
+            <MenuRow icon="school" title={`${character.city} ${schoolNames[stage]}`}>
+              <PageMeter label="Grades" value={grades} />
+            </MenuRow>
+          </PageGroup>
+          <PageGroup title="School activities">
+            <MenuRow icon="classroom" title="Class" detail="Meet your teacher and classmates." onClick={() => go('class')}>
+              <PageMeter label="Popularity" value={popularity} />
+            </MenuRow>
+            {study}
+          </PageGroup>
+        </>;
+      }
       return <>
         <PageGroup title="School progress"><Rows items={[
           { label: 'Education', value: educationLabels[character.education] },
           ...(schoolAge ? [{ label: 'Next milestone', value: en.age(schoolAge) }] : []),
           { label: 'Energy', value: energy },
         ]} /></PageGroup>
-        <PageGroup title="School activities"><MenuRow icon="study" title="Study Harder"
-          detail={issue ?? 'Uses 16 energy. Improves smarts and discipline.'} disabled={busy || !!issue}
-          onClick={() => void dispatch({ type: 'activity', activity: 'study' })} /></PageGroup>
+        <PageGroup title="School activities">{study}</PageGroup>
+      </>;
+    }
+    case 'class': {
+      const contacts = currentClass(life);
+      if (!contacts.length) return <p className="play-empty">You are not enrolled in a class.</p>;
+      return <>
+        <PageGroup title="Teacher">
+          {contacts.filter((contact) => contact.role === 'Teacher').map((contact) =>
+            <PersonRow key={contact.id} person={contact} onClick={() => go('class-person', contact.id)} />)}
+        </PageGroup>
+        <PageGroup title="Classmates">
+          {contacts.filter((contact) => contact.role === 'Classmate').map((contact) =>
+            <PersonRow key={contact.id} person={contact} onClick={() => go('class-person', contact.id)} />)}
+        </PageGroup>
       </>;
     }
     case 'relationships':
-    case 'family-tree':
+    case 'family-tree': {
+      const friends = life.schoolContacts.filter((contact) => contact.friend);
       return <>
         <PageGroup title="Parents">
           {family.map((relative) => <PersonRow key={relative.id} person={relative} onClick={() => go('person', relative.id)} />)}
         </PageGroup>
+        {page === 'relationships' && friends.length > 0 && <PageGroup title="Friends">
+          {friends.map((friend) => <PersonRow key={friend.id} person={friend} onClick={() => go('person', friend.id)} />)}
+        </PageGroup>}
         {page === 'relationships'
           ? <PageGroup title="Family records"><MenuRow icon="tree" title="Family Tree" detail="See your place in the family." onClick={() => go('family-tree')} /></PageGroup>
           : <PageGroup title="You"><MenuRow icon="person" title={`${character.firstName} ${character.lastName}`} detail={`Born ${character.birthYear}`} /></PageGroup>}
       </>;
+    }
     case 'person':
-    case 'person-info': {
-      if (!person) return <p className="play-empty">This family member is unavailable.</p>;
-      const parent = person;
-      if (page === 'person-info') return <>
-        <PageGroup title="About"><PersonRow person={parent} />
+    case 'person-info':
+    case 'class-person':
+    case 'class-person-info': {
+      if (!person) return <p className="play-empty">This character is unavailable.</p>;
+      const contact = person;
+      if (page === 'person-info' || page === 'class-person-info') return <>
+        <PageGroup title="About"><PersonRow person={contact} />
           <Rows items={[
-            { label: parent.alive ? 'Age' : 'Age at death', value: parent.age },
-            { label: 'City', value: parent.city }, { label: 'Occupation', value: parent.occupation },
-            { label: 'Health', value: `${parent.health}%` },
+            { label: contact.alive ? 'Age' : 'Age at death', value: contact.age },
+            { label: 'City', value: contact.city }, { label: 'Occupation', value: contact.occupation },
+            { label: 'Health', value: `${contact.health}%` },
           ]} />
         </PageGroup>
         <PageGroup title="Your bond">
-          <Rows items={Object.entries(parent.bond).map(([label, value]) => ({
+          <Rows items={Object.entries(contact.bond).map(([label, value]) => ({
             label: label.charAt(0).toUpperCase() + label.slice(1), value: `${value}%`,
           }))} />
         </PageGroup>
       </>;
-      const issue = blocked ?? talkIssue(life, parent.id);
+      const issue = blocked ?? talkIssue(life, contact.id);
+      const canBefriend = 'stage' in contact && contact.role === 'Classmate' && !contact.friend;
+      const friendshipIssue = canBefriend ? blocked ?? befriendIssue(life, contact.id) : null;
       return <>
         <PageGroup title="Character">
-          <PersonRow person={parent} />
-          <MenuRow icon="person" title="View Profile" detail="See age, occupation, health, and your bond." onClick={() => go('person-info', parent.id)} />
+          <PersonRow person={contact} />
+          <MenuRow icon="person" title="View Profile" detail="See age, occupation, health, and your bond."
+            onClick={() => go(page === 'class-person' ? 'class-person-info' : 'person-info', contact.id)} />
         </PageGroup>
         <PageGroup title="Interactions">
           <MenuRow icon="talk" title="Have a Conversation" detail={issue ?? 'Uses 8 energy. Strengthens affection and trust.'}
-            disabled={busy || !!issue} onClick={() => void dispatch({ type: 'talk', person: parent.id })} />
+            disabled={busy || !!issue} onClick={() => void dispatch({ type: 'talk', person: contact.id })} />
+          {canBefriend && <MenuRow icon="relationships" title="Become Friends"
+            detail={friendshipIssue ?? `Uses ${friendshipEnergyCost} energy. Adds this person to Relationships.`}
+            disabled={busy || !!friendshipIssue} onClick={() => void dispatch({ type: 'befriend', person: contact.id })} />}
         </PageGroup>
       </>;
     }
