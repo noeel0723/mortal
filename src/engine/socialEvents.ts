@@ -1,6 +1,7 @@
 import { jobById } from '../data/jobs.ts';
 import { skills } from '../data/skills.ts';
 import { socialEventCatalog } from '../data/socialEvents.ts';
+import { datingAgeOptions, datingWorthOptions } from './dating.ts';
 import { recordNotice } from './eventNotices.ts';
 import { answerIntimacy, isIntimacyEvent, prepareIntimacy } from './intimacy.ts';
 import { clamp, record } from './journal.ts';
@@ -69,13 +70,17 @@ function queueSocialEvent(life: Life, id: SocialEventId, person: string) {
 export function applyDatingMatch(life: Life, action: Extract<SocialAction, { type: 'dating-match' }>) {
   const issue = loveIssue(life, action);
   if (issue) return issue;
-  const { source } = action;
+  const { source, preferences } = action;
   const random = npcRandom(life, `match:${source}`, life.year);
-  const person = makeNpc(life, `npc-dating-${life.year}`, Math.min(114,
-    Math.max(source === 'spotlight' ? 22 : 18, life.character.age + random.integer(-4, 4))), 'Acquaintance');
+  const age = preferences && datingAgeOptions[preferences.age];
+  const matchAge = age && 'range' in age ? random.integer(age.range[0], age.range[1]) :
+    Math.min(114, Math.max(source === 'spotlight' ? 22 : 18, life.character.age + random.integer(-4, 4)));
+  const person = makeNpc(life, `npc-dating-${life.year}`, matchAge, 'Acquaintance');
   life.social.people.push(person);
   relationshipMemory(life, person.id, 'meeting', 2);
   const profile = ensureNpc(life, person);
+  const worth = preferences && datingWorthOptions[preferences.netWorth];
+  if (worth && 'range' in worth) profile.savings = random.integer(worth.range[0], worth.range[1]) + profile.commitments;
   profile.preferences = [...new Set([life.character.gender, ...(source === 'lgbtq' ? [person.gender] : profile.preferences)])];
   if (source === 'spotlight') {
     const job = jobById.get('graphic-designer')!;

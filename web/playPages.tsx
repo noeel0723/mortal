@@ -19,6 +19,8 @@ import { industries } from '../src/engine/careerTypes';
 import { currentClass, findContact, isPeer, isSchoolStage } from '../src/engine/school';
 import { romanceLabels } from '../src/engine/love';
 import { intimacyGuests, intimacyIssue } from '../src/engine/intimacy';
+import { isDatingApp } from '../src/engine/dating';
+import type { DatingAppSource } from '../src/engine/dating';
 import { childParents, datingCandidates, datingControls, datingSummary, familyTreeGroups, meetingControls, relationshipCareControls,
   relationshipControls, relationshipGroups, relationshipOverview } from '../src/socialView';
 import { canEditFace } from '../src/engine/appearance';
@@ -47,6 +49,7 @@ import { cityFromSlug, cityReport, compareCities, currentNews, industryReport, r
 import { Achievements, Settings } from './menu';
 import { AppearancePage, Portrait } from './portraits';
 import { DetailDialog } from './detailDialog';
+import { DatingDialog } from './datingDialog';
 import { Button, Feedback, Icon, Rows } from './ui';
 
 export const pageTitles = {
@@ -518,13 +521,22 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
   life: Life; page: DetailPage; person?: Contact; detail?: string; go: Navigate; home: () => void; newLife: () => void;
 }) {
   const { busy, dispatch, save } = useGame();
+  const [datingApp, setDatingApp] = useState<DatingAppSource>();
   const { character } = life;
   const job = life.career.current;
   const canFindJob = character.age >= workAge && !character.causeOfDeath && life.career.retiredYear === null;
   const activityRow = (item: ActivityControl) => <MenuRow key={item.label} icon={item.icon} title={item.label}
     detail={item.issue ?? item.detail} disabled={busy || !!item.issue}
     opensDialog={item.action.type === 'dating-match' || item.action.type === 'intimacy'}
-    onClick={() => void dispatch(item.action)} />;
+    onClick={() => {
+      if (item.action.type === 'dating-match' && isDatingApp(item.action.source)) setDatingApp(item.action.source);
+      else void dispatch(item.action);
+    }} />;
+  const datingDialog = datingApp && <DatingDialog key={datingApp} source={datingApp} life={life} busy={busy}
+    onClose={() => setDatingApp(undefined)} search={(preferences) => {
+      setDatingApp(undefined);
+      void dispatch({ type: 'dating-match', source: datingApp, preferences });
+    }} />;
 
   switch (page) {
     case 'career':
@@ -730,12 +742,12 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           {prospects.map((person) => <PersonRow key={person.id} life={life} person={person} onClick={() => go('person', person.id)} />)}
         </PageGroup>}
         <PageGroup title="Dating">
-          {meetingControls(life, true).map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label}
-            detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onClick={() => void dispatch(item.action)} />)}
+          {meetingControls(life, true).map(activityRow)}
           <MenuRow icon="support" title="Ask Someone Out" detail={character.age < 18 ? 'Dating opens at age 18.' : undefined}
             disabled={character.age < 18} onClick={() => go('dating-profiles')} />
           <MenuRow icon="history" title="Relationship History" onClick={() => go('relationship-history')} />
         </PageGroup>
+        {datingDialog}
       </>;
     }
     case 'dating-profiles': {
@@ -906,10 +918,13 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       </>;
     case 'love': {
       const issue = intimacyIssue(life, { encounter: 'threesome' });
-      return <PageGroup title="Dating">{datingControls(life).map(activityRow)}
-        <MenuRow icon="classroom" title="Threesome" detail={issue ?? 'Choose two adults to invite.'}
-          disabled={busy || !!issue} onClick={() => go('threesome')} />
-      </PageGroup>;
+      return <>
+        <PageGroup title="Dating">{datingControls(life).map(activityRow)}
+          <MenuRow icon="classroom" title="Threesome" detail={issue ?? 'Choose two adults to invite.'}
+            disabled={busy || !!issue} onClick={() => go('threesome')} />
+        </PageGroup>
+        {datingDialog}
+      </>;
     }
     case 'threesome':
       return <GroupEncounter life={life} />;

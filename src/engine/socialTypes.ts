@@ -1,4 +1,5 @@
 import type { City, Gender, Person } from './types.ts';
+import type { DatingPreferences } from './dating.ts';
 import type { RelationshipCareAction, RelationshipState } from './relationshipTypes.ts';
 
 export const traits = ['ambition', 'loyalty', 'empathy', 'sociability', 'discipline', 'confidence', 'temperament', 'materialism', 'riskTolerance'] as const;
@@ -40,7 +41,7 @@ export type SocialAction =
   | IntimacyAction
   | RelationshipCareAction
   | { type: 'meet'; source: 'neighborhood' | 'hobbies' | 'date' | 'app' }
-  | { type: 'dating-match'; source: DatingSource }
+  | { type: 'dating-match'; source: DatingSource; preferences?: DatingPreferences }
   | { type: 'romance'; person: string; action: 'interest' | 'ask' | 'propose' | 'breakup' | 'divorce' | typeof romanticActivities[number] }
   | { type: 'wedding'; person: string; plan: 'civil' | 'gathering' | 'celebration' }
   | { type: 'plan-child'; person: string; method: 'family' | 'adoption'; name?: string }

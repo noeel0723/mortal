@@ -2,7 +2,7 @@ import { useEffect, useId, useRef } from 'react';
 import type { ReactNode } from 'react';
 
 export function DetailDialog({ title, onDismiss, children, eventKey, special, identity }: {
-  title: string; onDismiss?: () => void; children: ReactNode; eventKey?: string; special?: 'enjoyment' | 'death'; identity?: ReactNode;
+  title: string; onDismiss?: () => void; children: ReactNode; eventKey?: string; special?: 'enjoyment' | 'death' | 'match'; identity?: ReactNode;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);

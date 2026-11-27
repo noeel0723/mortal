@@ -9,7 +9,7 @@ import type { Emoji } from '../src/theme/tokens';
 import { useGame } from './browserStore';
 import { PageMeter, PlayPage, PlayPageHeader, backgroundPage } from './playPages';
 import type { GamePage, Navigate } from './playPages';
-import { Button, Feedback, Icon } from './ui';
+import { Button, Feedback, Icon, Rows } from './ui';
 import { DetailDialog } from './detailDialog';
 import { Portrait } from './portraits';
 
@@ -154,6 +154,12 @@ export function Play({ life, page, personId, go, home, newLife }: {
         {!popup.special && <div className="event-category"><Icon name={popup.category.icon} />{popup.meter ? 'Activity result' : popup.category.label}</div>}
         <p className="event-story">{popup.text}</p>
         {popup.cause && <p className="event-death-cause"><span>Cause of death</span><strong>{popup.cause}</strong></p>}
+        {popup.match?.netWorth && <div className="event-match-stat">
+          <Rows items={[{ label: 'Net Worth', value: popup.match.netWorth }]} />
+        </div>}
+        {popup.match?.looks !== undefined && <div className="event-result-meter">
+          <PageMeter label="Looks" value={popup.match.looks} />
+        </div>}
         {popup.enjoyment && <div className="event-enjoyment">
           {popup.enjoyment.map(({ key, label, value }) => <PageMeter key={key} label={label} value={value} />)}
         </div>}

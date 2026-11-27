@@ -1,12 +1,14 @@
 import { eventById } from './data/events.ts';
 import { eventTitle } from './engine/eventNotices.ts';
 import { eventStory } from './engine/library.ts';
+import { npcLooks, npcNetWorth } from './engine/dating.ts';
 import { isSocialEvent, socialEventText } from './engine/socialEvents.ts';
 import { visibleConcerns } from './engine/relationships.ts';
 import { findContact } from './engine/school.ts';
 import type { Appearance } from './engine/appearance.ts';
 import type { Action, Category, Life, ResultMeter } from './engine/types.ts';
 import type { Emoji } from './theme/tokens.ts';
+import { en, money } from './i18n/en.ts';
 
 const categories: Record<Category, { label: string; icon: Emoji }> = {
   life: { label: 'Life Event', icon: 'life' }, family: { label: 'Family', icon: 'family' },
@@ -23,22 +25,35 @@ type EventPopup = {
   actions: { label: string; icon: Emoji; action: Action; tone?: 'primary' | 'quiet'; destination?: 'summary' | 'journal' }[];
   dismiss?: Action;
   meter?: ResultMeter;
-  special?: 'enjoyment' | 'death';
+  special?: 'enjoyment' | 'death' | 'match';
   enjoyment?: { key: string; label: string; value: number }[];
   portrait?: { appearance: Appearance; name: string; age: number; role: string };
   cause?: string;
+  match?: { looks?: number; netWorth?: string };
 };
 
 export function eventPopup(life: Life): EventPopup | undefined {
   const event = life.pending ? eventById.get(life.pending) : undefined;
-  if (event?.choices?.length) return {
-    key: `decision-${event.id}`, title: event.id === 'social-affair' ? 'Caught Dating' :
-      event.id === 'social-hookup' ? 'Hook Up' : eventTitle(event.id.replace(/^social-/, '')),
-    text: isSocialEvent(event.id) ? socialEventText(life, event) : eventStory(life, event), category: categories[event.category],
-    actions: event.choices.filter((choice) => event.id !== 'social-affair' || choice.id !== 'space' ||
-      visibleConcerns(life, life.social.pendingPerson ?? '').some((entry) => entry.breach?.discovered)).map((choice) => ({ label: choice.label, icon: choice.emoji,
-      action: { type: 'choose', event: event.id, choice: choice.id } })),
-  };
+  if (event?.choices?.length) {
+    const hookup = event.id === 'social-hookup';
+    const person = (hookup || event.id === 'social-dating-match') ? findContact(life, life.social.pendingPerson ?? undefined) : undefined;
+    return {
+      key: `decision-${event.id}`, title: event.id === 'social-affair' ? 'Caught Dating' :
+        hookup ? 'Hook Up' : eventTitle(event.id.replace(/^social-/, '')),
+      text: person ? `${person.name} ${event.text}` : isSocialEvent(event.id) ? socialEventText(life, event) : eventStory(life, event),
+      category: categories[event.category],
+      ...(person && {
+        special: 'match',
+        portrait: { appearance: person.appearance, name: person.name, age: person.age, role: `${en.age(person.age)} · ${person.occupation}` },
+        match: hookup ? { looks: npcLooks(life, person) } : { netWorth: money(npcNetWorth(life, person)) },
+      }),
+      actions: event.choices.filter((choice) => event.id !== 'social-affair' || choice.id !== 'space' ||
+        visibleConcerns(life, life.social.pendingPerson ?? '').some((entry) => entry.breach?.discovered)).map((choice) => ({
+        label: choice.label, icon: choice.emoji, tone: person && choice.id === 'accept' ? 'primary' : undefined,
+        action: { type: 'choose', event: event.id, choice: choice.id },
+      })),
+    };
+  }
 
   const notice = life.notices[0];
   if (!notice) return;

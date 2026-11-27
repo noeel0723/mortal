@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Portrait } from '../../src/components/portrait';
+import { DatingOptions } from '../../src/components/datingOptions';
 import { ActionButton, Heading, Page, Section } from '../../src/components/ui';
 import { lifestyleActivities, mindAndBodyActivities, socialActivities, type ActivityControl } from '../../src/activityView';
 import { canEditFace } from '../../src/engine/appearance';
@@ -52,7 +53,7 @@ export default function Activities() {
         <Heading title={love ? 'Love' : 'Mind & Body'}
           back={() => router.canGoBack() ? router.back() : router.replace('/game/activities')} />
         <Section title={love ? 'Dating' : 'Wellbeing Activities'}>
-          {(love ? datingControls(life) : mindAndBodyActivities(life)).map(action)}
+          {love ? <DatingOptions life={life} controls={datingControls(life)} /> : mindAndBodyActivities(life).map(action)}
           {love && <ActionButton icon="classroom" label="Threesome" detail={groupIssue ?? 'Choose two adults to invite.'}
             disabled={busy || !!groupIssue}
             onPress={() => router.push({ pathname: '/game/activities', params: { screen: 'threesome' } })} />}

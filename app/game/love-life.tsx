@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { Text } from 'react-native';
 import { Portrait } from '../../src/components/portrait';
+import { DatingOptions } from '../../src/components/datingOptions';
 import { ActionButton, DataRow, Heading, Page, Section, shared } from '../../src/components/ui';
 import { romanceLabels } from '../../src/engine/love';
 import { findContact } from '../../src/engine/school';
@@ -10,7 +11,7 @@ import { useGame } from '../../src/stores/game';
 
 export default function LoveLife() {
   const { screen } = useLocalSearchParams<{ screen?: string }>();
-  const { slot, busy, dispatch } = useGame();
+  const slot = useGame((state) => state.slot);
   if (!slot) return null;
   const { life } = slot;
   const row = (person: Contact, detail?: string) => <ActionButton key={person.id} icon="person" label={person.name}
@@ -41,8 +42,7 @@ export default function LoveLife() {
     </Section>}
     {prospects.length > 0 && <Section title="Getting to Know Each Other">{prospects.map((person) => row(person))}</Section>}
     <Section title="Dating">
-      {meetingControls(life, true).map((item) => <ActionButton key={item.label} icon={item.icon} label={item.label}
-        detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onPress={() => void dispatch(item.action)} />)}
+      <DatingOptions life={life} controls={meetingControls(life, true)} />
       <ActionButton icon="support" label="Ask Someone Out" disabled={life.character.age < 18}
         onPress={() => router.push({ pathname: '/game/love-life', params: { screen: 'profiles' } })} />
       <ActionButton icon="history" label="Relationship History"

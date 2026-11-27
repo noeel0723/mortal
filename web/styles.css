@@ -184,6 +184,9 @@ p { color: var(--muted); line-height: 1.56; }
   background-repeat: no-repeat;
 }
 .field-grid input[readonly] { color: var(--muted); }
+.dating-filters { grid-template-columns: minmax(0, 1fr); }
+.dating-filters .rows { padding: 0 .65rem; border-radius: .55rem; background: var(--blue-soft); }
+.dating-filters .data-row { border-bottom: 0; }
 .portrait-fieldset { min-width: 0; margin: 0; padding: .7rem; border: 1px solid var(--line); border-radius: .75rem; }
 .portrait-fieldset legend { padding-inline: .35rem; color: var(--blue-dark); font-size: .92rem; font-weight: 740; }
 .portrait-editor { display: grid; min-width: 0; gap: .8rem; }
@@ -334,15 +337,17 @@ button.play-row:disabled .play-row-icon { background: #edf2f7; opacity: .65; }
 .event-question { margin: 0 0 .5rem; font-size: .89rem; font-weight: 750; }
 .event-options { display: grid; gap: .42rem; }
 .event-options .button { min-height: 2.75rem; justify-content: start; text-align: start; }
-.event-dialog--enjoyment, .event-dialog--death { border-top-width: 3px; }
+.event-dialog--enjoyment, .event-dialog--death, .event-dialog--match { border-top-width: 3px; }
 .event-dialog--death { border-top-color: #475b73; }
-.event-dialog--enjoyment .detail-dialog-header, .event-dialog--death .detail-dialog-header {
+:is(.event-dialog--enjoyment, .event-dialog--death, .event-dialog--match) .detail-dialog-header {
   padding: .7rem .9rem 0; border: 0; background: var(--white); justify-content: center; min-height: 0; text-align: center;
 }
-.event-dialog--enjoyment .detail-dialog-header h2, .event-dialog--death .detail-dialog-header h2 { font-size: 1.14rem; }
-.event-dialog--enjoyment .detail-dialog-body, .event-dialog--death .detail-dialog-body { padding: .7rem .95rem .95rem; }
-.event-dialog--enjoyment .event-story, .event-dialog--death .event-story { margin: 0 0 .75rem; text-align: center; font-size: .92rem; }
-.event-dialog--enjoyment .event-options .button, .event-dialog--death .event-options .button { justify-content: center; text-align: center; }
+:is(.event-dialog--enjoyment, .event-dialog--death, .event-dialog--match) .detail-dialog-header h2 { font-size: 1.14rem; }
+:is(.event-dialog--enjoyment, .event-dialog--death, .event-dialog--match) .detail-dialog-body { padding: .7rem .95rem .95rem; }
+:is(.event-dialog--enjoyment, .event-dialog--death, .event-dialog--match) .event-story { margin: 0 0 .75rem; text-align: center; font-size: .92rem; }
+:is(.event-dialog--enjoyment, .event-dialog--death, .event-dialog--match) .event-options .button { justify-content: center; text-align: center; }
+.event-match-stat { margin-bottom: .8rem; padding: 0 .65rem; border-radius: .55rem; background: var(--blue-soft); }
+.event-match-stat .data-row { border-bottom: 0; }
 .event-enjoyment { display: grid; gap: .45rem; margin-bottom: .8rem; padding: .58rem .68rem; background: #f4f9f8; border-radius: .6rem; }
 .event-enjoyment .play-meter { width: 100%; margin: 0; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr) 2.15rem; font-size: .78rem; }
 .event-enjoyment .play-meter > span:first-child { overflow-wrap: anywhere; }

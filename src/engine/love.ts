@@ -1,4 +1,5 @@
 import { recordNotice, resultMeter } from './eventNotices.ts';
+import { isDatingApp, validDatingPreferences } from './dating.ts';
 import { skills } from '../data/skills.ts';
 import { hobbyGroupContact, sharedHobbies } from './hobbies.ts';
 import { clamp } from './journal.ts';
@@ -109,6 +110,9 @@ export function loveIssue(life: Life, action: LoveAction): string | null {
   if (action.type === 'meet' || action.type === 'dating-match') {
     const match = action.type === 'dating-match';
     if (match && !datingSources.includes(action.source)) return 'Choose a dating activity.';
+    if (match && action.preferences !== undefined && (!isDatingApp(action.source) || !validDatingPreferences(action.preferences))) {
+      return 'Choose a valid age range and net worth.';
+    }
     const dating = match || action.source === 'date' || action.source === 'app';
     if (life.character.age < (dating ? 18 : 8)) return dating ? 'Dating opens at age 18.' : 'Available from age 8.';
     if (life.social.people.filter(({ role }) => role === 'Acquaintance').length >= newPeopleLimit - 8 &&

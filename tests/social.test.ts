@@ -3,6 +3,8 @@ import { localExpense } from '../src/engine/pricing.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decodeLife } from '../src/database/codec.ts';
+import { npcLooks, npcNetWorth } from '../src/engine/dating.ts';
+import type { DatingPreferences } from '../src/engine/dating.ts';
 import { eventById } from '../src/data/events.ts';
 import { jobById } from '../src/data/jobs.ts';
 import { createLife } from '../src/engine/create.ts';
@@ -129,9 +131,15 @@ test('Make Love works with a current partner or adult friend and respects a refu
 test('Hook Up keeps the match and choice through reload and remains a one-night encounter', () => {
   const action = { type: 'intimacy', encounter: 'hookup' } as const;
   const invited = decodeLife(JSON.stringify(act(adult(), action)));
-  assert.equal(eventPopup(invited)?.title, 'Hook Up');
   const id = invited.social.pendingPerson!;
-  assert.ok(findContact(invited, id)!.age >= 18);
+  const person = findContact(invited, id)!;
+  assert.ok(person.age >= 18);
+  const popup = eventPopup(invited);
+  assert.equal(popup?.title, 'Hook Up');
+  assert.deepEqual(popup.portrait, { appearance: person.appearance, name: person.name, age: person.age,
+    role: `Age ${person.age} · ${person.occupation}` });
+  assert.equal(popup.match?.looks, npcLooks(invited, person));
+  assert.ok(popup.match.looks! >= 0 && popup.match.looks! <= 100);
   const accepted = act(invited, { type: 'choose', event: 'social-hookup', choice: 'accept' });
   assert.equal(accepted.notices.at(-1)?.title, 'A Night Together');
   const result = eventPopup(decodeLife(JSON.stringify(accepted)));
@@ -145,6 +153,26 @@ test('Hook Up keeps the match and choice through reload and remains a one-night 
   const passed = act(invited, { type: 'choose', event: 'social-hookup', choice: 'pass' });
   assert.equal(passed.character.attributes.happiness, invited.character.attributes.happiness);
   assert.equal(passed.social.pendingPerson, null);
+});
+
+test('dating app preferences match adult ages and NPC net worth without debiting the player', () => {
+  const base = adult();
+  for (const source of ['app', 'lgbtq'] as const) {
+    const matched = act(base, { type: 'dating-match', source, preferences: { age: '65-74', netWorth: '1000-4999' } });
+    const person = findContact(matched, matched.social.pendingPerson!)!;
+    const netWorth = npcNetWorth(matched, person);
+    assert.ok(person.age >= 65 && person.age <= 74);
+    assert.ok(netWorth >= 100000 && netWorth <= 499999);
+    assert.deepEqual(matched.transactions, base.transactions);
+    if (source === 'lgbtq') assert.ok(ensureNpc(matched, person).preferences.includes(person.gender));
+    const popup = eventPopup(matched);
+    assert.equal(popup?.portrait?.age, person.age);
+    assert.deepEqual(popup?.portrait?.appearance, person.appearance);
+    assert.deepEqual(eventPopup(decodeLife(JSON.stringify(matched))), popup);
+  }
+  const preferences = { age: '12-17', netWorth: 'any' } as unknown as DatingPreferences;
+  assert.match(advance(base, { type: 'dating-match', source: 'app', preferences }).error ?? '', /valid age range/);
+  assert.match(advance(base, { type: 'dating-match', source: 'date', preferences: { age: 'any', netWorth: 'any' } }).error ?? '', /valid age range/);
 });
 
 test('a group invitation validates both saved adults and requires both to consent', () => {

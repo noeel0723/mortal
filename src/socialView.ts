@@ -7,8 +7,8 @@ import { activeFor, agreementFor, agreementLabels, careIssue, concernLabels, cou
 import type { MemoryKind, RelationshipCareAction } from './engine/relationshipTypes.ts';
 import { findContact, isCurrentClassContact, isPeer } from './engine/school.ts';
 import { isWorkAcquaintance, isWorkContact } from './engine/workplace.ts';
-import { datingSources } from './engine/socialTypes.ts';
-import type { DatingSource, IntimacyAction, SocialAction } from './engine/socialTypes.ts';
+import type { DatingAppSource } from './engine/dating.ts';
+import type { IntimacyAction, SocialAction } from './engine/socialTypes.ts';
 import type { Contact, Life } from './engine/types.ts';
 import { en, money } from './i18n/en.ts';
 import type { Emoji } from './theme/tokens.ts';
@@ -160,27 +160,30 @@ export function relationshipCareControls(life: Life, person: Contact): Control[]
   return rows;
 }
 
-const datingActivities: Record<DatingSource, { label: string; icon: Emoji; detail: string }> = {
-  spotlight: { label: 'Spotlight Dating', icon: 'star', detail: 'Get matched with a local public figure.' },
-  date: { label: 'Find a Date', icon: 'health', detail: 'Meet someone at a singles event.' },
-  app: { label: 'Dating App', icon: 'datingPhone', detail: 'Find a match nearby.' },
-  lgbtq: { label: 'LGBTQ+ Dating', icon: 'pride', detail: 'Meet a match through an LGBTQ+ dating app.' },
-  casual: { label: 'Casual Date', icon: 'rose', detail: 'Share an evening without committing to a relationship.' },
-  matchmaking: { label: 'Matchmaking', icon: 'loveLetter', detail: 'Let a local matchmaker introduce you.' },
+export const datingApps: Record<DatingAppSource, { label: string; icon: Emoji }> = {
+  app: { label: 'Dating App', icon: 'datingPhone' },
+  lgbtq: { label: 'LGBTQ+ Dating', icon: 'pride' },
 };
 
-export function datingControls(life: Life) {
-  const dating = datingSources.map((source) => {
-    const { label, icon, detail } = datingActivities[source];
-    return love(life, { type: 'dating-match', source }, label, icon, detail);
+function datingAppControls(life: Life) {
+  return (['app', 'lgbtq'] as const).map((source) => {
+    const { label, icon } = datingApps[source];
+    return love(life, { type: 'dating-match', source }, label, icon, 'Set your preferences and find a match.');
   });
-  return [...dating, intimacy(life, { type: 'intimacy', encounter: 'hookup' }, 'Hook Up', 'night', 'Meet an adult interested in a one-night stand.')];
+}
+
+export function datingControls(life: Life) {
+  return [
+    love(life, { type: 'dating-match', source: 'date' }, 'Find a Date', 'health', 'Meet someone at a singles event.'),
+    ...datingAppControls(life),
+    intimacy(life, { type: 'intimacy', encounter: 'hookup' }, 'Hook Up', 'night', 'Meet an adult interested in a one-night stand.'),
+  ];
 }
 
 export function meetingControls(life: Life, romantic: boolean) {
   return romantic ? [
     love(life, { type: 'meet', source: 'date' }, 'Find a Date', 'rose', 'Meet someone at a singles event.'),
-    love(life, { type: 'meet', source: 'app' }, 'Dating App', 'loveLetter', 'Get introduced to a local profile.'),
+    ...datingAppControls(life),
   ] : [
     love(life, { type: 'meet', source: 'neighborhood' }, 'Meet a Neighbor', 'location'),
     love(life, { type: 'meet', source: 'hobbies' }, 'Join a Hobby Group', 'art'),

@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { Redirect, Slot, router, usePathname } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ActionButton, Feedback, Loading } from '../../src/components/ui';
+import { ActionButton, DataRow, Feedback, Loading } from '../../src/components/ui';
 import { DetailMeter, DetailModal } from '../../src/components/detailModal';
 import { Portrait } from '../../src/components/portrait';
 import { educationTab } from '../../src/educationView';
@@ -76,6 +76,8 @@ export default function GameLayout() {
         <Text style={[styles.eventStory, !!popup.special && styles.center]}>{popup.text}</Text>
         {popup.cause && <View style={styles.deathCause}><Text style={[styles.identityRole, styles.center]}>Cause of death</Text>
           <Text style={[styles.identityName, styles.center]}>{popup.cause}</Text></View>}
+        {popup.match?.netWorth && <View style={styles.matchStat}><DataRow label="Net Worth" value={popup.match.netWorth} /></View>}
+        {popup.match?.looks !== undefined && <View style={styles.result}><DetailMeter label="Looks" value={popup.match.looks} /></View>}
         {popup.enjoyment && <View style={[styles.result, styles.enjoyment]}>
           {popup.enjoyment.map(({ key, label, value }) => <DetailMeter key={key} label={label} value={value} enjoyment />)}
         </View>}
@@ -108,6 +110,7 @@ const styles = StyleSheet.create({
   identityName: { color: colors.ink, fontSize: 14, fontWeight: '700' },
   identityRole: { color: colors.muted, fontSize: 12 },
   deathCause: { gap: 2, marginBottom: space.xs },
+  matchStat: { paddingHorizontal: space.sm, backgroundColor: colors.softBlue, borderRadius: radius.sm },
   enjoyment: { backgroundColor: '#F4F9F8', gap: 6 },
   result: { padding: space.md, gap: space.xs, backgroundColor: colors.softBlue, borderRadius: radius.sm },
   resultChange: { color: colors.action, fontSize: 12, fontWeight: '700', alignSelf: 'flex-end' },
