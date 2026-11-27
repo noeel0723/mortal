@@ -129,7 +129,7 @@ test('opening a legacy student save generates the current roster without losing 
   const life = ageTo(7);
   const legacy = JSON.stringify({ ...life, version: 1, academic: undefined, schoolContacts: undefined });
   const restored = decodeLife(legacy);
-  assert.equal(restored.version, 9);
+  assert.equal(restored.version, 10);
   assert.deepEqual(restored.schoolContacts, life.schoolContacts);
   assert.deepEqual(restored.character, life.character);
   assert.deepEqual(restored.journal, life.journal);

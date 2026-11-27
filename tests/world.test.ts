@@ -141,7 +141,7 @@ test('V8 migration starts neutral and preserves a live offer, progression, recor
   const snapshot = { ...before, version: 8, world: undefined, character: { ...before.character, birthCity: undefined },
     property: { ...before.property, owned: before.property.owned.map(({ id, year, source }) => ({ id, year, source })) } };
   const restored = decodeLife(JSON.stringify(snapshot));
-  assert.equal(restored.version, 9);
+  assert.equal(restored.version, 10);
   assert.equal(restored.world.history.length, 1);
   assert.equal(national(restored.world).priceIndex, indexBase);
   assert.equal(national(restored.world).inflation, 0);

@@ -2,11 +2,12 @@ import { router } from 'expo-router';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { ActionButton, Feedback, Heading, Page, Section, shared } from '../src/components/ui';
 import type { SaveSummary } from '../src/database/repository';
+import { pickSaveFile, shareSaveFile } from '../src/database/nativePortableSave';
 import { useGame } from '../src/stores/game';
 import { colors, emoji, space } from '../src/theme/tokens';
 
 export default function SavedLives() {
-  const { saves, ready, busy, problem, notice, open, remove } = useGame();
+  const { saves, ready, busy, problem, notice, open, remove, importSave, exportSave } = useGame();
   async function load(item: SaveSummary) {
     if (await open(item.id)) router.replace(item.completed ? '/game/summary' : '/game');
   }
@@ -23,6 +24,7 @@ export default function SavedLives() {
         <Text style={shared.small}>{item.city} · Age {item.age} · {item.year}</Text>
       </View>
       <ActionButton compact icon={item.completed ? 'history' : 'load'} label={`Open ${item.name}’s life`} disabled={busy} onPress={() => void load(item)} />
+      <ActionButton compact icon="download" label="Export" disabled={busy} onPress={() => void exportSave(item.id, shareSaveFile)} />
       <ActionButton compact icon="delete" label={`Delete ${item.name}’s life`} variant="plain" disabled={busy} onPress={() => confirm(item)} />
     </View>
   ));
@@ -30,6 +32,7 @@ export default function SavedLives() {
     <Page>
       <Heading title="Saved Lives" subtitle="Stored on this device." back={() => router.dismissTo('/')} />
       <Feedback error={problem} notice={notice} />
+      <ActionButton icon="upload" label="Import Save" detail="Adds a new life to this device." disabled={busy} onPress={() => void importSave(pickSaveFile)} />
       {ready && !saves.length && <Text style={shared.body}>Start a new life and it will appear here.</Text>}
       {saves.some((item) => !item.completed) && <Section title="In progress">{group(saves.filter((item) => !item.completed))}</Section>}
       {saves.some((item) => item.completed) && <Section title="Completed">{group(saves.filter((item) => item.completed))}</Section>}

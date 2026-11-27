@@ -22,7 +22,11 @@ import { childParents, datingCandidates, datingSummary, familyTreeGroups, meetin
 import { canEditFace } from '../src/engine/appearance';
 import { propertyIssue, propertyQuote } from '../src/engine/property';
 import { assetArt } from '../src/portraits/assetArt';
-import { housingControls, listingsFor, ownedListings, ownershipDetail, propertyCategories, residenceLabel, shoppingCategory } from '../src/propertyView';
+import { assetDetails, housingControls, listingsFor, ownedListings, ownershipDetail, propertyCategories, residenceLabel, shoppingCategory } from '../src/propertyView';
+import { estate } from '../src/engine/wealth';
+import { instrumentNames } from '../src/engine/investments';
+import { estateHistory, estateRows, familyMilestoneRows, finalAssetRows, finalSkillRows, findFund, funds, fundView, loanView, parseCashAmount, retirementView, savingsControls, savingsHistory, savingsRows } from '../src/wealthView';
+import type { FinanceControl } from '../src/wealthView';
 import { activeCoworkers } from '../src/engine/workplace';
 import type { HealthService } from '../src/engine/healthTypes';
 import { careSections, careSelection, careServices, profileHealthRows } from '../src/healthView';
@@ -32,7 +36,7 @@ import {
 } from '../src/educationView';
 import type { EducationControl } from '../src/educationView';
 import { stats } from '../src/engine/types';
-import type { City, Contact, Life } from '../src/engine/types';
+import type { Action, City, Contact, Life } from '../src/engine/types';
 import { en, money, statLabels } from '../src/i18n/en';
 import type { Emoji } from '../src/theme/tokens';
 import { useGame } from './browserStore';
@@ -78,7 +82,17 @@ export const pageTitles = {
   'shop-item': 'Listing',
   housing: 'Housing',
   'owned-assets': 'Owned Assets',
+  properties: 'Properties',
+  vehicles: 'Vehicles',
+  'asset-records': 'Ownership History',
+  'owned-detail': 'Asset Details',
   finances: 'Finances',
+  banking: 'Savings Account',
+  loans: 'Loans & Debts',
+  retirement: 'Retirement',
+  investments: 'Investments',
+  fund: 'Holding',
+  transactions: 'Transaction History',
   activities: 'Activities',
   doctor: 'Doctors',
   appearance: 'Appearance',
@@ -137,6 +151,16 @@ const parentPages: Partial<Record<DetailPage, GamePage>> = {
   'shop-item': 'shop-category',
   housing: 'assets',
   'owned-assets': 'assets',
+  properties: 'assets',
+  vehicles: 'assets',
+  'asset-records': 'owned-assets',
+  'owned-detail': 'owned-assets',
+  banking: 'assets',
+  loans: 'assets',
+  retirement: 'assets',
+  investments: 'assets',
+  transactions: 'assets',
+  fund: 'investments',
   appearance: 'activities',
   doctor: 'activities',
   skills: 'statistics',
@@ -155,11 +179,17 @@ export function PlayPageHeader({ page, person, schoolTitle, detail, go }: {
   page: DetailPage; person?: Contact; schoolTitle?: string; detail?: string; go: Navigate;
 }) {
   let parent = parentPages[page] ?? 'journal';
+  if (page === 'owned-detail') {
+    const section = detail?.split('~')[1];
+    if (section === 'properties' || section === 'vehicles' || section === 'asset-records') parent = section;
+  }
   if (page === 'education' && schoolTitle) parent = 'journal';
   const trainingCategory = page === 'skill' ? skillCategory(detail?.split('~')[1]) : undefined;
   if (trainingCategory) parent = 'skill-training';
   const parentDetail = page === 'shop-item' ? assetById.get(detail ?? '')?.kind : trainingCategory;
   const titleFor = (target: GamePage, value?: string) => {
+    const instrument = target === 'fund' ? findFund(value) : undefined;
+    if (instrument) return instrumentNames[instrument];
     if (target === 'education' && schoolTitle) return schoolTitle;
     if (target === 'world-city') return cityFromSlug(value) ?? pageTitles[target];
     if (target === 'shop-category') {
@@ -329,22 +359,109 @@ function JobListings({ life, go }: { life: Life; go: Navigate }) {
   </>;
 }
 
-function Finances({ life }: { life: Life }) {
+function Finances({ life, historyOnly = false }: { life: Life; historyOnly?: boolean }) {
   const [year, setYear] = useState<number | null>(life.year);
   const entries = financeEntries(life, year);
   return <>
-    <PageGroup title={`Financial overview · ${year ?? life.year}`}>
+    {!historyOnly && <PageGroup title="Current Net Worth"><Rows items={estateRows(life)} /></PageGroup>}
+    <PageGroup title={historyOnly ? 'Filter' : `Financial overview · ${year ?? life.year}`}>
       <div className="play-group-inset field-grid">
         <label>Transaction year<select value={year ?? ''} onChange={(event) => setYear(event.target.value ? Number(event.target.value) : null)}>
           <option value="">All years</option>{financeYears(life).map((option) => <option key={option}>{option}</option>)}
         </select></label>
       </div>
-      <Rows items={financeOverview(life, year ?? life.year)} />
+      {!historyOnly && <Rows items={financeOverview(life, year ?? life.year)} />}
     </PageGroup>
     <PageGroup title="Transactions">
-      {entries.length ? entries.map((item, index) => <MenuRow key={index} title={item.label} detail={`${item.year} · ${item.group}`} value={money(item.amount)} />) :
+      {entries.length ? entries.map((item, index) => <MenuRow key={index} title={item.label} detail={`${item.year} · ${item.group}`} value={money(item.displayAmount)} />) :
         <p className="play-empty">No transactions yet.</p>}
     </PageGroup>
+    {!historyOnly && estateHistory(life).length > 0 && <PageGroup title="Annual Valuations"><Rows items={estateHistory(life)} /></PageGroup>}
+  </>;
+}
+
+function FinanceConfirm({ selection, close }: { selection: { label: string; detail?: string; action: Action }; close: () => void }) {
+  const { busy, dispatch } = useGame();
+  return <DetailDialog title={selection.label} onDismiss={close}>
+    {selection.detail && <p>{selection.detail}</p>}
+    <Button icon="accept" kind="primary" disabled={busy} onClick={() => {
+      close();
+      void dispatch(selection.action);
+    }}>Confirm</Button>
+  </DetailDialog>;
+}
+
+function WealthPage({ life, page, detail, go }: { life: Life; page: 'banking' | 'loans' | 'retirement' | 'investments' | 'fund'; detail?: string; go: Navigate }) {
+  const [amount, setAmount] = useState('');
+  const [selected, select] = useState<{ label: string; detail?: string; action: Action } | null>(null);
+  const busy = useGame((state) => state.busy);
+  const rows = (controls: FinanceControl[]) => controls.map((item) => <MenuRow key={item.label} title={item.label} icon={item.icon}
+    detail={item.issue ?? item.detail} disabled={busy || !!item.issue} opensDialog onClick={() => select(item)} />);
+  const modal = selected && <FinanceConfirm selection={selected} close={() => select(null)} />;
+  if (page === 'banking') {
+    const history = savingsHistory(life);
+    return <>
+      <PageGroup title="Account"><Rows items={savingsRows(life)} /></PageGroup>
+      <PageGroup title="Transfer">
+        <div className="play-group-inset field-grid"><label>Amount in dollars<input type="text" inputMode="decimal" maxLength={11} placeholder="0.00"
+          value={amount} disabled={busy} onChange={(event) => setAmount(event.target.value)} /></label></div>
+        {rows(savingsControls(life, parseCashAmount(amount)))}
+      </PageGroup>
+      {history.length > 0 && <PageGroup title="Savings History"><Rows items={history} /></PageGroup>}
+      {modal}
+    </>;
+  }
+  if (page === 'loans') {
+    const model = loanView(life);
+    return <>
+      <PageGroup title="Credit"><Rows items={model.credit} /></PageGroup>
+      {model.offer ? <PageGroup title="Fixed-Rate Loan Offer"><Rows items={model.offer.rows} />{rows(model.offer.controls)}</PageGroup> :
+        <PageGroup title="Apply for a Personal Loan">{rows(model.applications)}</PageGroup>}
+      {model.loans.map((item) => <PageGroup key={item.title} title={item.title}>
+        <Rows items={item.rows} />{rows(item.controls)}{!!item.history.length && <Rows items={item.history} />}
+      </PageGroup>)}
+      {modal}
+    </>;
+  }
+  if (page === 'retirement') {
+    const model = retirementView(life);
+    const action = { type: 'retire' } as const;
+    const control = careerControl(life, action, 'Retire', 'retire');
+    return <>
+      <PageGroup title="Veyra Pension"><Rows items={model.rows} />
+        {life.career.retiredYear === null && <MenuRow title="Retire" icon="retire" detail={control.issue ?? 'Ends employment and opens eligible pension payments.'}
+          disabled={busy || !!control.issue} opensDialog onClick={() => select({ label: 'Retire', detail: 'This ends employment permanently.', action })} />}
+      </PageGroup>
+      {model.history.length > 0 && <PageGroup title="Contribution History"><Rows items={model.history} /></PageGroup>}
+      {modal}
+    </>;
+  }
+  if (page === 'fund') {
+    const instrument = findFund(detail);
+    if (!instrument) return <p className="play-empty">This fund is unavailable.</p>;
+    const model = fundView(life, instrument);
+    return <><PageGroup title="Holding"><Rows items={model.rows} /></PageGroup><PageGroup title="Buy Units">{rows(model.buy)}</PageGroup>
+      {!!model.sell.length && <PageGroup title="Sell Units">{rows(model.sell)}</PageGroup>}{modal}</>;
+  }
+  return <PageGroup title="Veyra Funds">{funds(life).map((item) => <MenuRow key={item.id} title={item.name} icon={item.icon}
+    detail={item.detail} onClick={() => go('fund', item.id)} />)}</PageGroup>;
+}
+
+function OwnedDetail({ life, id }: { life: Life; id?: string }) {
+  const [selected, select] = useState<{ label: string; detail?: string; action: Action } | null>(null);
+  const busy = useGame((state) => state.busy);
+  const item = ownedListings(life, true).find(({ ownershipId }) => ownershipId === id);
+  if (!item) return <p className="play-empty">This ownership record is unavailable.</p>;
+  const details = assetDetails(life, item);
+  return <>
+    <PageGroup title={item.listing.name}>
+      <div className="asset-preview"><AssetImage listing={item.listing} large /></div><Rows items={details.displayRows} />
+    </PageGroup>
+    {!!details.rentalRows.length && <PageGroup title="Rental"><Rows items={details.rentalRows} /></PageGroup>}
+    {!!details.controls.length && <PageGroup title="Manage">{details.controls.map((control) => <MenuRow key={control.label} title={control.label} icon={control.icon}
+      detail={control.issue ?? control.detail} disabled={busy || !!control.issue} opensDialog onClick={() => select(control)} />)}</PageGroup>}
+    {!!details.history.length && <PageGroup title="Ownership History"><Rows items={details.history} /></PageGroup>}
+    {selected && <FinanceConfirm selection={selected} close={() => select(null)} />}
   </>;
 }
 
@@ -656,13 +773,21 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
     case 'assets':
       return <>
         <PageGroup title="Banking">
-          <MenuRow icon="bank" title="Finances" detail="Bank balance and transaction history."
-            value={money(character.bank)} onClick={() => go('finances')} />
-          <MenuRow icon="assets" title="Owned Assets" value={String(life.property.owned.length)} onClick={() => go('owned-assets')} />
+          <MenuRow icon="bank" title="Finances" detail="Net worth" value={money(estate(life).total)} onClick={() => go('finances')} />
+          <MenuRow icon="savings" title="Savings Account" value={money(life.wealth.savings)} onClick={() => go('banking')} />
+          <MenuRow icon="work" title="Loans & Debts" onClick={() => go('loans')} />
+          <MenuRow icon="assets" title="Owned Assets" value={String(ownedListings(life).length)} onClick={() => go('owned-assets')} />
+          <MenuRow icon="history" title="Transaction History" onClick={() => go('transactions')} />
         </PageGroup>
         <PageGroup title="Property and vehicles">
+          <MenuRow icon="home" title="Properties" onClick={() => go('properties')} />
+          <MenuRow icon="car" title="Vehicles" onClick={() => go('vehicles')} />
           <MenuRow icon="home" title="Housing" detail={residenceLabel(life)} onClick={() => go('housing')} />
           <MenuRow icon="cart" title="Shopping" detail="Browse houses, cars, and motorcycles." onClick={() => go('shopping')} />
+        </PageGroup>
+        <PageGroup title="Long-Term Finances">
+          <MenuRow icon="retire" title="Retirement" onClick={() => go('retirement')} />
+          <MenuRow icon="harder" title="Investments" onClick={() => go('investments')} />
         </PageGroup>
       </>;
     case 'housing':
@@ -693,17 +818,26 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           disabled={busy || !!issue} onClick={() => void dispatch(action)} />
       </PageGroup>;
     }
-    case 'owned-assets': {
-      const owned = ownedListings(life);
-      return owned.length ? assetKinds.map((kind) => {
+    case 'owned-assets': case 'properties': case 'vehicles': case 'asset-records': {
+      const owned = ownedListings(life, page === 'asset-records').filter(({ listing }) =>
+        page === 'properties' ? listing.kind === 'houses' : page === 'vehicles' ? listing.kind !== 'houses' : true);
+      return <>{owned.length ? assetKinds.map((kind) => {
         const entries = owned.filter(({ listing }) => listing.kind === kind);
         return entries.length ? <PageGroup key={kind} title={propertyCategories[kind].label}>{entries.map((item) =>
-          <MenuRow key={item.id} avatar={<AssetImage listing={item.listing} />} title={item.listing.name}
-            detail={ownershipDetail(item, life.property.residence)} />)}</PageGroup> : null;
-      }) : <p className="play-empty">You do not own any houses or vehicles yet.</p>;
+          <MenuRow key={item.ownershipId} avatar={<AssetImage listing={item.listing} />} title={item.listing.name}
+            detail={ownershipDetail(item, life.property.residence)} onClick={() => go('owned-detail', `${item.ownershipId}~${page}`)} />)}</PageGroup> : null;
+      }) : <p className="play-empty">No assets to show.</p>}
+        {page !== 'asset-records' && <PageGroup title="Records"><MenuRow icon="history" title="View Ownership History" onClick={() => go('asset-records')} /></PageGroup>}
+      </>;
     }
+    case 'owned-detail':
+      return <OwnedDetail key={detail} life={life} id={detail?.split('~')[0]} />;
     case 'finances':
       return <Finances life={life} />;
+    case 'transactions':
+      return <Finances key="transactions" life={life} historyOnly />;
+    case 'banking': case 'loans': case 'retirement': case 'investments': case 'fund':
+      return <WealthPage key={`${page}-${detail ?? ''}`} page={page} detail={detail} life={life} go={go} />;
     case 'activities':
       return <>
         <PageGroup title="Mind & Body">
@@ -831,6 +965,9 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       if (!character.causeOfDeath) return <p className="play-empty">This life is still in progress.</p>;
       const turningPoints = life.journal.filter((entry) => entry.category === 'decision' || entry.category === 'school').slice(-4);
       const employment = careerSummary(life);
+      const assets = finalAssetRows(life);
+      const milestones = familyMilestoneRows(life);
+      const skills = finalSkillRows(life);
       return <>
         <PageGroup title="Biography">
           <MenuRow icon="person" title={`${character.firstName} ${character.lastName}`} detail={`${character.birthYear}–${life.year}`} />
@@ -841,7 +978,11 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
               .map((relative) => ({ key: relative.id, label: contactRole(relative, life), value: relative.name })),
           ]} />
         </PageGroup>
+        <PageGroup title="Final Estate"><Rows items={estateRows(life)} /></PageGroup>
+        {!!assets.length && <PageGroup title="Assets Owned"><Rows items={assets} /></PageGroup>}
         {employment.length > 0 && <PageGroup title="Career"><Rows items={employment} /></PageGroup>}
+        {!!milestones.length && <PageGroup title="Family Milestones"><Rows items={milestones} /></PageGroup>}
+        {!!skills.length && <PageGroup title="Skill Achievements"><Rows items={skills} /></PageGroup>}
         {turningPoints.length > 0 && <PageGroup title="Turning points">
           {turningPoints.map((entry, index) => <MenuRow key={index} title={en.age(entry.age)} detail={entry.text} />)}
         </PageGroup>}

@@ -11,7 +11,8 @@ import { contactIdentity, generateAppearance, validAppearance } from '../engine/
 import { validateProfile } from '../engine/create.ts';
 import { advanceContactOccupation, createSchoolClass, isSchoolStage } from '../engine/school.ts';
 import { maxAge } from '../engine/simulation.ts';
-import { initialProperty, movingAge } from '../engine/property.ts';
+import { initialProperty, makeOwnership, movingAge } from '../engine/property.ts';
+import { initialWealth } from '../engine/wealth.ts';
 import { indexedCents } from '../engine/pricing.ts';
 import { worldBounds } from '../engine/worldTypes.ts';
 import { stats } from '../engine/types.ts';
@@ -25,6 +26,7 @@ import { allContacts, newSocial, syncNpcs } from '../engine/npcs.ts';
 import { validateSocial } from './socialCodec.ts';
 import { validateSkills } from './skillCodec.ts';
 import { validWorld } from './worldCodec.ts';
+import { validateOwnership, validateWealth } from './wealthCodec.ts';
 
 const record = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -65,12 +67,12 @@ function validHealthAndNotices(life: Life) {
     });
 }
 
-function validAssetsAndFriends(life: Life, marketRecords: boolean) {
+function validAssetsAndFriends(life: Life, marketRecords: boolean, ownershipRecords: boolean) {
   const { property, communityFriends } = life;
   if (!record(property) || typeof property.residence !== 'string' || !Array.isArray(property.owned)) return false;
   const owned = new Set<string>();
   for (const item of property.owned) {
-    if (!record(item) || typeof item.id !== 'string' || !assetById.has(item.id) || owned.has(item.id) ||
+    if (!record(item) || typeof item.id !== 'string' || !assetById.has(item.id) || (!ownershipRecords && owned.has(item.id)) ||
       !integer(item.year, life.character.birthYear + movingAge, life.year) ||
       (item.source !== 'purchase' && (item.source !== 'gift' || item.id !== starterHome.id))) return false;
     const { acquisition } = item;
@@ -79,7 +81,7 @@ function validAssetsAndFriends(life: Life, marketRecords: boolean) {
       acquisition.price !== indexedCents(assetById.get(item.id)!.price, acquisition.priceIndex, acquisition.marketIndex))))) return false;
     owned.add(item.id);
   }
-  if (property.residence !== 'family' && (life.character.age < movingAge || (property.residence !== 'rent' &&
+  if (property.residence !== 'family' && (life.character.age < movingAge || (!ownershipRecords && property.residence !== 'rent' &&
     (!owned.has(property.residence) || assetById.get(property.residence)?.kind !== 'houses' ||
       (marketRecords && property.owned.find(({ id }) => id === property.residence)?.city !== life.character.city))))) return false;
 
@@ -102,7 +104,7 @@ export function decodeLife(json: string): Life {
   }
   if (!record(value)) throw new Error('This saved life is damaged.');
   const version = value.version;
-  if (!integer(version, 1, 9)) throw new Error('This saved life uses an unsupported version.');
+  if (!integer(version, 1, 10)) throw new Error('This saved life uses an unsupported version.');
   const { character, family, schoolContacts, journal, pending, scheduled, seen, usedActions, transactions, year } = value;
   if (!record(character) || typeof character.firstName !== 'string' || typeof character.lastName !== 'string' ||
     validateProfile(character as ProfileInput) || (version >= 3 && !validAppearance(character.appearance)) || !integer(character.age, 0, maxAge) ||
@@ -170,7 +172,7 @@ export function decodeLife(json: string): Life {
   if (version < 6) {
     life.property = initialProperty();
     life.communityFriends = [];
-  } else if (!validAssetsAndFriends(life, version >= 9)) {
+  } else if (!validAssetsAndFriends(life, version >= 9, version >= 10)) {
     throw new Error('This saved life has invalid assets or community friends.');
   }
   if (version < 7) {
@@ -191,13 +193,21 @@ export function decodeLife(json: string): Life {
     throw new Error('This saved life has invalid skill data.');
   }
   if (version < 9) {
-    life.version = 9;
     life.character.birthCity = life.character.city;
     life.world = newWorld(life.seed, life.year, true);
-    life.property.owned = life.property.owned.map(({ id, year: acquired, source }) => ({ id, year: acquired, source,
-      city: life.character.city, acquisition: null }));
   } else if (!validWorld(value.world, year, Number(character.birthYear))) {
     throw new Error('This saved life has invalid world data.');
+  }
+  if (version < 10) {
+    life.version = 10;
+    life.wealth = initialWealth();
+    const { residence } = life.property;
+    life.property.owned = life.property.owned.map(({ id, year, source, city, acquisition }, sequence) =>
+      makeOwnership({ id, year, source, city: version >= 9 ? city : life.character.city, acquisition: version >= 9 ? acquisition : null }, sequence));
+    life.property.residence = life.property.owned.find(({ id }) => id === residence)?.ownershipId ?? residence;
+  } else {
+    if (!validateOwnership(life)) throw new Error('This saved life has invalid assets or ownership data.');
+    if (!validateWealth(life)) throw new Error('This saved life has invalid banking or investment data.');
   }
   return life;
 }

@@ -57,8 +57,8 @@ test('version 3 migrates an adult neutrally and preserves portraits, ledger, dip
   life.character.appearance = { ...life.character.appearance, hair: 'Bob' };
   const snapshot = { ...life, version: 3, career: undefined, finance: undefined, illnesses: undefined, notices: undefined };
   const migrated = decodeLife(JSON.stringify(snapshot));
-  assert.deepEqual({ ...migrated, social: undefined, skills: undefined, world: undefined },
-    { ...life, illnesses: [], notices: [], social: undefined, skills: undefined, world: undefined });
+  assert.deepEqual({ ...migrated, social: undefined, skills: undefined, world: undefined, wealth: undefined },
+    { ...life, illnesses: [], notices: [], social: undefined, skills: undefined, world: undefined, wealth: undefined });
   assert.deepEqual(migrated.skills.entries, {});
   assert.equal(employmentStatus(migrated), 'Unemployed');
   assert.equal(migrated.career.history.length, 0);

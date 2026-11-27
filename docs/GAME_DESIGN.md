@@ -47,3 +47,10 @@ The native visual system uses white and soft-blue surfaces, subtle dividers, pas
 - World reports show market conditions and optional fictional news. A small set of world events actively changes local or national indicators. Losing a job to redundancy produces a personal journal notice, while news about the wider economy stays in World.
 - New offers and eligible raises or promotions reflect the market. Families experience changes through everyday spending and asset quotes. Adults can move to another city after resolving commitments and see how their new location changes opportunities and costs.
 - Proficiency above 55 develops more gradually. Training variety and recent competitions or showcases reward applied practice. The effect of physical conditioning remains distinct from what the character knows about a skill.
+
+## Phase 3.1 · Wealth, banking, and asset management
+
+- The Assets menu shows net worth and liabilities alongside cash. Savings offer a predictable annual rate linked to Veyra’s economy. Creditworthiness gives adult borrowers a clear reason for a refusal and makes stronger applications eligible for better fixed rates.
+- An owned house can become a residence or earn rent when occupied by a tenant. Location, upkeep, and vacancies shape the return. Maintenance, improvements, and vehicle repairs provide choices about when to spend cash to preserve usefulness or market value.
+- Retirement offers an annual pension after enough contribution years. The Veyra index, technology, healthcare, and government bond funds let players take market risk through a small portfolio. The Life Summary records the final estate and major career, family, and skill milestones.
+- Saved Lives supports backups and transfers between browser and native installs by JSON file. Each import creates a separate playable copy of the life.

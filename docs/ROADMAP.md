@@ -89,9 +89,38 @@ A separate 2,000-life run with the world system enabled recorded 91,684 salaried
 
 The price index reached its 250 ceiling in the upper part of the distribution. The longest periods without work include a strategy that abstains from employment for the full working-age span. A total of 377 lives ended with arrears.
 
+## Phase 3.1 · Wealth, banking, and asset management
+
+Version 0.3.1 adds an estate overview, savings, fixed-rate personal loans, asset management, rental income, a pension, and four fictional funds. Save version 10 keeps earlier holdings and acquisition data, assigns stable asset IDs, and tracks new financial history from the first applicable turn. Players can export and import local JSON saves. Home and vehicle financing will require a complete collateral and default lifecycle.
+
+### Financial balance and performance
+
+The headless run follows 2,000 seeded lives across eight financial strategies with different jobs, education, and family outcomes. The runner checks yearly cash changes and lifetime ledger reconciliation. Results describe the simulated choices and seed mix.
+
+| Outcome | P10 | P50 | P90 |
+| --- | ---: | ---: | ---: |
+| Final net worth | −$6,654.60 | $28,218.69 | $73,597.18 |
+| Final savings deposits | $0.00 | $0.00 | $56,353.06 |
+| Final liabilities | $0.00 | $0.00 | $6,629.43 |
+| Net investment result among investors | $815.41 | $1,829.24 | $2,803.49 |
+| Lifetime pension among recipients | $3,345.09 | $8,330.25 | $15,772.23 |
+| Age Up at age 50 or later | 0.15 ms | 0.51 ms | 1.03 ms |
+| Final save size | 170,281 B | 226,582 B | 281,199 B |
+| Final save serialization | 1.43 ms | 2.73 ms | 5.66 ms |
+
+Of the 2,000 lives, 538 ended with a home (26.9%) and 498 with at least one vehicle (24.9%). Banks approved 1,554 of 2,003 applications, declined 449, and recorded six defaults. Of 410 investors, three ended with a loss. A total of 1,406 lives received a pension and 297 ended with unpaid living bills. Cash and estate checks passed for all lives.
+
+Median final net worth ranged from $18,271.14 for long-term renters to $44,570.56 for mixed households. The long-term saver, fund investor, homeowner, and property investor groups all had positive medians. Wealth results also reflect each group's employment and family patterns.
+
+The pre-update run took about 73 seconds. The Phase 3.1 run took 278.3 seconds while browser and native verification were running. It also executes additional financial strategies and assertions. Node timings measure engine turns and serialization.
+
+The same age-84 sample life with seed 82 and no optional actions grew from 78,945 to 91,695 bytes when annual financial snapshots were added. In a single local Node probe, median Age Up from age 50 was 0.43 ms before the update and 0.84 ms after. Mean serialization across 500 runs was 0.61 ms before and 1.17 ms after. These timings vary with local load.
+
+The consumer price index had a median of 199.05 and reached its ceiling of 250 at P90. Cost growth flattens in long lives near that ceiling. Raising it would expand essential bills and purchase prices beyond the tested currency scale while salaries only partially follow inflation. The market salary factor stays within 0.80–1.85 to keep job bands within the existing economy. These decisions preserve the recorded nominal amounts for contracts and assets.
+
 ## Phase 4 · Specialized careers
 
-Build specialized professions in increments, beginning with one complete career loop. Plan business and investments around the underlying economy.
+Build specialized professions in increments, beginning with one complete career loop. Plan business and further investment features around the underlying economy.
 
 ## Phase 5 · Generational legacy
 

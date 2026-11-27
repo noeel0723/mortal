@@ -7,7 +7,13 @@ export default defineConfig({
   base: './',
   server: { host: '127.0.0.1', port: 5173, strictPort: true },
   preview: { host: '127.0.0.1', port: 5173, strictPort: true },
-  build: { outDir: '../dist/web', emptyOutDir: true },
+  build: {
+    outDir: '../dist/web',
+    emptyOutDir: true,
+    rolldownOptions: {
+      output: { codeSplitting: { groups: [{ name: 'vendor', test: /[\\/]node_modules[\\/]/ }] } },
+    },
+  },
   plugins: [{
     name: 'mortal-offline',
     apply: 'build',

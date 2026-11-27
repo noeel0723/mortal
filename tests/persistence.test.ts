@@ -79,6 +79,38 @@ test('revision checks reject concurrent writes, and corrupt slots remain listed'
   }
 });
 
+test('portable saves insert independently into SQLite and errors leave existing slots intact', async () => {
+  const database = new DatabaseSync(':memory:');
+  try {
+    const adapter = adapt(database);
+    await migrate(adapter);
+    const repository = createRepository(adapter);
+    const store = createGameStore(async () => repository);
+    assert.ok(await store.getState().start());
+    assert.ok(await store.getState().dispatch({ type: 'age' }));
+    const original = store.getState().slot!;
+    let file = '';
+    assert.ok(await store.getState().exportSave(original.id, (text, name) => {
+      assert.equal(name, `mortal-${original.id}.json`);
+      file = text;
+    }));
+    assert.equal(await store.getState().importSave(async () => '{'), false);
+    assert.equal((await repository.list()).length, 1);
+    assert.ok(await store.getState().importSave(async () => file));
+    assert.ok(await store.getState().importSave(async () => file));
+    const copies = (await repository.list()).filter(({ id }) => id !== original.id);
+    assert.equal(copies.length, 2);
+    for (const copy of copies) {
+      assert.match(copy.id, /^import-/);
+      assert.deepEqual((await repository.load(copy.id)).life, original.life);
+    }
+    assert.deepEqual(await repository.load(original.id), original);
+    assert.equal(store.getState().slot, original);
+  } finally {
+    database.close();
+  }
+});
+
 test('SQLite opens a version 1 slot and saves the migrated payload on the next action', async () => {
   const database = new DatabaseSync(':memory:');
   try {
@@ -95,7 +127,7 @@ test('SQLite opens a version 1 slot and saves the migrated payload on the next a
     const legacy = { ...life, version: 1, academic: undefined };
     database.prepare('UPDATE lives SET payload = ? WHERE id = ?').run(JSON.stringify(legacy), slot.id);
     const restored = await repository.load(slot.id);
-    assert.equal(restored.life.version, 9);
+    assert.equal(restored.life.version, 10);
     assert.equal(restored.life.pending, 'first-classroom');
     assert.deepEqual(restored.life.schoolContacts, legacy.schoolContacts);
     assert.deepEqual(restored.life.journal, legacy.journal);
@@ -107,7 +139,7 @@ test('SQLite opens a version 1 slot and saves the migrated payload on the next a
     const saved = await repository.save(restored, next.life);
     assert.deepEqual(await repository.load(slot.id), saved);
     const persisted = database.prepare('SELECT payload FROM lives WHERE id = ?').get(slot.id);
-    assert.equal(JSON.parse(String(persisted?.payload)).version, 9);
+    assert.equal(JSON.parse(String(persisted?.payload)).version, 10);
   } finally {
     database.close();
   }

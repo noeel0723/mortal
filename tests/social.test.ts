@@ -84,9 +84,10 @@ test('V6 migration preserves old NPCs, illnesses, homes and decisions, with repr
   life = act(life, { type: 'buy-asset', id: 'cedar-starter' });
   life = act(life, { type: 'move-into-home', id: 'cedar-starter' });
   startIllness(life, 'cold', findContact(life, friend.id)!);
-  const snapshot = JSON.stringify({ ...life, version: 6, social: undefined });
+  const legacyProperty = { residence: 'cedar-starter', owned: life.property.owned.map(({ id, year, source }) => ({ id, year, source })) };
+  const snapshot = JSON.stringify({ ...life, version: 6, social: undefined, property: legacyProperty });
   const restored = decodeLife(snapshot);
-  assert.equal(restored.version, 9);
+  assert.equal(restored.version, 10);
   assert.deepEqual(findContact(restored, friend.id), findContact(life, friend.id));
   for (const key of ['illnesses', 'transactions', 'journal', 'notices', 'random', 'character'] as const) {
     assert.deepEqual(restored[key], life[key]);
@@ -102,8 +103,9 @@ test('V7 migration preserves a married household and owned property without inve
   const married = marry().life;
   const purchased = act(married, { type: 'buy-asset', id: 'cedar-starter' });
   const housed = act(purchased, { type: 'move-into-home', id: 'cedar-starter' });
-  const restored = decodeLife(JSON.stringify({ ...housed, version: 7, skills: undefined }));
-  assert.equal(restored.version, 9);
+  const legacyProperty = { residence: 'cedar-starter', owned: housed.property.owned.map(({ id, year, source }) => ({ id, year, source })) };
+  const restored = decodeLife(JSON.stringify({ ...housed, version: 7, skills: undefined, property: legacyProperty }));
+  assert.equal(restored.version, 10);
   assert.deepEqual(restored.skills.entries, {});
   for (const key of ['social', 'journal', 'notices', 'transactions', 'random', 'character'] as const) {
     assert.deepEqual(restored[key], housed[key]);

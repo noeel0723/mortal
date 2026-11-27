@@ -7,6 +7,7 @@ import { initialProperty } from './property.ts';
 import { newSocial, syncNpcs } from './npcs.ts';
 import { newSkills } from './skills.ts';
 import { newWorld } from './world.ts';
+import { initialWealth } from './wealth.ts';
 import { contactIdentity, creationAppearance, generateAppearance, mergeAppearance, validFace } from './appearance.ts';
 import type { Life, Person, ProfileInput, Stat } from './types.ts';
 
@@ -89,7 +90,7 @@ export function createLife(seed: number, profile?: ProfileInput): Life {
   const personality = random.pick(['curious', 'steady', 'outgoing', 'thoughtful'] as const);
   const appearance = input.appearance ? mergeAppearance(creationAppearance, input.appearance) : generateAppearance(seed, 'player');
   const life: Life = {
-    version: 9,
+    version: 10,
     seed: seed >>> 0,
     random: random.state,
     character: { ...input, birthCity: input.city, appearance, firstName, lastName, age: 0, attributes, bank, personality, education: 'early', causeOfDeath: null },
@@ -104,6 +105,7 @@ export function createLife(seed: number, profile?: ProfileInput): Life {
     finance: initialFinance(),
     skills: newSkills(),
     world: newWorld(seed, input.birthYear),
+    wealth: initialWealth(),
     journal: [{ age: 0, category: 'life', text: `I was born in ${input.city}, Veyra.`, changes: {} }],
     seen: [],
     pending: null,

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { summarize } from '../database/repository.ts';
+import { exportPortableLife, importPortableLife } from '../database/portableSave.ts';
 import type { createRepository, SaveSummary, Slot } from '../database/repository.ts';
 import { createLife } from '../engine/create.ts';
 import { advance } from '../engine/simulation.ts';
@@ -19,6 +20,8 @@ type Store = {
   remove: (id: string) => Promise<boolean>;
   dispatch: (action: Action) => Promise<boolean>;
   save: () => Promise<boolean>;
+  importSave: (read: () => Promise<string | null>) => Promise<boolean>;
+  exportSave: (id: string, write: (text: string, filename: string) => Promise<void> | void) => Promise<boolean>;
   toggleHaptics: () => Promise<boolean>;
   clearMessage: () => void;
 };
@@ -100,6 +103,20 @@ export function createGameStore(openSaves: () => Promise<ReturnType<typeof creat
         const repository = await openSaves();
         const saved = await repository.save(slot, slot.life);
         applySaved(saved, 'Life saved on this device.');
+      }),
+      importSave: (read) => work(async () => {
+        const text = await read();
+        if (text === null) return;
+        const life = importPortableLife(text);
+        const repository = await openSaves();
+        const nonce = Math.floor(Math.random() * 0x100000000).toString(36);
+        const imported = await repository.insert(`import-${now().toString(36)}-${nonce}`, life);
+        set((state) => ({ saves: [summarize(imported), ...state.saves], notice: 'Life imported into a new slot.' }));
+      }),
+      exportSave: (id, write) => work(async () => {
+        const repository = await openSaves();
+        const slot = await repository.load(id);
+        await write(exportPortableLife(slot.life), `mortal-${slot.id}.json`);
       }),
       toggleHaptics: () => work(async () => {
         const enabled = !get().haptics;

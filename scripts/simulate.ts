@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { performance } from 'node:perf_hooks';
 import { decodeLife } from '../src/database/codec.ts';
 import { programById, programs } from '../src/data/academics.ts';
 import { eventById } from '../src/data/events.ts';
@@ -18,7 +19,11 @@ import { allContacts, newPeopleLimit } from '../src/engine/npcs.ts';
 import { doctors } from '../src/data/doctors.ts';
 import { healthcareQuote } from '../src/engine/health.ts';
 import { relationshipIssue } from '../src/engine/interactions.ts';
-import { propertyIssue } from '../src/engine/property.ts';
+import { isHouse, ownedAssets, propertyIssue } from '../src/engine/property.ts';
+import { loanApplicationIssue, loanBalance, repaymentIssue, savingsIssue } from '../src/engine/banking.ts';
+import { investmentIssue, investmentPrice } from '../src/engine/investments.ts';
+import { estate } from '../src/engine/wealth.ts';
+import type { InstrumentId } from '../src/engine/wealthTypes.ts';
 import { salaryBand } from '../src/engine/pricing.ts';
 import { relocationIssue } from '../src/engine/relocation.ts';
 import { isSchoolStage } from '../src/engine/school.ts';
@@ -36,6 +41,7 @@ import type { Action, Life } from '../src/engine/types.ts';
 import { datingCandidates } from '../src/socialView.ts';
 
 const count = Number(process.argv[2] ?? 1000);
+const started = performance.now();
 assert.ok(Number.isInteger(count) && count >= 1 && count <= 100000, 'Choose between 1 and 100000 lives.');
 const ages: number[] = [];
 const templates = new Set<string>();
@@ -62,6 +68,25 @@ let weddings = 0;
 let children = 0;
 let adoptions = 0;
 let divorces = 0;
+let loanApplications = 0;
+let loanApprovals = 0;
+let loanDefaults = 0;
+let loanDeclines = 0;
+let householdsWithHomes = 0;
+let householdsWithVehicles = 0;
+let everHomeowners = 0;
+const netWorth: number[] = [];
+const deposits: number[] = [];
+const liabilities: number[] = [];
+const portfolioResults: number[] = [];
+const pensions: number[] = [];
+const lateTurnTimings: number[] = [];
+const saveBytes: number[] = [];
+const serializeTimings: number[] = [];
+type WealthOutcomes = { wealth: number[]; home: number; debt: number; pension: number; arrears: number };
+const byFinanceStrategy = new Map<string, WealthOutcomes>();
+const financeStrategies = ['cash-only', 'long-term-renter', 'homeowner', 'property-investor', 'borrower', 'saver', 'fund-investor', 'mixed-household'] as const;
+type FinanceStrategy = typeof financeStrategies[number];
 let redundant = 0;
 let relocations = 0;
 const householdIncome: number[] = [];
@@ -133,6 +158,84 @@ function apply(life: Life, action: Action) {
   const result = advance(life, action);
   assert.ok(result.life, result.error);
   return result.life;
+}
+
+function financialChoice(life: Life, seed: number, strategy: FinanceStrategy) {
+  const age = life.character.age;
+  if (age < 18 || life.pending || life.character.causeOfDeath) return life;
+  const reserve = life.character.age > 65 ? 32000 : 46000;
+  const saver = strategy === 'saver' || strategy === 'mixed-household' || strategy === 'fund-investor';
+  if (saver && life.wealth.savings > 0 && life.character.bank < 18000) {
+    const amount = Math.min(reserve - life.character.bank, life.wealth.savings);
+    if (!savingsIssue(life, 'withdraw', amount)) life = apply(life, { type: 'savings-transfer', direction: 'withdraw', amount });
+  } else if (saver && life.character.bank >= reserve + 15000) {
+    const amount = Math.floor((life.character.bank - reserve) * (strategy === 'saver' ? .42 : .18));
+    if (!savingsIssue(life, 'deposit', amount)) life = apply(life, { type: 'savings-transfer', direction: 'deposit', amount });
+  }
+  if (strategy === 'long-term-renter' && life.property.residence === 'family' && !propertyIssue(life, { type: 'rent-home' })) {
+    life = apply(life, { type: 'rent-home' });
+  }
+  if (strategy === 'borrower' && age >= 19 && age <= 55 && age % 5 === seed % 5) {
+    const principal = seed % 2 ? 15000 : 40000;
+    const term = principal === 15000 ? 3 : 5;
+    if (!loanApplicationIssue(life, principal, term)) {
+      loanApplications++;
+      life = apply(life, { type: 'request-loan', principal, term });
+      if (life.wealth.loanOffer) {
+        loanApprovals++;
+        life = apply(life, { type: 'respond-loan', accept: true });
+        if (seed % 7 === 0 && life.career.current && age < 48) life = apply(life, { type: 'resign' });
+      } else loanDeclines++;
+    }
+  }
+  for (const loan of life.wealth.loans) {
+    const amount = loanBalance(loan);
+    if (amount > 0 && life.character.bank > amount + reserve * 2 && !repaymentIssue(life, loan.id, amount)) {
+      life = apply(life, { type: 'repay-loan', id: loan.id, amount });
+    }
+  }
+  if (['homeowner', 'property-investor', 'mixed-household'].some((choice) => choice === strategy) && life.character.bank > 120000) {
+    const buy = { type: 'buy-asset', id: starterHome.id } as const;
+    if (!propertyIssue(life, buy)) {
+      life = apply(life, buy);
+      if (strategy !== 'property-investor') life = apply(life, { type: 'move-into-home', id: starterHome.id });
+    }
+    if (strategy === 'property-investor' && age < 68 && life.character.bank > 205000) {
+      const other = { type: 'buy-asset', id: 'maple-cottage' } as const;
+      if (!propertyIssue(life, other)) life = apply(life, other);
+    }
+  }
+  if (life.character.bank > 99500 && age < 58 && (strategy === 'homeowner' || strategy === 'mixed-household' || strategy === 'borrower')) {
+    const vehicle = { type: 'buy-asset', id: seed % 2 ? 'toyota-yaris' : 'honda-super-cub' } as const;
+    if (!propertyIssue(life, vehicle)) life = apply(life, vehicle);
+  }
+  for (const asset of ownedAssets(life)) {
+    if (strategy === 'property-investor' && asset.rental && !asset.rental.offered && life.property.residence !== asset.ownershipId && age < 76) {
+      const rent = { type: 'manage-asset', id: asset.ownershipId, operation: 'offer-rental' } as const;
+      if (!propertyIssue(life, rent)) life = apply(life, rent);
+    }
+    if (life.character.bank > reserve && asset.condition < 68) {
+      const operation = isHouse(asset) ? (strategy === 'property-investor' && asset.improvements === 0 && age < 50 ? 'renovate' : 'maintain') : 'service';
+      const upkeep = { type: 'manage-asset', id: asset.ownershipId, operation } as const;
+      if (!propertyIssue(life, upkeep)) life = apply(life, upkeep);
+    }
+    if (age === 70 && strategy === 'mixed-household' && !isHouse(asset)) {
+      const sell = { type: 'manage-asset', id: asset.ownershipId, operation: 'sell' } as const;
+      if (!propertyIssue(life, sell)) life = apply(life, sell);
+    }
+  }
+  if (strategy === 'fund-investor' || strategy === 'mixed-household') {
+    const choices: InstrumentId[] = ['veyra-index', 'technology-fund', 'healthcare-fund', 'government-bonds'];
+    const instrument = choices[(seed + age) % choices.length]!;
+    const units = life.wealth.portfolio[instrument]?.units ?? 0;
+    const buy = life.character.bank > reserve + 26000 && age < 65;
+    const selling = units > 0 && (life.character.bank < 26000 || age >= 70);
+    if (buy || selling) {
+      const trade = { type: 'trade-fund', instrument, side: selling ? 'sell' : 'buy', units: selling ? Math.min(units, 20) : 10 } as const;
+      if (!investmentIssue(life, trade)) life = apply(life, trade);
+    }
+  }
+  return life;
 }
 
 function tryAcademic(life: Life, action: AcademicAction) {
@@ -280,6 +383,7 @@ for (let seed = 1; seed <= count; seed++) {
   const block = Math.floor((seed - 1) / developmentStrategies.length);
   const rotation = skillRandom(0xd51c95b, `strategy:${block}`).integer(0, developmentStrategies.length - 1);
   const strategy = developmentStrategies[(seed - 1 + rotation) % developmentStrategies.length]!;
+  const financialStrategy = financeStrategies[(seed + Math.floor(seed / 11)) % financeStrategies.length]!;
   let firstEliteAge: number | undefined;
   let turns = 0;
   let jobless = 0;
@@ -299,7 +403,9 @@ for (let seed = 1; seed <= count; seed++) {
         jobless++;
       }
     }
+    const ageStart = performance.now();
     life = apply(life, { type: 'age' });
+    if (life.character.age >= 50) lateTurnTimings.push(performance.now() - ageStart);
     const currentEconomy = national(life.world);
     assert.equal(currentEconomy.year, elapsed.year + 1);
     for (const key of ['inflation', 'unemployment', 'priceIndex', 'growth'] as const) {
@@ -341,6 +447,7 @@ for (let seed = 1; seed <= count; seed++) {
     if (!life.character.causeOfDeath) life = employmentChoice(educationChoice(life, seed), seed);
     life = socialChoice(life, seed);
     if (!life.character.causeOfDeath) life = skillChoice(life, seed, strategy);
+    life = financialChoice(life, seed, financialStrategy);
     if (!life.character.causeOfDeath && life.character.age >= 5 && life.character.age <= 25 && (seed + life.year) % 6 === 0) {
       life = apply(life, { type: 'activity', activity: 'go-to-library' });
       if (life.pending) {
@@ -348,13 +455,6 @@ for (let seed = 1; seed <= count; seed++) {
         assert.ok(choice);
         life = apply(life, { type: 'choose', event: life.pending, choice: choice.id });
         decisions++;
-      }
-    }
-    if (life.character.age >= 18 && seed % 5 === 1) {
-      const buy = { type: 'buy-asset', id: starterHome.id } as const;
-      if (!propertyIssue(life, buy)) {
-        life = apply(life, buy);
-        life = apply(life, { type: 'move-into-home', id: starterHome.id });
       }
     }
     if (!life.character.causeOfDeath && seed % 2 === 0) {
@@ -401,8 +501,8 @@ for (let seed = 1; seed <= count; seed++) {
     if (seed % 47 === 0 && life.character.age === 17) {
       const legacy = { ...life, version: 3, career: undefined, finance: undefined, illnesses: undefined, notices: undefined,
         property: undefined, communityFriends: undefined };
-      assert.deepEqual({ ...decodeLife(JSON.stringify(legacy)), social: undefined, skills: undefined, world: undefined },
-        { ...life, illnesses: [], notices: [], communityFriends: [], social: undefined, skills: undefined, world: undefined });
+      assert.deepEqual({ ...decodeLife(JSON.stringify(legacy)), social: undefined, skills: undefined, world: undefined, wealth: undefined },
+        { ...life, illnesses: [], notices: [], communityFriends: [], social: undefined, skills: undefined, world: undefined, wealth: undefined });
     }
     const enrollment = life.academic.enrollment;
     if (enrollment) {
@@ -412,6 +512,35 @@ for (let seed = 1; seed <= count; seed++) {
     }
   }
   if (seed % 47 === 0) assert.deepEqual(decodeLife(JSON.stringify(life)), life);
+  const final = estate(life);
+  assert.equal(final.total, final.liquid + final.property + final.vehicles - final.liabilities);
+  assert.deepEqual(life.wealth.snapshots.at(-1), { year: life.year, ...final });
+  const holdings = ownedAssets(life);
+  const home = holdings.some(isHouse);
+  const pension = life.wealth.pension.benefitsPaid;
+  const serializeStart = performance.now();
+  const payload = JSON.stringify(life);
+  serializeTimings.push(performance.now() - serializeStart);
+  saveBytes.push(Buffer.byteLength(payload));
+  netWorth.push(final.total);
+  deposits.push(final.savings);
+  liabilities.push(final.liabilities);
+  if (pension) pensions.push(pension);
+  householdsWithHomes += Number(home);
+  householdsWithVehicles += Number(holdings.some((asset) => !isHouse(asset)));
+  everHomeowners += Number(life.property.owned.some(isHouse));
+  loanDefaults += life.journal.filter(({ text }) => text.startsWith('I missed two installments in a row.')).length;
+  const portfolio = Object.entries(life.wealth.portfolio);
+  if (portfolio.length) portfolioResults.push(portfolio.reduce((sum, [id, position]) =>
+    sum + position.realized + investmentPrice(life, id as InstrumentId) * position.units - position.basis, 0) +
+    life.transactions.filter(({ category }) => category === 'investment-income').reduce((sum, entry) => sum + entry.amount, 0));
+  const strategyStats = byFinanceStrategy.get(financialStrategy) ?? { wealth: [], home: 0, debt: 0, pension: 0, arrears: 0 };
+  byFinanceStrategy.set(financialStrategy, strategyStats);
+  strategyStats.wealth.push(final.total);
+  strategyStats.home += Number(home);
+  strategyStats.debt += Number(final.loans > 0);
+  strategyStats.pension += Number(pension > 0);
+  strategyStats.arrears += Number(final.arrears > 0);
   if (jobless) worklessSpells.push(jobless);
   finalBalances.push(life.character.bank);
   finalArrears.push(outstanding(life));
@@ -515,6 +644,17 @@ console.log(JSON.stringify({
   children,
   adoptions,
   divorces,
+  wealth: {
+    finalNetWorthCents: percentiles(netWorth), savingsCents: percentiles(deposits), finalLiabilitiesCents: percentiles(liabilities),
+    everHomeowners, householdsWithHomes, householdsWithVehicles, loanApplications, loanApprovals, loanDeclines, loanDefaults,
+    investors: portfolioResults.length, investmentResultCents: percentiles(portfolioResults), investorsWithLoss: portfolioResults.filter((value) => value < 0).length,
+    pensionRecipients: pensions.length, lifetimePensionCents: percentiles(pensions),
+    simulationTimeSeconds: Math.round((performance.now() - started) / 100) / 10, lateAgeUpMs: percentiles(lateTurnTimings),
+    serializedBytes: percentiles(saveBytes), serializationMs: percentiles(serializeTimings),
+    strategies: Object.fromEntries([...byFinanceStrategy].map(([key, { wealth, ...outcome }]) => [key, {
+      lives: wealth.length, finalNetWorthCents: percentiles(wealth), ...outcome,
+    }])),
+  },
   economy: {
     indicatorBasisPoints: Object.fromEntries(Object.entries(indicators).map(([key, values]) => [key, percentiles(values)])),
     worklessSpellsInYears: percentiles(worklessSpells), lifetimeGrossSalaryCents: percentiles(householdIncome),

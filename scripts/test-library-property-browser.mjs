@@ -139,7 +139,7 @@ try {
   await page.getByText('Toyota Yaris', { exact: true }).waitFor();
   await page.getByText('Honda Super Cub', { exact: true }).waitFor();
   const own = await read('shopping-test');
-  assert.equal(own.property.residence, 'cedar-starter');
+  assert.equal(own.property.residence, own.property.owned.find(({ id }) => id === 'cedar-starter')?.ownershipId);
   assert.equal(own.property.owned.length, 3);
   assert.equal(own.character.bank, own.transactions.reduce((sum, { amount }) => sum + amount, 0));
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth === innerWidth), true);

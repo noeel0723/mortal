@@ -59,7 +59,8 @@ test('version 2 saves gain stable portraits and preserve existing contacts, frie
     schoolContacts: life.schoolContacts.map((person) => ({ ...person, appearance: undefined, gender: undefined })),
   });
   const restored = decodeLife(snapshot);
-  assert.deepEqual({ ...restored, social: undefined, world: undefined }, { ...life, illnesses: [], notices: [], social: undefined, world: undefined });
+  assert.deepEqual({ ...restored, social: undefined, world: undefined, wealth: undefined },
+    { ...life, illnesses: [], notices: [], social: undefined, world: undefined, wealth: undefined });
   assert.equal(restored.schoolContacts.find(({ id }) => id === contact.id)?.friend, true);
   assert.ok(restored.schoolContacts.every((person) => genders.includes(person.gender)));
   const signatures = new Set(restored.schoolContacts.map((person) => portraitSrc(person.appearance, person.age)));

@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { backgrounds, backgroundLabels, cities, country, defaultBirthYear, firstBirthYear, genders, genderLabels, lastBirthYear, talents, talentLabels } from '../src/data/veyra';
 import type { ProfileInput, Talent } from '../src/engine/types';
 import { creationAppearance } from '../src/engine/appearance';
 import { en } from '../src/i18n/en';
 import { useGame } from './browserStore';
+import { maxPortableBytes, portableSizeError } from '../src/database/portableSave';
 import { Button, Feedback, Heading, Icon, Mark, Rows } from './ui';
 import { PortraitEditor } from './portraits';
 
@@ -121,15 +122,35 @@ export function CustomLife({ start, cancel }: { start: (profile: ProfileInput) =
 }
 
 export function SavedLives({ open }: { open: (id: string) => void }) {
-  const { saves, busy, problem, notice, remove } = useGame();
+  const { saves, busy, problem, notice, remove, importSave, exportSave } = useGame();
+  const picker = useRef<HTMLInputElement>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   async function deleteLife(id: string) {
     if (await remove(id)) setDeleting(null);
+  }
+  function download(text: string, filename: string) {
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   return (
     <main className="inner" id="main">
       <Heading title="Saved Lives" detail="Stored in this browser." />
       <Feedback error={problem} notice={notice} />
+      <Button icon="upload" onClick={() => picker.current?.click()} disabled={busy}>Import Save</Button>
+      <input ref={picker} type="file" hidden accept=".json,application/json" aria-label="Mortal save file" onChange={(event) => {
+        const file = event.currentTarget.files?.[0];
+        event.currentTarget.value = '';
+        if (file) void importSave(async () => {
+          if (file.size > maxPortableBytes) throw new Error(portableSizeError);
+          return file.text();
+        });
+      }} />
       <section className="surface saves-list" aria-label="Saved lives">
         {!saves.length && <p>Start a new life and it will appear here.</p>}
         {saves.map((save) => <div className="save-row" key={save.id}>
@@ -137,6 +158,7 @@ export function SavedLives({ open }: { open: (id: string) => void }) {
           <div className="save-name"><strong>{save.name}</strong><span>{save.completed ? 'Completed' : en.age(save.age)} · {save.city} · {save.year}</span></div>
           <div className="save-controls">
             <Button icon={save.completed ? 'history' : 'continue'} onClick={() => open(save.id)} disabled={busy}>Open</Button>
+            <Button icon="download" kind="quiet" aria-label={`Export ${save.name}’s life`} onClick={() => void exportSave(save.id, download)} disabled={busy}>Export</Button>
             <Button icon="delete" kind="quiet" aria-label={`Delete ${save.name}’s life`} onClick={() => setDeleting(save.id)} disabled={busy}>Delete</Button>
           </div>
           {deleting === save.id && <div className="save-confirm">

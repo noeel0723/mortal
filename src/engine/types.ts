@@ -9,6 +9,7 @@ import type { PropertyAction, PropertyState } from './property.ts';
 import type { SocialAction, SocialPerson, SocialState } from './socialTypes.ts';
 import type { SkillAction, SkillState } from './skillTypes.ts';
 import type { WorldState } from './worldTypes.ts';
+import type { WealthAction, WealthState } from './wealthTypes.ts';
 
 export const stats = ['health', 'happiness', 'smarts', 'looks', 'charisma', 'discipline', 'athleticism', 'creativity', 'stress', 'energy', 'reputation'] as const;
 export type Stat = typeof stats[number];
@@ -97,7 +98,7 @@ export type LifeEvent = {
 };
 
 export type Life = {
-  version: 9;
+  version: 10;
   seed: number;
   random: number;
   character: Character;
@@ -112,6 +113,7 @@ export type Life = {
   finance: FinanceState;
   skills: SkillState;
   world: WorldState;
+  wealth: WealthState;
   journal: JournalEntry[];
   notices: LifeNotice[];
   illnesses: IllnessCase[];
@@ -138,4 +140,5 @@ export type Action =
   | PropertyAction
   | SocialAction
   | SkillAction
+  | WealthAction
   | CareerAction;

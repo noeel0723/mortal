@@ -31,5 +31,6 @@ export const emoji = {
   photography: '📷', acting: '🎭', math: '📐', leadership: '🧑‍💼', chess: '♟️', languages: '💬',
   fitness: '🏋️', meditation: '🧘', food: '🥗', cinema: '🎬', park: '🌳', train: '🚆', music: '🎵',
   news: '📰',
+  download: '📥', upload: '📤', savings: '🏦', key: '🔑', build: '🧱', repair: '🔧', bonds: '📜',
 } as const;
 export type Emoji = keyof typeof emoji;

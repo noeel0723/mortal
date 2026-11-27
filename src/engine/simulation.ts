@@ -29,6 +29,7 @@ import { developAcademicSkills } from './skillIntegration.ts';
 import { holdShowcase } from './skillShowcases.ts';
 import { ageWorkplace, canMakeFriend, coworkerAcquaintanceThreshold, coworkerFriendAffection, isWorkAcquaintance, isWorkContact } from './workplace.ts';
 import { advanceWorld } from './world.ts';
+import { cloneWealth, performWealth, recordValuation } from './wealth.ts';
 import { stats } from './types.ts';
 import type { Action, Life } from './types.ts';
 
@@ -121,6 +122,7 @@ function ageUp(life: Life) {
     life.scheduled = [];
     endEmployment(life, 'died');
     recordNotice(life, 'life', 'End of Life', `My life ended at age ${age}.`);
+    recordValuation(life);
     life.random = random.state;
     return;
   }
@@ -156,6 +158,7 @@ function ageUp(life: Life) {
     if (triggered.careerEffects) applyCareerEffect(life, triggered.careerEffects);
   }
   offerSocialEvent(life);
+  recordValuation(life);
   life.random = random.state;
 }
 
@@ -240,8 +243,13 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       if (issue) return { error: issue };
       break;
     }
-    case 'buy-asset': case 'rent-home': case 'ask-for-home': case 'move-into-home': {
+    case 'buy-asset': case 'rent-home': case 'ask-for-home': case 'move-into-home': case 'manage-asset': {
       const issue = applyPropertyAction(life, action);
+      if (issue) return { error: issue };
+      break;
+    }
+    case 'savings-transfer': case 'request-loan': case 'respond-loan': case 'repay-loan': case 'trade-fund': {
+      const issue = performWealth(life, action);
       if (issue) return { error: issue };
       break;
     }
@@ -396,6 +404,7 @@ function structuredCloneLife(life: Life): Life {
     communityFriends: life.communityFriends.map((person) => ({ ...person, bond: { ...person.bond } })),
     social: cloneSocial(life.social),
     property: { ...life.property, owned: [...life.property.owned] },
+    wealth: cloneWealth(life.wealth),
     career: {
       ...life.career,
       current: life.career.current ? { ...life.career.current, salaryHistory: [...life.career.current.salaryHistory], promotions: [...life.career.current.promotions] } : null,

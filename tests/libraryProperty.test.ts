@@ -6,7 +6,7 @@ import { assetById, assetCatalog, assetKinds, starterHome } from '../src/data/sh
 import { createLife } from '../src/engine/create.ts';
 import { canAccompany } from '../src/engine/health.ts';
 import { postTransaction } from '../src/engine/journal.ts';
-import { propertyIssue, propertyQuote, rentMovingFee } from '../src/engine/property.ts';
+import { makeOwnership, propertyIssue, propertyQuote, rentMovingFee } from '../src/engine/property.ts';
 import { findContact } from '../src/engine/school.ts';
 import { advance } from '../src/engine/simulation.ts';
 import type { Action, Life } from '../src/engine/types.ts';
@@ -69,9 +69,9 @@ test('adult housing choices honor age, parent affordability, and willingness', (
   adult.random = 0;
   Object.assign(adult.family[0]!.bond, { affection: 95, trust: 99, resentment: 0 });
   const gifted = apply(adult, request);
-  assert.equal(gifted.property.residence, starterHome.id);
+  assert.equal(gifted.property.residence, gifted.property.owned[0]?.ownershipId);
   const acquisition = propertyQuote(adult, starterHome);
-  assert.deepEqual(gifted.property.owned, [{ id: starterHome.id, year: adult.year, source: 'gift', city: adult.character.city, acquisition }]);
+  assert.deepEqual(gifted.property.owned, [makeOwnership({ id: starterHome.id, year: adult.year, source: 'gift', city: adult.character.city, acquisition }, 0)]);
   assert.equal(gifted.character.bank, adult.character.bank);
   assert.equal(gifted.social.profiles[adult.family[0]!.id]!.savings, 82000 - acquisition.price);
   Object.assign(adult.family[0]!.bond, { affection: 30, trust: 12, resentment: 60 });
@@ -99,7 +99,7 @@ test('shopping records unique purchases and lets the player move into an owned h
   assert.match(propertyIssue(bought, { type: 'buy-asset', id: starterHome.id }) ?? '', /already own/);
   assert.match(propertyIssue(bought, { type: 'move-into-home', id: 'toyota-yaris' }) ?? '', /do not own this house/);
   const moved = apply(bought, { type: 'move-into-home', id: starterHome.id });
-  assert.equal(moved.property.residence, starterHome.id);
+  assert.equal(moved.property.residence, moved.property.owned.find(({ id }) => id === starterHome.id)?.ownershipId);
   assert.equal(life.property.owned.length, 0);
   assert.deepEqual(decodeLife(JSON.stringify(moved)), moved);
 });

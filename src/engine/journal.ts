@@ -1,14 +1,14 @@
 import { stats } from './types.ts';
 import type { Category, Effect, Life } from './types.ts';
-import type { TransactionCategory } from './financeTypes.ts';
+import type { TransactionCategory, TransactionDetail } from './financeTypes.ts';
 
 export const clamp = (value: number) => Math.max(0, Math.min(100, value));
 
-export function postTransaction(life: Life, label: string, amount: number, category: TransactionCategory) {
-  const delta = Math.max(-life.character.bank, amount);
-  if (delta !== 0) {
+export function postTransaction(life: Life, label: string, amount: number, category: TransactionCategory, detail?: TransactionDetail) {
+  const delta = Math.min(Number.MAX_SAFE_INTEGER - life.character.bank, Math.max(-life.character.bank, amount));
+  if (delta !== 0 || (amount === 0 && detail)) {
     life.character.bank += delta;
-    life.transactions.push({ year: life.year, label, amount: delta, category });
+    life.transactions.push({ year: life.year, label, amount: delta, category, ...(detail ? { detail } : {}) });
   }
   return delta;
 }

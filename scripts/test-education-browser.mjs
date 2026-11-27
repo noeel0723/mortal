@@ -65,7 +65,7 @@ try {
   await page.reload();
   await button('Apply to University').waitFor();
   const migrated = await read();
-  assert.equal(migrated.version, 9);
+  assert.equal(migrated.version, 10);
   assert.equal(migrated.pending, 'graduation-plan');
   assert.equal(migrated.academic.qualifications[0].title, 'High School Diploma');
   assert.equal(migrated.schoolContacts.find(({ friend }) => friend).id, oldFriend.id);

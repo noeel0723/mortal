@@ -6,6 +6,9 @@ import { ActionButton, DataRow, Heading, Page, Section, shared } from '../../src
 import { money } from '../../src/i18n/en';
 import { residenceLabel } from '../../src/propertyView';
 import { useGame } from '../../src/stores/game';
+import { estate } from '../../src/engine/wealth';
+import { ownedAssets } from '../../src/engine/property';
+import { estateHistory, estateRows } from '../../src/wealthView';
 import { space } from '../../src/theme/tokens';
 
 export default function Assets() {
@@ -13,19 +16,29 @@ export default function Assets() {
   const life = useGame((state) => state.slot?.life);
   const [selectedYear, setSelectedYear] = useState<number | 'all' | null>(null);
   if (!life) return null;
-  if (screen !== 'finances') return <Page inGame>
+  if (screen !== 'finances' && screen !== 'history') return <Page inGame>
     <Heading title="Assets" back={() => router.dismissTo('/game')} />
     <Section title="Banking">
-      <ActionButton icon="bank" label="Finances" detail={money(life.character.bank)}
+      <ActionButton icon="bank" label="Finances" detail={`${money(estate(life).total)} net worth`}
         onPress={() => router.push({ pathname: '/game/assets', params: { screen: 'finances' } })} />
-      <ActionButton icon="assets" label="Owned Assets" detail={String(life.property.owned.length)}
+      <ActionButton icon="savings" label="Savings Account" detail={money(life.wealth.savings)}
+        onPress={() => router.push({ pathname: '/game/wealth', params: { screen: 'banking' } })} />
+      <ActionButton icon="work" label="Loans & Debts" onPress={() => router.push({ pathname: '/game/wealth', params: { screen: 'loans' } })} />
+      <ActionButton icon="assets" label="Owned Assets" detail={String(ownedAssets(life).length)}
         onPress={() => router.push({ pathname: '/game/property', params: { mode: 'owned' } })} />
+      <ActionButton icon="history" label="Transaction History" onPress={() => router.push({ pathname: '/game/assets', params: { screen: 'history' } })} />
     </Section>
     <Section title="Property and vehicles">
+      <ActionButton icon="home" label="Properties" onPress={() => router.push({ pathname: '/game/property', params: { mode: 'properties' } })} />
+      <ActionButton icon="car" label="Vehicles" onPress={() => router.push({ pathname: '/game/property', params: { mode: 'vehicles' } })} />
       <ActionButton icon="home" label="Housing" detail={residenceLabel(life)}
         onPress={() => router.push({ pathname: '/game/property', params: { mode: 'housing' } })} />
       <ActionButton icon="cart" label="Shopping" detail="Browse houses, cars, and motorcycles."
         onPress={() => router.push({ pathname: '/game/property', params: { mode: 'shopping' } })} />
+    </Section>
+    <Section title="Long-Term Finances">
+      <ActionButton icon="retire" label="Retirement" onPress={() => router.push({ pathname: '/game/wealth', params: { screen: 'retirement' } })} />
+      <ActionButton icon="harder" label="Investments" onPress={() => router.push({ pathname: '/game/wealth', params: { screen: 'investments' } })} />
     </Section>
   </Page>;
 
@@ -33,7 +46,8 @@ export default function Assets() {
   const entries = financeEntries(life, year);
   return (
     <Page inGame>
-      <Heading title="Finances" back={() => router.dismissTo('/game/assets')} />
+      <Heading title={screen === 'history' ? 'Transaction History' : 'Finances'} back={() => router.dismissTo('/game/assets')} />
+      {screen === 'finances' && <Section title="Current Net Worth">{estateRows(life).map((row) => <DataRow key={row.label} {...row} />)}</Section>}
       <Section title={`Financial overview · ${year ?? life.year}`}>
         <Text style={shared.small}>Transaction year</Text>
         <ScrollView horizontal contentContainerStyle={styles.years}>
@@ -41,14 +55,17 @@ export default function Assets() {
           {financeYears(life).map((option) => <ActionButton icon="calendar" key={option} label={String(option)} selected={year === option}
             onPress={() => setSelectedYear(option)} />)}
         </ScrollView>
-        {financeOverview(life, year ?? life.year).map((row) => <DataRow key={row.label} {...row} />)}
+        {screen === 'finances' && financeOverview(life, year ?? life.year).map((row) => <DataRow key={row.label} {...row} />)}
       </Section>
       <Section title="Transaction History">
         {entries.length === 0 && <Text style={shared.body}>No transactions yet.</Text>}
         {entries.map((item, index) => (
-          <DataRow key={index} label={`${item.year} · ${item.group} · ${item.label}`} value={money(item.amount)} />
+          <DataRow key={index} label={`${item.year} · ${item.group} · ${item.label}`} value={money(item.displayAmount)} />
         ))}
       </Section>
+      {screen === 'finances' && estateHistory(life).length > 0 && <Section title="Annual Valuations">
+        {estateHistory(life).map((row) => <DataRow key={row.label} {...row} />)}
+      </Section>}
     </Page>
   );
 }

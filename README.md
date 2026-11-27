@@ -15,7 +15,7 @@ npm run web
 
 Open [Mortal in your browser](http://127.0.0.1:5173). The site adapts to phone and desktop widths. For a phone on the same trusted Wi-Fi network, run `npm run web -- --host 0.0.0.0` and open the Network address printed by Vite.
 
-The browser stores its own lives in IndexedDB. Keep using the same address and browser profile to access them. Saves from Expo Go or a native install are kept in that app’s SQLite database.
+The browser stores its own lives in IndexedDB. Keep using the same address and browser profile to access them. Saves from Expo Go or a native install are kept in that app’s SQLite database. To make a backup or move a life between devices, open **Saved Lives**, choose **Export** next to the life, then select that JSON file with **Import Save** on the destination. The game validates files up to 4 MiB and puts each import in a new slot. Transfers work offline.
 
 Use `npm run build:web` to generate the static site in `dist/web`. Run `npm run preview:web` to test that build locally on the same port after stopping the development server. The built site can be served by any static host. On HTTPS or loopback, it caches the game after the first successful visit so it can reopen offline once the service worker takes control.
 
@@ -31,6 +31,8 @@ npm start
 Open the project's QR code in an [Expo Go build compatible with SDK 58](https://expo.dev/go). Metro serves the development bundle. A packaged app runs its gameplay and saves locally without a server. Expo Go availability varies by platform. Follow the official [SDK 58 instructions](https://expo.dev/changelog/sdk-58) if your installed Expo Go version differs.
 
 Use `npm run android` with a connected Android device or emulator. Use `npm run ios` for a simulator on macOS with Xcode. To export both native production bundles, use `npx expo export --platform android --platform ios --output-dir dist/native`.
+
+The native file picker and share sheet require the Expo Document Picker, File System, and Sharing modules. If you already have a custom development build from before this update, rebuild it with `npx expo run:android` or, on macOS, `npx expo run:ios` before testing save transfers. On a phone, **Export** opens the system share sheet so you can store or send the JSON.
 
 ## Play
 
@@ -54,7 +56,7 @@ Earlier academic grades from version 1 saves are unavailable. Qualifications now
 
 Use **Custom Life → Appearance** to choose a hairstyle, hair color, eyes, nose, and mouth. Random lives can use **Activities → Customize Appearance** at age zero. After the first **Age Up**, use **Activities → Change Hairstyle** to edit your hair. Tap your portrait in the journal for **My Profile**. When you open a contact from **Relationships** or **Class**, tap their name or portrait to see their profile and bond. Available interactions depend on the contact’s role and your age.
 
-Version 1 and 2 saves get stable portraits when they open. Versions 1–8 upgrade to save version 9 on the next successful save. Existing contacts, assets, bank balances, skills, and decisions retain their records. Older saves start recording Veyra’s economy at their current year with a consumer price index of 100. Assets bought before the update show an unknown acquisition price. Active job offers keep their original pay until they expire.
+Version 1 and 2 saves get stable portraits when they open. Versions 1–9 load as version 10 and persist in the new format on the next successful save. Existing contacts, assets, bank balances, skills, and decisions retain their records. Versions 1–8 start recording Veyra’s economy at their current year with a consumer price index of 100. Known acquisition prices stay on record and unknown prices continue to show as unknown. Active job offers keep their original pay until they expire.
 
 ### Work and money
 
@@ -100,6 +102,13 @@ Veyra uses a fictional currency scale. Retirement living costs are funded from s
 - Adults can open **World → Compare Cities**, review a destination, and confirm the move after finishing or leaving their current program and job. The household starts out renting in the new city. Owned homes stay in their original city and can be occupied again after returning.
 - Advanced skills progress more gradually. Varied training and recent public events help for skills that offer them. Existing proficiency, aptitude, and achievements carry over.
 
+## Phase 3.1 · Wealth, banking, and asset management
+
+- Open **Assets → Finances** for current net worth, liabilities, and annual valuations. **Transaction History** shows the cash ledger and labels transfers separately from income and expenses.
+- From age 18, use **Savings Account** to deposit or withdraw cash and earn annual interest. **Loans & Debts** shows creditworthiness, fixed-rate personal-loan offers, and repayment history.
+- Open a house or vehicle from **Properties**, **Vehicles**, or **Owned Assets** for its condition, market price, and available actions. Maintain or renovate houses, rent out an unoccupied house, or service and repair a vehicle. To sell your current home, first move into another home or rent a place.
+- Open **Retirement** for pension eligibility and payment history. **Investments** offers four fictional funds with current prices and realized and unrealized results. Home and vehicle purchases are paid in cash.
+
 ## Verify
 
 ```sh
@@ -113,7 +122,7 @@ npx expo install --check
 
 For a native smoke test, begin a random life, age to six, and exit with the first-day-of-school decision open. Force close and reopen the app, choose **Continue Life**, and verify the character, year, journal, and pending choice. Resolve the decision and confirm that Age Up becomes available. Repeat with a packaged build in airplane mode to verify offline use independently of Metro.
 
-For browser smoke tests, keep `npm run preview:web` running after building and install Playwright Core in the ignored tool directory with `npm install --prefix .expo/web-qa playwright-core`. Run the `test:web:education`, `test:web:career`, `test:web:health`, `test:web:library-property`, `test:web:social`, `test:web:skills`, and `test:web:world` scripts. They use fresh browser contexts and Edge on Windows by default. Set `MORTAL_BROWSER_PATH` for a different Chromium executable.
+For browser smoke tests, keep `npm run preview:web` running after building and install Playwright Core in the ignored tool directory with `npm install --prefix .expo/web-qa playwright-core`. Run the `test:web:education`, `test:web:career`, `test:web:health`, `test:web:library-property`, `test:web:social`, `test:web:skills`, `test:web:world`, and `test:web:wealth` scripts. They use fresh browser contexts and Edge on Windows by default. Set `MORTAL_BROWSER_PATH` for a different Chromium executable.
 
 - [Game design](docs/GAME_DESIGN.md)
 - [Architecture](docs/ARCHITECTURE.md)

@@ -183,11 +183,12 @@ export function financeOverview(life: Life, year: number) {
   const baselineBalance = indexedCents(life.character.bank, indexBase * indexBase / country.priceIndex);
   const projection = Object.values(livingBudget(life)).reduce((sum, cost) => sum + cost, 0);
   let net = 0;
+  const capital = new Set(['savings-transfer', 'investment-trade', 'loan-disbursement', 'loan-principal', 'asset-sale', 'shopping']);
   for (const entry of life.transactions) {
     if (entry.year !== year) continue;
     const category = transactionCategory(entry);
     totals.set(category, (totals.get(category) ?? 0) + entry.amount);
-    net += entry.amount;
+    if (!capital.has(category)) net += category === 'savings-interest' && entry.detail?.kind === 'savings' ? entry.detail.delta : entry.amount;
   }
   return [
     { label: 'Balance', value: money(life.character.bank) },
@@ -208,5 +209,6 @@ export function financeOverview(life: Life, year: number) {
 
 export function financeEntries(life: Life, year: number | null) {
   return [...life.transactions].reverse().filter((entry) => year === null || entry.year === year)
-    .map((entry) => ({ ...entry, group: financeLabels[transactionCategory(entry)] }));
+    .map((entry) => ({ ...entry, group: financeLabels[transactionCategory(entry)],
+      displayAmount: entry.category === 'savings-interest' && entry.detail?.kind === 'savings' ? entry.detail.delta : entry.amount }));
 }
