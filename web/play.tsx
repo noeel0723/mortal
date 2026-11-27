@@ -10,9 +10,6 @@ import type { GamePage, Navigate } from './playPages';
 import { Button, Feedback } from './ui';
 
 const primaryStats = ['happiness', 'health', 'smarts', 'looks'] as const;
-const categories: Record<JournalEntry['category'], string> = {
-  life: 'Life', school: 'School', health: 'Health', family: 'Family', community: 'Community', decision: 'Decision',
-};
 
 function Profile({ character }: { character: Character }) {
   const name = `${character.firstName} ${character.lastName}`;
@@ -62,17 +59,19 @@ function Journal({ life, go }: { life: Life; go: Navigate }) {
   return (
     <section className="journal" aria-labelledby="journal-heading">
       <header className="journal-header">
-        <div><h1 id="journal-heading">{en.lifeJournal}</h1><p>{life.character.city} · {life.year}</p></div>
+        <div className="journal-title">
+          <h1 id="journal-heading">{en.lifeJournal}</h1>
+          <p>{life.character.city} · {life.year}</p>
+        </div>
         <Button icon="world" kind="quiet" onClick={() => go('world')}>World</Button>
       </header>
       <div className="timeline">
         {Array.from(groups, ([age, entries]) => (
           <section key={age} className="timeline-group">
-            <h2><span>{age ? en.age(age) : en.birth}</span><time>{life.character.birthYear + age}</time></h2>
+            <h2><span>{en.age(age)}</span>{' '}<span className="journal-year">{life.character.birthYear + age}</span></h2>
             {entries.map((entry, index) => {
               const changes = Object.entries(entry.changes);
               return <article className="timeline-event" key={index}>
-                <small>{categories[entry.category]}</small>
                 <p id={pending?.text === entry.text ? 'pending-event' : undefined}>{entry.text}</p>
                 {changes.length > 0 && <div className="event-changes">{changes.map(([stat, amount]) =>
                   <span key={stat}>{stat === 'bank' ? `${amount > 0 ? '+' : ''}${money(amount)}` : `${statLabels[stat as Stat]} ${amount > 0 ? '+' : ''}${amount}`}</span>
