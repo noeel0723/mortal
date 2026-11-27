@@ -6,6 +6,7 @@ import { clamp, record } from './journal.ts';
 import { seededRandom } from './random.ts';
 import { recordNotice } from './eventNotices.ts';
 import { createProgramClass, createSchoolClass, educationAt, isSchoolStage } from './school.ts';
+import { developAcademicSkills } from './skillIntegration.ts';
 import type { AcademicAction, AcademicRecord, AcademicState, Enrollment, GraduationPath, QualificationLevel } from './academicTypes.ts';
 import type { Character, Life, SchoolStage } from './types.ts';
 
@@ -260,6 +261,9 @@ export function advanceAcademics(life: Life, random: ReturnType<typeof seededRan
   let graduatedHigh = false;
   if (enrollment && !isTuitionDue(enrollment)) {
     annualPerformance(life, enrollment, random);
+    if (enrollment.performance >= 45 && enrollment.attendance >= 45) {
+      developAcademicSkills(life, enrollment.programId, enrollment.performance >= 75 ? 3 : 2);
+    }
     enrollment.yearsCompleted += 1;
     const program = programById.get(enrollment.programId);
     if (enrollment.yearsCompleted >= enrollment.duration) {

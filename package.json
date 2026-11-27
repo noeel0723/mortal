@@ -1,6 +1,6 @@
 {
   "name": "mortal",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": true,
   "type": "module",
   "main": "expo-router/entry",
@@ -22,6 +22,7 @@
     "test:web:health": "node scripts/test-health-browser.mjs",
     "test:web:library-property": "node scripts/test-library-property-browser.mjs",
     "test:web:social": "node scripts/test-social-browser.mjs",
+    "test:web:skills": "node scripts/test-skills-browser.mjs",
     "simulate": "node scripts/simulate.ts"
   },
   "dependencies": {

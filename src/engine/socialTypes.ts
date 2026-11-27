@@ -24,7 +24,7 @@ export type SocialState = {
   romances: Romance[]; pendingPerson: string | null;
 };
 export const romanticActivities = ['date', 'gift', 'dinner', 'movie', 'support', 'future', 'apologize'] as const;
-export const parentingActivities = ['care', 'read', 'school', 'hobby', 'gift', 'support', 'future'] as const;
+export const parentingActivities = ['care', 'read', 'school', 'hobby', 'lesson', 'gift', 'support', 'future'] as const;
 export type SocialAction =
   | { type: 'meet'; source: 'neighborhood' | 'hobbies' | 'date' | 'app' }
   | { type: 'romance'; person: string; action: 'interest' | 'ask' | 'propose' | 'breakup' | 'divorce' | typeof romanticActivities[number] }

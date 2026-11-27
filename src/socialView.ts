@@ -109,7 +109,7 @@ export function meetingControls(life: Life, romantic: boolean) {
 }
 
 const romanceIcons = { date: 'rose', gift: 'gift', dinner: 'restaurant', movie: 'camera', support: 'support', future: 'thoughts', apologize: 'thanks' } as const;
-const parentingIcons = { care: 'bottle', read: 'library', school: 'study', hobby: 'trophy', gift: 'gift', support: 'support', future: 'talk' } as const;
+const parentingIcons = { care: 'bottle', read: 'library', school: 'study', hobby: 'art', lesson: 'classroom', gift: 'gift', support: 'support', future: 'talk' } as const;
 
 export function relationshipControls(life: Life, person: Contact) {
   const { id } = person;

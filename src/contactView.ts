@@ -1,5 +1,7 @@
 import { genderLabels } from './data/veyra.ts';
 import { employerById } from './data/employers.ts';
+import { isSkillId, skills } from './data/skills.ts';
+import { canShareHobby, sharedHobbies, sharedHobbyIssue } from './engine/hobbies.ts';
 import { canStudyWith, contactGroup, giftCost, relationshipActivities, relationshipIssue } from './engine/interactions.ts';
 import type { RelationshipActivity } from './engine/interactions.ts';
 import { befriendIssue, friendshipEnergyCost, talkIssue } from './engine/simulation.ts';
@@ -47,7 +49,8 @@ export function contactProfileRows(life: Life, person: Contact) {
     { label: 'Occupation', value: person.occupation },
     { label: 'Education', value: profile.education },
     { label: 'Personality', value: personalityLabels(life, person) },
-    { label: 'Interests', value: profile.interests.join(', ') },
+    { label: 'Interests', value: profile.interests.map((interest) => isSkillId(interest) ? skills[interest].name : interest).join(', ') },
+    ...(life.skills.children[person.id] ?? []).map(({ skill, proficiency }) => ({ label: skills[skill].name, value: `${proficiency}%` })),
     { label: 'Years known', value: life.year - profile.met },
     ...(profile.friendsSince !== null ? [{ label: 'Friends since', value: profile.friendsSince }] : []),
     ...(parents ? [{ label: 'Parents', value: parents }] : []),
@@ -88,6 +91,10 @@ export function contactInteractions(life: Life, person: Contact) {
   }
   if (person.age >= 3) rows.push({ label: 'Have a Conversation', icon: 'talk', detail: 'Uses 8 energy. Strengthens affection and trust.',
     issue: blocked ?? talkIssue(life, person.id), action: { type: 'talk', person: person.id } });
+  if (canShareHobby(life, person)) for (const id of sharedHobbies(life, person)) {
+    rows.push({ label: `Practice ${skills[id].name} Together`, icon: skills[id].icon, detail: 'Uses 6 energy. Develop a shared interest.',
+      issue: sharedHobbyIssue(life, person, id), action: { type: 'share-hobby', person: person.id, skill: id } });
+  }
 
   for (const activity of Object.keys(relationshipActivities) as RelationshipActivity[]) {
     if (life.social.children[person.id]) continue;

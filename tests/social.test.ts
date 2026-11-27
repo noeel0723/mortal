@@ -83,7 +83,7 @@ test('V6 migration preserves old NPCs, illnesses, homes and decisions, with repr
   startIllness(life, 'cold', findContact(life, friend.id)!);
   const snapshot = JSON.stringify({ ...life, version: 6, social: undefined });
   const restored = decodeLife(snapshot);
-  assert.equal(restored.version, 7);
+  assert.equal(restored.version, 8);
   assert.deepEqual(findContact(restored, friend.id), findContact(life, friend.id));
   for (const key of ['property', 'illnesses', 'transactions', 'journal', 'notices', 'random', 'character'] as const) {
     assert.deepEqual(restored[key], life[key]);
@@ -92,6 +92,18 @@ test('V6 migration preserves old NPCs, illnesses, homes and decisions, with repr
   assert.equal(restored.social.romances.length, 0);
   assert.deepEqual(restored.social.children, {});
   assert.equal(canAccompany(restored, findContact(restored, friend.id)!), true);
+});
+
+test('V7 migration preserves a married household and owned property without inventing skills', () => {
+  const married = marry().life;
+  const purchased = act(married, { type: 'buy-asset', id: 'cedar-starter' });
+  const housed = act(purchased, { type: 'move-into-home', id: 'cedar-starter' });
+  const restored = decodeLife(JSON.stringify({ ...housed, version: 7, skills: undefined }));
+  assert.equal(restored.version, 8);
+  assert.deepEqual(restored.skills.entries, {});
+  for (const key of ['social', 'property', 'journal', 'notices', 'transactions', 'random', 'character'] as const) {
+    assert.deepEqual(restored[key], housed[key]);
+  }
 });
 
 test('adult NPCs get suitable jobs, build finances and age once', () => {

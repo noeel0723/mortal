@@ -59,7 +59,7 @@ try {
   await click('Dating App');
   await dialog('Someone New').waitFor();
   await acknowledgeEvents(page);
-  assert.equal((await read()).version, 7);
+  assert.equal((await read()).version, 8);
   await click('Ask Someone Out');
   await heading('Dating Profiles').waitFor();
   await page.getByText(/compatibility/).first().waitFor();

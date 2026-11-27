@@ -33,3 +33,10 @@ The native visual system uses white and soft-blue surfaces, subtle dividers, pas
 - Romance requires two adults outside the family. Dating decisions depend on consent, attraction, compatibility and circumstances. Proposals can come from either partner. Weddings have three price tiers. Divorce settles a small cash amount and preserves both the former partner and the children’s family links.
 - A sibling may be born during childhood, and a grandparent may be part of the tree. Adult spouses can mutually agree to welcome or adopt children through an abstract decision. Parenting supports learning, confidence, wellbeing, and the bond with the child.
 - Active NPCs can finish education, work, save, retire, relocate, become ill, seek care, and form relationships. The simulation models selected contacts and a simplified household economy. It keeps player hiring, unpaid bills, property, and tuition in their existing systems.
+
+## Phase 2.4 · Personal growth and lifestyle
+
+- The player can develop 26 individual skills spanning sports, music, creative work, knowledge, and practical skills. My Skills shows six proficiency tiers, experience, recent progress, and achievements. Aptitude is discovered through experience and influences training efficiency.
+- Sports and chess offer age-appropriate amateur competitions. Musicians can perform in a local recital, and creative skills open projects and showcases. Education and work develop relevant skills over time. Preferred skills can help a job application or review alongside the existing credentials.
+- A practiced skill can become a hobby. Shared interests create conversation topics, improve compatibility, and open joint practice. Hobby groups can reintroduce known contacts. Children develop a small set of interests and can benefit from encouragement or optional paid lessons.
+- Activities group repeatable wellbeing, entertainment, and travel alongside skill training, social activities, doctors, and appearance. Leisure affects existing health, happiness, energy, and stress. Results use the existing narrative pop-up and journal.

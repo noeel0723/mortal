@@ -54,7 +54,7 @@ Earlier academic grades from version 1 saves are unavailable. Qualifications now
 
 Use **Custom Life → Appearance** to choose a hairstyle, hair color, eyes, nose, and mouth. Random lives can use **Activities → Customize Appearance** at age zero. After the first **Age Up**, use **Activities → Change Hairstyle** to edit your hair. Tap your portrait in the journal for **My Profile**. When you open a contact from **Relationships** or **Class**, tap their name or portrait to see their profile and bond. Available interactions depend on the contact’s role and your age.
 
-Version 1 and 2 saves get stable portraits when they open. Versions 1–6 upgrade to save version 7 on the next successful save. Existing contacts, assets, bank balances, and decisions retain their references. Adults coming from versions 1–3 start with a neutral career record.
+Version 1 and 2 saves get stable portraits when they open. Versions 1–7 upgrade to save version 8 on the next successful save. Existing contacts, assets, bank balances, and decisions retain their references. Migrated lives start with an empty skill history and deterministic aptitudes. Adults coming from versions 1–3 start with a neutral career record.
 
 ### Work and money
 
@@ -75,7 +75,7 @@ Veyra uses a fictional currency scale. Retirement living costs are funded from s
 
 ## Library, housing, and shopping
 
-- Open **Activities → Social Activities** to meet a neighbor, join a hobby group, or go to the library. Library visits are repeatable and can present an interactive encounter. Choose **Become Friends** at a shared-hobby encounter to add the character to **Relationships**. Personal activities and healthcare visits have no energy fee or yearly visit limit. The first plasma donation of the year is compensated.
+- Open **Activities → Social Activities** to meet a neighbor, join a hobby group, or go to the library. Library visits are free, repeatable, and can present an interactive encounter. Choose **Become Friends** at a shared-hobby encounter to add the character to **Relationships**. Eligible healthcare visits can be repeated. The first plasma donation of the year is compensated.
 - From age 18, use **Assets → Housing** to rent, ask a parent for a starter home, or move into a house you own. A parent must be able to afford the home and agree to buy it.
 - **Assets → Shopping** offers ten houses, ten cars, and ten motorcycles with original pixel illustrations. Purchases use the in-game balance and appear in **Owned Assets** and **Finances**.
 
@@ -85,6 +85,13 @@ Veyra uses a fictional currency scale. Retirement living costs are funded from s
 - Dates and shared activities build a bond. An engagement opens three wedding options. Spouses can discuss family planning or adoption. Parenting actions appear on each child’s profile.
 - **Family Tree** shows relatives, spouses, former spouses, and children. **Relationship History** preserves the relationship timeline. Profiles show known education, interests, and personality alongside the existing portraits.
 - Parents use their own savings for allowance and house gifts. Weddings, adoption, and other paid activities appear in the ledger. Unpaid childcare is added to personal-expense arrears.
+
+## Phase 2.4 · Personal growth, skills, and lifestyle
+
+- Open **Activities → Skill Training** to practice any of 26 skills. Use **Life Statistics → My Skills** to review proficiency, experience, hobbies, and achievements. Practicing can reveal each skill’s natural aptitude.
+- Choose free practice, group classes, courses, or private coaching. You can take up to five sessions per skill and 16 across all skills per year. **Age Up** renews the budget. Training, competitions, and leisure show their results in the journal, with fees appearing in **Assets → Finances**.
+- Enter a school or community competition, perform at an open recital, or present a creative project after developing the relevant skill. School and work can provide practical experience. Job listings show preferred skills alongside required qualifications.
+- Add a practiced skill as a hobby. You can practice shared hobbies with friends and partners, and support a child’s chosen interests through encouragement or paid lessons. Exercise, a balanced meal, meditation, entertainment, and a day trip are available from **Activities**.
 
 ## Verify
 
@@ -99,7 +106,7 @@ npx expo install --check
 
 For a native smoke test, begin a random life, age to six, and exit with the first-day-of-school decision open. Force close and reopen the app, choose **Continue Life**, and verify the character, year, journal, and pending choice. Resolve the decision and confirm that Age Up becomes available. Repeat with a packaged build in airplane mode to verify offline use independently of Metro.
 
-For browser smoke tests, keep `npm run preview:web` running after building and install Playwright Core in the ignored tool directory with `npm install --prefix .expo/web-qa playwright-core`. Run the `test:web:education`, `test:web:career`, `test:web:health`, `test:web:library-property`, and `test:web:social` scripts. They use fresh browser contexts and Edge on Windows by default. Set `MORTAL_BROWSER_PATH` for a different Chromium executable.
+For browser smoke tests, keep `npm run preview:web` running after building and install Playwright Core in the ignored tool directory with `npm install --prefix .expo/web-qa playwright-core`. Run the `test:web:education`, `test:web:career`, `test:web:health`, `test:web:library-property`, `test:web:social`, and `test:web:skills` scripts. They use fresh browser contexts and Edge on Windows by default. Set `MORTAL_BROWSER_PATH` for a different Chromium executable.
 
 - [Game design](docs/GAME_DESIGN.md)
 - [Architecture](docs/ARCHITECTURE.md)

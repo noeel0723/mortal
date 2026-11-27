@@ -12,6 +12,7 @@ import { annualFinance, incomeTax, outstanding } from '../src/engine/finance.ts'
 import { seededRandom } from '../src/engine/random.ts';
 import { findContact } from '../src/engine/school.ts';
 import { advance, talkIssue } from '../src/engine/simulation.ts';
+import { skillAt } from '../src/engine/skills.ts';
 import type { Action, Life } from '../src/engine/types.ts';
 import { activeCoworkers } from '../src/engine/workplace.ts';
 import { relationshipGroups } from '../src/socialView.ts';
@@ -55,11 +56,27 @@ test('version 3 migrates an adult neutrally and preserves portraits, ledger, dip
   life.character.appearance = { ...life.character.appearance, hair: 'Bob' };
   const snapshot = { ...life, version: 3, career: undefined, finance: undefined, illnesses: undefined, notices: undefined };
   const migrated = decodeLife(JSON.stringify(snapshot));
-  assert.deepEqual({ ...migrated, social: undefined }, { ...life, illnesses: [], notices: [], social: undefined });
+  assert.deepEqual({ ...migrated, social: undefined, skills: undefined }, { ...life, illnesses: [], notices: [], social: undefined, skills: undefined });
+  assert.deepEqual(migrated.skills.entries, {});
   assert.equal(employmentStatus(migrated), 'Unemployed');
   assert.equal(migrated.career.history.length, 0);
   assert.equal(migrated.finance.lastSettledYear, null);
   assert.throws(() => decodeLife(JSON.stringify({ ...migrated, finance: { ...migrated.finance, arrears: {} } })), /invalid career or finance/);
+});
+
+test('preferred career skills improve performance and cannot replace mandatory qualifications', () => {
+  const hired = hire(adult());
+  const expert = structuredClone(hired);
+  expert.skills.entries.communication = { ...skillAt(expert, 'communication'), proficiency: 90, best: 90, experience: 500,
+    firstYear: expert.year - 8, lastYear: expert.year - 1 };
+  expert.skills.entries.programming = { ...skillAt(expert, 'programming'), proficiency: 90, best: 90, experience: 500,
+    firstYear: expert.year - 8, lastYear: expert.year - 1 };
+  assert.match(jobRequirementsIssue(expert, jobById.get('junior-developer')!) ?? '', /undergraduate/);
+  const work = { type: 'work-harder' } as const;
+  const novice = act(hired, work);
+  const trained = act(expert, work);
+  assert.ok(trained.career.current!.performance > novice.career.current!.performance);
+  assert.ok(skillAt(novice, 'communication').proficiency > skillAt(hired, 'communication').proficiency);
 });
 
 test('job listings are deterministic and gate professional roles by academic level, tags and experience', () => {

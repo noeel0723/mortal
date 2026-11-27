@@ -4,6 +4,7 @@ import type { Job } from '../data/jobs.ts';
 import { recordNotice } from './eventNotices.ts';
 import { clamp, record } from './journal.ts';
 import { seededRandom } from './random.ts';
+import { developJobSkills, jobSkillStrength } from './skillIntegration.ts';
 import { ensureWorkplace } from './workplace.ts';
 import type { QualificationLevel } from './academicTypes.ts';
 import type { CareerAction, CareerEffect, CareerState, CurrentJob, EndReason } from './careerTypes.ts';
@@ -105,7 +106,7 @@ function applicationScore(life: Life, vacancy: Vacancy) {
   const relevant = life.career.industryExperience[job.industry] ?? 0;
   return attributes.smarts * .13 + attributes.discipline * .17 + attributes.charisma * .13 + attributes.health * .09 +
     attributesForRole * .32 + grade * .07 + life.career.reputation * .12 + Math.min(12, relevant * 3) +
-    (matched.length ? 5 : 0) + (!job.qualification ? 5 : 0);
+    (matched.length ? 5 : 0) + (!job.qualification ? 5 : 0) + jobSkillStrength(life, job) * .13;
 }
 
 export function endEmployment(life: Life, reason: EndReason) {
@@ -196,7 +197,9 @@ export function performCareerAction(life: Life, action: CareerAction) {
     life.usedActions.push(action.type);
     if (action.type === 'request-raise') requestRaise(life, career.current!);
     else {
-      applyCareerEffect(life, { performance: 9, stress: 6 });
+      const job = jobById.get(career.current!.jobId)!;
+      applyCareerEffect(life, { performance: 9 + Math.floor(jobSkillStrength(life, job) / 25), stress: 6 });
+      developJobSkills(life, job, 1);
       record(life, 'career', 'I put in extra effort at work.', { energy: -16, stress: 4 });
     }
   }
@@ -219,9 +222,10 @@ export function advanceCareer(life: Life, random: ReturnType<typeof seededRandom
   const attributes = life.character.attributes;
   const overtime = current.hours - job.hours;
   const capacity = (attributes[job.attributes[0]] + attributes[job.attributes[1]]) / 2;
+  const skillStrength = jobSkillStrength(life, job);
   const workloadStress = Math.round((job.stress - current.stress) * .18 + overtime * 1.1);
   const performance = Math.round((capacity - current.performance) * .12 + (attributes.discipline - 45) / 13 +
-    Math.min(4, overtime / 2) - current.stress / 23 + random.integer(-3, 3));
+    Math.min(4, overtime / 2) - current.stress / 23 + random.integer(-3, 3) + skillStrength * .04);
   applyCareerEffect(life, {
     performance, stress: workloadStress,
     security: current.performance >= 60 ? 3 : current.performance < 38 ? -12 : 0,
@@ -243,9 +247,10 @@ export function advanceCareer(life: Life, random: ReturnType<typeof seededRandom
     return;
   }
   current.warnings = 0;
+  if (current.performance >= 45) developJobSkills(life, job, current.performance >= 70 ? 2 : 1);
   const promotion = job.promotions.map((id) => jobById.get(id)!).find((next) => !jobRequirementsIssue(life, next));
   if (promotion && current.performance >= 72 && career.reputation >= 12 && current.security >= 55 &&
-    random.next() < .13 + employer.stability / 500 + (current.performance - 72) / 95) {
+    random.next() < .13 + employer.stability / 500 + (current.performance - 72) / 95 + jobSkillStrength(life, promotion) * .0015) {
     current.promotions.push({ year: life.year, from: job.id, to: promotion.id });
     current.jobId = promotion.id;
     current.hours = promotion.hours;

@@ -4,6 +4,9 @@ import { programById, programs } from '../src/data/academics.ts';
 import { eventById } from '../src/data/events.ts';
 import { jobById } from '../src/data/jobs.ts';
 import { starterHome } from '../src/data/shops.ts';
+import { jobCompetencies } from '../src/data/skillLinks.ts';
+import { skills } from '../src/data/skills.ts';
+import type { SkillId, TrainingMethod } from '../src/data/skills.ts';
 import { academicActionIssue, isTuitionDue, latestApplication } from '../src/engine/academics.ts';
 import { careerActionIssue, jobRequirementsIssue, vacancies } from '../src/engine/career.ts';
 import { createLife } from '../src/engine/create.ts';
@@ -17,6 +20,9 @@ import { relationshipIssue } from '../src/engine/interactions.ts';
 import { propertyIssue } from '../src/engine/property.ts';
 import { isSchoolStage } from '../src/engine/school.ts';
 import { activityIssue, advance, maxAge } from '../src/engine/simulation.ts';
+import { hobbyIssue, skillRandom, skillTier, trainingIssue, trainingUsed } from '../src/engine/skills.ts';
+import { showcaseIssue } from '../src/engine/skillShowcases.ts';
+import { skillLimits } from '../src/engine/skillTypes.ts';
 import { activeCoworkers } from '../src/engine/workplace.ts';
 import type { AcademicAction, ProgramLevel } from '../src/engine/academicTypes.ts';
 import type { CareerAction } from '../src/engine/careerTypes.ts';
@@ -53,6 +59,33 @@ let divorces = 0;
 const plans: Record<string, number> = {};
 const qualifications: Record<string, number> = {};
 const schoolwork = ['study', 'exams', 'socialize'] as const;
+const developmentStrategies = ['incidental', 'recreational', 'sports', 'paidLearning', 'careerFocused', 'creative'] as const;
+type SkillStrategy = typeof developmentStrategies[number];
+const development = new Map<SkillStrategy, { peaks: number[]; spending: number[]; firstEliteAges: number[]; elite: number; employed: number; promoted: number;
+  professional: number; awarded: number; tiers: Record<string, number> }>();
+
+function skillChoice(life: Life, seed: number, strategy: SkillStrategy) {
+  const age = life.character.age;
+  if (strategy === 'incidental' || age < 6 || (strategy === 'recreational' && (seed + age) % 3 === 0)) return life;
+  const job = life.career.current && jobById.get(life.career.current.jobId);
+  const focal: Record<Exclude<SkillStrategy, 'incidental'>, SkillId> = {
+    recreational: seed % 2 ? 'cooking' : 'chess', sports: seed % 2 ? 'running' : 'football',
+    paidLearning: seed % 2 ? 'foreign-languages' : 'programming', careerFocused: (job && jobCompetencies(job)[0]) || 'communication',
+    creative: seed % 2 ? 'writing' : 'piano',
+  };
+  const id = focal[strategy];
+  if (age < skills[id].age || age > ({ sports: 49, paidLearning: 51, careerFocused: 68, creative: 67, recreational: 75 })[strategy]) return life;
+  const sessions = ({ sports: 5, paidLearning: 4, careerFocused: 3, creative: 4, recreational: 1 })[strategy];
+  for (let session = 0; session < sessions; session++) {
+    const preferred: TrainingMethod = strategy === 'paidLearning' ? 'course' : strategy === 'creative' && session === 0 ? 'class' : 'practice';
+    const method = trainingIssue(life, id, preferred) ? 'practice' : preferred;
+    if (trainingIssue(life, id, method)) break;
+    life = apply(life, { type: 'train-skill', skill: id, method });
+  }
+  if (age % 2 === 0 && !hobbyIssue(life, id, true)) life = apply(life, { type: 'set-hobby', skill: id, enabled: true });
+  if (age % 3 === 0 && !showcaseIssue(life, id)) life = apply(life, { type: 'skill-showcase', skill: id });
+  return life;
+}
 
 function apply(life: Life, action: Action) {
   const result = advance(life, action);
@@ -194,12 +227,18 @@ function socialChoice(life: Life, seed: number) {
     const child = life.social.people.find((person) => person.alive && person.role === 'Child' && person.age < 18);
     const care = child && { type: 'parent-child', person: child.id, action: 'care' } as const;
     if (care && !familyIssue(life, care)) life = apply(life, care);
+    const hobby = child && { type: 'parent-child', person: child.id, action: seed % 3 === 0 ? 'lesson' : 'hobby' } as const;
+    if (hobby && !familyIssue(life, hobby)) life = apply(life, hobby);
   }
   return life;
 }
 
 for (let seed = 1; seed <= count; seed++) {
   let life = createLife(seed);
+  const block = Math.floor((seed - 1) / developmentStrategies.length);
+  const rotation = skillRandom(0xd51c95b, `strategy:${block}`).integer(0, developmentStrategies.length - 1);
+  const strategy = developmentStrategies[(seed - 1 + rotation) % developmentStrategies.length]!;
+  let firstEliteAge: number | undefined;
   let turns = 0;
   while (!life.character.causeOfDeath) {
     assert.ok(++turns <= maxAge, `Turn limit exceeded for seed ${seed}.`);
@@ -215,6 +254,7 @@ for (let seed = 1; seed <= count; seed++) {
     }
     if (!life.character.causeOfDeath) life = employmentChoice(educationChoice(life, seed), seed);
     life = socialChoice(life, seed);
+    if (!life.character.causeOfDeath) life = skillChoice(life, seed, strategy);
     if (!life.character.causeOfDeath && life.character.age >= 5 && life.character.age <= 25 && (seed + life.year) % 6 === 0) {
       life = apply(life, { type: 'activity', activity: 'go-to-library' });
       if (life.pending) {
@@ -246,6 +286,10 @@ for (let seed = 1; seed <= count; seed++) {
     }
     assert.equal(life.year, life.character.birthYear + life.character.age);
     assert.ok(Object.values(life.character.attributes).every((value) => Number.isInteger(value) && value >= 0 && value <= 100));
+    assert.ok(trainingUsed(life) <= skillLimits.yearlySessions);
+    assert.ok(Object.values(life.skills.annual.gains).every((gain) => gain <= skillLimits.yearlyGain));
+    assert.ok(Object.values(life.skills.entries).every(({ proficiency, best }) => proficiency >= 0 && proficiency <= best && best <= 100));
+    if (firstEliteAge === undefined && Object.values(life.skills.entries).some(({ best }) => best >= 90)) firstEliteAge = life.character.age;
     const contacts = allContacts(life);
     assert.equal(new Set(contacts.map(({ id }) => id)).size, contacts.length);
     assert.ok(life.social.people.length <= newPeopleLimit);
@@ -269,8 +313,8 @@ for (let seed = 1; seed <= count; seed++) {
     if (seed % 47 === 0 && life.character.age === 17) {
       const legacy = { ...life, version: 3, career: undefined, finance: undefined, illnesses: undefined, notices: undefined,
         property: undefined, communityFriends: undefined };
-      assert.deepEqual({ ...decodeLife(JSON.stringify(legacy)), social: undefined },
-        { ...life, illnesses: [], notices: [], communityFriends: [], social: undefined });
+      assert.deepEqual({ ...decodeLife(JSON.stringify(legacy)), social: undefined, skills: undefined },
+        { ...life, illnesses: [], notices: [], communityFriends: [], social: undefined, skills: undefined });
     }
     const enrollment = life.academic.enrollment;
     if (enrollment) {
@@ -280,6 +324,22 @@ for (let seed = 1; seed <= count; seed++) {
     }
   }
   if (seed % 47 === 0) assert.deepEqual(decodeLife(JSON.stringify(life)), life);
+  const result = development.get(strategy) ?? { peaks: [], spending: [], firstEliteAges: [], elite: 0, employed: 0, promoted: 0, professional: 0,
+    awarded: 0, tiers: {} };
+  development.set(strategy, result);
+  const progress = Object.values(life.skills.entries);
+  const peak = Math.max(0, ...progress.map(({ best }) => best));
+  result.peaks.push(peak);
+  result.spending.push(life.transactions.filter(({ category }) => category === 'training').reduce((total, { amount }) => total - amount, 0));
+  result.elite += Number(peak >= 90);
+  if (firstEliteAge !== undefined) result.firstEliteAges.push(firstEliteAge);
+  result.awarded += Number(progress.some(({ awards }) => awards > 0));
+  result.employed += Number(life.career.history.length > 0);
+  result.promoted += Number(life.career.history.some(({ promotions }) => promotions.length > 0));
+  result.professional += Number(life.career.history.some(({ initialJobId }) =>
+    ['undergraduate', 'postgraduate'].includes(jobById.get(initialJobId)?.qualification ?? '')));
+  const tier = skillTier(peak);
+  result.tiers[tier] = (result.tiers[tier] ?? 0) + 1;
   assert.equal(life.career.current, null);
   const salaries = life.transactions.filter(({ category }) => category === 'salary');
   const taxes = life.transactions.filter(({ category }) => category === 'tax');
@@ -327,6 +387,12 @@ for (let seed = 1; seed <= count; seed++) {
 }
 
 ages.sort((a, b) => a - b);
+function percentiles(values: number[]) {
+  if (!values.length) return null;
+  const ordered = [...values].sort((a, b) => a - b);
+  return { p10: ordered[Math.floor((ordered.length - 1) * .1)], p50: ordered[Math.floor((ordered.length - 1) * .5)],
+    p90: ordered[Math.floor((ordered.length - 1) * .9)] };
+}
 console.log(JSON.stringify({
   lives: count,
   minimumAge: ages[0],
@@ -360,4 +426,7 @@ console.log(JSON.stringify({
   children,
   adoptions,
   divorces,
+  skillDevelopment: Object.fromEntries([...development].map(([strategy, { peaks, spending, firstEliteAges, ...outcomes }]) => [strategy, {
+    lives: peaks.length, bestProficiency: percentiles(peaks), firstEliteAge: percentiles(firstEliteAges), trainingExpenseCents: percentiles(spending), ...outcomes,
+  }])),
 }, null, 2));

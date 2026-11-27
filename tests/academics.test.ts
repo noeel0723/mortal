@@ -6,6 +6,8 @@ import { eventById } from '../src/data/events.ts';
 import { highestQualification, latestApplication } from '../src/engine/academics.ts';
 import { createLife } from '../src/engine/create.ts';
 import { currentClass } from '../src/engine/school.ts';
+import { programCompetencies } from '../src/engine/skillIntegration.ts';
+import { skillAt } from '../src/engine/skills.ts';
 import { advance, talkIssue } from '../src/engine/simulation.ts';
 import type { Action, Life } from '../src/engine/types.ts';
 
@@ -50,6 +52,18 @@ function enrollWithAid(life: Life, programId: string) {
 function expectIssue(life: Life, action: Action, message: RegExp) {
   assert.match(advance(life, action).error ?? '', message);
 }
+
+test('all academic metadata maps to catalog skills and funded coursework develops those skills', () => {
+  for (const program of programById.values()) assert.ok(programCompetencies(program.id).length);
+  const university = enrollWithAid(qualified(), 'computer-science');
+  const before = skillAt(university, 'mathematics').proficiency;
+  assert.equal(skillAt(university, 'programming').proficiency, 0);
+  const studied = act(university, { type: 'activity', activity: 'study' });
+  assert.equal(skillAt(studied, 'programming').proficiency, 1);
+  assert.equal(skillAt(studied, 'mathematics').proficiency, before + 1);
+  const completed = ageTo(studied, 19);
+  assert.ok(skillAt(completed, 'programming').proficiency > 1 && skillAt(completed, 'programming').proficiency < 15);
+});
 
 test('school records progress in sequence and the high school plan must be resolved after reload', () => {
   const life = ageTo(createLife(4), 18);
@@ -210,7 +224,7 @@ test('a version 1 graduate gets a migration credential with no invented grades o
     schoolContacts: life.schoolContacts.map((person) => person.role === 'Classmate' ? { ...person, occupation: 'Student' } : person),
   };
   const restored = decodeLife(JSON.stringify(legacy));
-  assert.equal(restored.version, 7);
+  assert.equal(restored.version, 8);
   assert.deepEqual(restored.academic.history, []);
   assert.equal(highestQualification(restored)?.performance, null);
   assert.equal(highestQualification(restored)?.year, life.year);

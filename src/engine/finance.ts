@@ -9,7 +9,7 @@ import type { Life } from './types.ts';
 export const financeLabels: Record<TransactionCategory, string> = {
   salary: 'Salary', tax: 'Income Tax', housing: 'Housing', 'food-utilities': 'Food & Utilities',
   transport: 'Transportation', personal: 'Personal Expenses', tuition: 'Tuition', scholarship: 'Scholarships', medical: 'Doctor Visits', shopping: 'Asset Purchases',
-  relationships: 'Relationships', other: 'Other',
+  relationships: 'Relationships', training: 'Skill Training', leisure: 'Leisure', other: 'Other',
 };
 
 const housingCosts = { 'Alder Bay': 16400, Bellmere: 14500, Northwick: 12900 };

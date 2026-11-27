@@ -95,7 +95,7 @@ test('SQLite opens a version 1 slot and saves the migrated payload on the next a
     const legacy = { ...life, version: 1, academic: undefined };
     database.prepare('UPDATE lives SET payload = ? WHERE id = ?').run(JSON.stringify(legacy), slot.id);
     const restored = await repository.load(slot.id);
-    assert.equal(restored.life.version, 7);
+    assert.equal(restored.life.version, 8);
     assert.equal(restored.life.pending, 'first-classroom');
     assert.deepEqual(restored.life.schoolContacts, legacy.schoolContacts);
     assert.deepEqual(restored.life.journal, legacy.journal);
@@ -107,7 +107,7 @@ test('SQLite opens a version 1 slot and saves the migrated payload on the next a
     const saved = await repository.save(restored, next.life);
     assert.deepEqual(await repository.load(slot.id), saved);
     const persisted = database.prepare('SELECT payload FROM lives WHERE id = ?').get(slot.id);
-    assert.equal(JSON.parse(String(persisted?.payload)).version, 7);
+    assert.equal(JSON.parse(String(persisted?.payload)).version, 8);
   } finally {
     database.close();
   }

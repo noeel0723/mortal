@@ -1,4 +1,6 @@
 import { recordNotice, resultMeter } from './eventNotices.ts';
+import { skills } from '../data/skills.ts';
+import { hobbyGroupContact, sharedHobbies } from './hobbies.ts';
 import { clamp } from './journal.ts';
 import { ensureNpc, isFamily, makeNpc, newPeopleLimit, npcProfile, npcRandom, remember } from './npcs.ts';
 import { findContact } from './school.ts';
@@ -60,7 +62,7 @@ function related(life: Life, id: string) {
 export function datingCompatibility(life: Life, person: Contact) {
   const { compatibility, affection, familiarity } = person.bond;
   const profile = npcProfile(life, person);
-  return clamp(Math.round(compatibility * .6 + affection * .17 + familiarity * .12 + profile.traits.empathy * .11));
+  return clamp(Math.round(compatibility * .6 + affection * .17 + familiarity * .12 + profile.traits.empathy * .11 + Math.min(8, sharedHobbies(life, person).length * 4)));
 }
 
 function loveKey(action: Exclude<LoveAction, { type: 'meet' }>) {
@@ -76,7 +78,8 @@ export function loveIssue(life: Life, action: LoveAction): string | null {
     const dating = action.source === 'date' || action.source === 'app';
     if (life.character.age < (dating ? 18 : 8)) return dating ? 'Dating opens at age 18.' : 'Available from age 8.';
     if (dating && activeRomance(life)) return 'You already have a partner.';
-    if (life.social.people.filter(({ role }) => role === 'Acquaintance').length >= newPeopleLimit - 8) return 'Your social circle is full.';
+    if (life.social.people.filter(({ role }) => role === 'Acquaintance').length >= newPeopleLimit - 8 &&
+      (action.source !== 'hobbies' || !hobbyGroupContact(life))) return 'Your social circle is full.';
     return life.usedActions.includes('meet-new-person') ? 'You already met someone new this year.' : null;
   }
   const person = findContact(life, action.person);
@@ -125,13 +128,24 @@ export function applyLove(life: Life, action: LoveAction) {
     const age = life.character.age;
     const random = npcRandom(life, 'new-person', life.year);
     const dating = action.source === 'date' || action.source === 'app';
-    const person = makeNpc(life, `npc-meet-${life.year}`, Math.min(102,
-      Math.max(dating ? 18 : 8, age + random.integer(-3, 3))), 'Acquaintance');
-    life.social.people.push(person);
-    ensureNpc(life, person);
+    const known = action.source === 'hobbies' ? hobbyGroupContact(life) : undefined;
+    let person: Contact;
+    if (known) person = known;
+    else {
+      const newcomer = makeNpc(life, `npc-meet-${life.year}`, Math.min(102,
+        Math.max(dating ? 18 : 8, age + random.integer(-3, 3))), 'Acquaintance');
+      life.social.people.push(newcomer);
+      person = newcomer;
+    }
+    const profile = ensureNpc(life, person);
+    const shared = action.source === 'hobbies' ? life.skills.hobbies.filter((id) => skills[id].age <= person.age) : [];
+    if (!known && shared.length) profile.interests = [shared[0]!, ...profile.interests.filter((interest) => interest !== shared[0]).slice(0, 1)];
     life.usedActions.push('meet-new-person');
     const where = { date: 'at a singles event', app: 'through the dating app', hobbies: 'at a hobby group', neighborhood: 'in my neighborhood' };
-    const story = `I met ${person.name} ${where[action.source]} and got to know them a little.`;
+    const matched = action.source === 'hobbies' ? sharedHobbies(life, person)[0] : undefined;
+    const common = matched ? ` We spent time on ${skills[matched].name}.` : '';
+    const story = `I ${known ? 'ran into' : 'met'} ${person.name} ${where[action.source]} and got to know them a little.${common}`;
+    if (known) person.bond.affection = clamp(person.bond.affection + 2);
     remember(life, person, story);
     recordNotice(life, 'community', 'Someone New', story, { happiness: 2 });
     return null;

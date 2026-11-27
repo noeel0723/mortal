@@ -1,6 +1,7 @@
 import { libraryEvents, libraryFriendEvent, libraryHobbies } from '../data/libraryEvents.ts';
 import { genders, givenNames, surnames } from '../data/veyra.ts';
 import { contactIdentity } from './appearance.ts';
+import { personalizedLibraryHobbies } from './hobbies.ts';
 import { record } from './journal.ts';
 import { seededRandom } from './random.ts';
 import type { CommunityFriend, Life, LifeEvent } from './types.ts';
@@ -17,9 +18,11 @@ function libraryGuest(life: Life): CommunityFriend {
     ? givenNames[gender].flatMap((first) => surnames.map((last) => `${first} ${last}`)).find((candidate) => !known.has(candidate)) ?? preferred
     : preferred;
   const age = Math.min(115, Math.max(5, life.character.age + random.integer(-2, 2)));
+  const interests = personalizedLibraryHobbies(life);
   return { id, name, ...contactIdentity(life.seed, id, name, 'Friend'), role: 'Friend', friend: true,
     age, city: life.character.city, alive: true, health: random.integer(68, 95), occupation: age < 18 ? 'Student' : 'Library member',
-    hobby: random.pick(libraryHobbies), bond: { affection: 56, trust: 45, respect: 55, compatibility: 75, resentment: 0, familiarity: 20 } };
+    hobby: interests.length ? interests[random.integer(0, interests.length - 1)]! : random.pick(libraryHobbies),
+    bond: { affection: 56, trust: 45, respect: 55, compatibility: 75, resentment: 0, familiarity: 20 } };
 }
 
 export function eventStory(life: Life, event: LifeEvent) {

@@ -13,12 +13,14 @@ import { advanceContactOccupation, createSchoolClass, isSchoolStage } from '../e
 import { maxAge } from '../engine/simulation.ts';
 import { initialProperty, movingAge } from '../engine/property.ts';
 import { stats } from '../engine/types.ts';
+import { newSkills } from '../engine/skills.ts';
 import type { Life, ProfileInput } from '../engine/types.ts';
 import { cities, genders } from '../data/veyra.ts';
 import { validAcademicState } from './academicCodec.ts';
 import { validateCareer, validateFinance } from './careerCodec.ts';
 import { allContacts, newSocial, syncNpcs } from '../engine/npcs.ts';
 import { validateSocial } from './socialCodec.ts';
+import { validateSkills } from './skillCodec.ts';
 
 const record = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -91,7 +93,7 @@ export function decodeLife(json: string): Life {
   }
   if (!record(value)) throw new Error('This saved life is damaged.');
   const version = value.version;
-  if (version !== 1 && version !== 2 && version !== 3 && version !== 4 && version !== 5 && version !== 6 && version !== 7) throw new Error('This saved life uses an unsupported version.');
+  if (!integer(version, 1, 8)) throw new Error('This saved life uses an unsupported version.');
   const { character, family, schoolContacts, journal, pending, scheduled, seen, usedActions, transactions, year } = value;
   if (!record(character) || typeof character.firstName !== 'string' || typeof character.lastName !== 'string' ||
     validateProfile(character as ProfileInput) || (version >= 3 && !validAppearance(character.appearance)) || !integer(character.age, 0, maxAge) ||
@@ -162,7 +164,6 @@ export function decodeLife(json: string): Life {
     throw new Error('This saved life has invalid assets or community friends.');
   }
   if (version < 7) {
-    life.version = 7;
     life.social = newSocial(life);
     syncNpcs(life);
   } else if (!validateSocial(life, (person): person is Record<string, unknown> => savedPerson(person, true))) {
@@ -173,6 +174,12 @@ export function decodeLife(json: string): Life {
     life.illnesses = [];
   } else if (!validHealthAndNotices(life)) {
     throw new Error('This saved life has invalid health or event data.');
+  }
+  if (version < 8) {
+    life.version = 8;
+    life.skills = newSkills();
+  } else if (!validateSkills(life)) {
+    throw new Error('This saved life has invalid skill data.');
   }
   return life;
 }

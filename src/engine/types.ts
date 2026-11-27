@@ -7,6 +7,7 @@ import type { HealthVisit, IllnessCase, IllnessId } from './healthTypes.ts';
 import type { libraryHobbies } from '../data/libraryEvents.ts';
 import type { PropertyAction, PropertyState } from './property.ts';
 import type { SocialAction, SocialPerson, SocialState } from './socialTypes.ts';
+import type { SkillAction, SkillState } from './skillTypes.ts';
 
 export const stats = ['health', 'happiness', 'smarts', 'looks', 'charisma', 'discipline', 'athleticism', 'creativity', 'stress', 'energy', 'reputation'] as const;
 export type Stat = typeof stats[number];
@@ -94,7 +95,7 @@ export type LifeEvent = {
 };
 
 export type Life = {
-  version: 7;
+  version: 8;
   seed: number;
   random: number;
   character: Character;
@@ -107,6 +108,7 @@ export type Life = {
   academic: AcademicState;
   career: CareerState;
   finance: FinanceState;
+  skills: SkillState;
   journal: JournalEntry[];
   notices: LifeNotice[];
   illnesses: IllnessCase[];
@@ -131,4 +133,5 @@ export type Action =
   | AcademicAction
   | PropertyAction
   | SocialAction
+  | SkillAction
   | CareerAction;

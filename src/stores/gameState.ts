@@ -84,6 +84,10 @@ export function createGameStore(openSaves: () => Promise<ReturnType<typeof creat
         return work(async () => {
           const result = advance(slot.life, action);
           if (!result.life) throw new Error(result.error);
+            if (result.life === slot.life) {
+              set({ notice: 'No additional change this year.' });
+              return;
+            }
           const repository = await openSaves();
           const saved = await repository.save(slot, result.life);
           if (action.type === 'age') lastAgeCommit = now();

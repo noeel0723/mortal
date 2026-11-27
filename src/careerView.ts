@@ -1,6 +1,8 @@
 import { employerById } from './data/employers.ts';
 import { jobById } from './data/jobs.ts';
 import type { Job } from './data/jobs.ts';
+import { jobCompetencies } from './data/skillLinks.ts';
+import { skills } from './data/skills.ts';
 import { careerActionIssue, employmentStatus, jobRequirementsIssue, retirementAge, vacancies } from './engine/career.ts';
 import type { CareerAction, EmploymentType, Industry, JobApplication } from './engine/careerTypes.ts';
 import { financeLabels, outstanding, transactionCategory } from './engine/finance.ts';
@@ -101,6 +103,7 @@ export function vacancyRows(listing: Listing) {
     { label: 'Annual gross salary', value: money(salary) }, { label: 'Working week', value: `${job.hours} hrs` },
     { label: 'Minimum age', value: job.age }, { label: 'Qualification', value: job.qualification ?? 'None required' },
     ...(job.tags.length ? [{ label: 'Relevant fields', value: job.tags.join(', ') }] : []),
+      { label: 'Preferred skills', value: jobCompetencies(job).map((id) => skills[id].name).join(', ') },
     { label: 'Industry experience', value: job.experience ? `${job.experience} years` : 'None required' },
     { label: 'Application status', value: status },
     ...((application?.reason ?? issue) ? [{ label: 'Eligibility', value: (application?.reason ?? issue)! }] : []),

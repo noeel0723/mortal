@@ -26,5 +26,9 @@ export const emoji = {
   court: '⚖️', restaurant: '🍽️', cooking: '🍳', cart: '🛒', camera: '🎥',
   car: '🚗', motorcycle: '🏍️',
   rose: '🌹', loveLetter: '💌', ring: '💍', brokenHeart: '💔', bottle: '🍼',
+  football: '⚽', basketball: '🏀', tennis: '🎾', swimming: '🏊', running: '👟', martialArts: '🥋',
+  guitar: '🎸', piano: '🎹', violin: '🎻', drums: '🥁', singing: '🎤', drawing: '✏️',
+  photography: '📷', acting: '🎭', math: '📐', leadership: '🧑‍💼', chess: '♟️', languages: '💬',
+  fitness: '🏋️', meditation: '🧘', food: '🥗', cinema: '🎬', park: '🌳', train: '🚆', music: '🎵',
 } as const;
 export type Emoji = keyof typeof emoji;

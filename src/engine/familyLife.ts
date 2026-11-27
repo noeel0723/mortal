@@ -1,4 +1,5 @@
 import { recordNotice, resultMeter } from './eventNotices.ts';
+import { supportChildHobby } from './childSkills.ts';
 import { clamp } from './journal.ts';
 import { romanceFor } from './love.ts';
 import { ensureNpc, makeNpc, newPeopleLimit, npcRandom, remember } from './npcs.ts';
@@ -12,6 +13,7 @@ export const parenting = {
   read: { label: 'Read Together', age: 0, health: 0, trust: 3, cost: 0 },
   school: { label: 'Help with School', age: 6, health: 0, trust: 4, cost: 0 },
   hobby: { label: 'Encourage a Hobby', age: 4, health: 0, trust: 2, cost: 0 },
+  lesson: { label: 'Pay for Hobby Lessons', age: 7, health: 0, trust: 3, cost: 750 },
   gift: { label: 'Give a Gift', age: 3, health: 0, trust: 2, cost: 500 },
   support: { label: 'Offer Support', age: 3, health: 2, trust: 4, cost: 0 },
   future: { label: 'Discuss Their Future', age: 12, health: 0, trust: 5, cost: 0 },
@@ -59,6 +61,7 @@ export function familyIssue(life: Life, action: FamilyAction): string | null {
   if (!life.social.parents[person.id]?.includes('self')) return 'Available with your children.';
   if (person.age < parenting[action.action].age) return `Available when your child turns ${parenting[action.action].age}.`;
   if (action.action === 'school' && person.age >= 18) return 'Available while your child is in school.';
+  if (action.action === 'lesson' && person.age >= 18) return 'Available to children under 18.';
   if (life.usedActions.includes(`parenting:${person.id}:${action.action}`)) return 'Available again next year.';
   if (life.character.attributes.energy < 5) return 'You need 5 energy.';
   return life.character.bank < parenting[action.action].cost ? 'Your balance does not cover this activity.' : null;
@@ -105,20 +108,23 @@ export function applyFamily(life: Life, action: FamilyAction) {
     read: [`I reread ${name}’s favorite story with them.`, `${name} and I took turns choosing what to read together.`],
     school: [`I helped ${name} break a difficult assignment into smaller steps.`, `I reviewed school notes with ${name} and asked them to explain what they had learned.`],
     hobby: [`I helped ${name} make time for a hobby they enjoy.`, `I asked ${name} to show me what they had been working on in their spare time.`],
+    lesson: [`I paid for lessons that interested ${name}.`, `I helped ${name} find a class they could enjoy after school.`],
     gift: [`I gave ${name} a gift I thought they would use.`, `I surprised ${name} with something they had been saving up for.`],
     support: [`I listened to ${name} and asked what kind of help they wanted.`, `I checked in with ${name} after a hard day and let them talk at their own pace.`],
     future: [`I talked with ${name} about what they wanted to try next year.`, `I helped ${name} think about one step they could take toward a goal.`],
   };
-  const story = pickStory(life, `parenting:${person.id}:${action.action}`, stories[action.action]);
+  const hobby = action.action === 'hobby' || action.action === 'lesson' ? supportChildHobby(life, person, action.action === 'lesson') : undefined;
+  const base = pickStory(life, `parenting:${person.id}:${action.action}`, stories[action.action]);
+  const story = hobby ? `${base} They chose to work on ${hobby.name}.` : base;
   person.bond.trust = clamp(before + item.trust);
   person.bond.affection = clamp(person.bond.affection + 3);
   person.health = clamp(person.health + item.health);
   if (action.action === 'read' || action.action === 'school') child.learning = clamp(child.learning + (action.action === 'school' ? 5 : 3));
-  else if (action.action === 'hobby' || action.action === 'future') child.confidence = clamp(child.confidence + 4);
+  else if (action.action === 'hobby' || action.action === 'lesson' || action.action === 'future') child.confidence = clamp(child.confidence + 4);
   else child.wellbeing = clamp(child.wellbeing + 3);
   life.usedActions.push(`parenting:${person.id}:${action.action}`);
   remember(life, person, story);
-  const notice = recordNotice(life, 'family', item.label, story, { happiness: 3, energy: -5, bank: -item.cost }, 'relationships');
-  notice.meter = resultMeter('Trust', before, person.bond.trust);
+  const notice = recordNotice(life, 'family', item.label, story, { happiness: 3, energy: -5, bank: -item.cost }, action.action === 'lesson' ? 'training' : 'relationships');
+  notice.meter = hobby ? resultMeter(hobby.name, hobby.before, hobby.proficiency) : resultMeter('Trust', before, person.bond.trust);
   return null;
 }

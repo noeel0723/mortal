@@ -1,5 +1,7 @@
 import { institutionById, programById, programs } from './data/academics.ts';
 import type { Program } from './data/academics.ts';
+import { skills } from './data/skills.ts';
+import { programCompetencies } from './engine/skillIntegration.ts';
 import {
   academicActionIssue, academicProgramName, admissionMinimum, admissionsScore, educationStatus,
   highestQualification, institutionName, isTuitionDue, latestApplication, termCost,
@@ -124,6 +126,7 @@ export function programRows(life: Life, program: Program) {
     { label: 'Admission score', value: `${admissionsScore(life, program)} / ${admissionMinimum(program)} target` },
     { label: 'Qualification', value: program.qualification },
     { label: 'Skills', value: program.skills.join(', ') },
+    { label: 'Develops', value: programCompetencies(program.id).map((id) => skills[id].name).join(', ') },
     ...(program.scholarshipScore ? [{ label: 'Scholarship', value: aid ? `Awarded · ${money(aid.annualAmount)}/year` : 'Merit or financial need' }] : []),
     ...(application ? [{ label: 'Latest application', value: currentOffer ? `Accepted · valid until ${application.year + 2}` :
       application.result === 'accepted' ? 'Offer expired' : application.result === 'enrolled' ? 'Enrollment accepted' : `Declined · ${application.year}` }] : []),

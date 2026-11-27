@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { socialActivities, wellbeingActivities, type ActivityControl } from '../src/activityView';
+import { lifestyleActivities, socialActivities, wellbeingActivities, type ActivityControl } from '../src/activityView';
 import { assetById, assetKinds } from '../src/data/shops';
 import type { AssetListing } from '../src/data/shops';
 import { backgroundLabels, cities, cityDescriptions, genderLabels, talentLabels } from '../src/data/veyra';
@@ -12,6 +12,7 @@ import {
 import type { JobFilters } from '../src/careerView';
 import { programById } from '../src/data/academics';
 import { jobById } from '../src/data/jobs';
+import { isSkillId, skillCategories, skills } from '../src/data/skills';
 import { educationStatus } from '../src/engine/academics';
 import { workAge, workHours } from '../src/engine/career';
 import { industries } from '../src/engine/careerTypes';
@@ -35,6 +36,7 @@ import type { Contact, Life } from '../src/engine/types';
 import { en, money, statLabels } from '../src/i18n/en';
 import type { Emoji } from '../src/theme/tokens';
 import { useGame } from './browserStore';
+import { activitySkillCategories, annualTrainingSummary, skillCategory, skillDetails, skillGroups } from '../src/skillView';
 import { Achievements, Settings } from './menu';
 import { AppearancePage, Portrait } from './portraits';
 import { DetailDialog } from './detailDialog';
@@ -80,6 +82,9 @@ export const pageTitles = {
   doctor: 'Doctors',
   appearance: 'Appearance',
   statistics: 'Life Statistics',
+  skills: 'My Skills',
+  'skill-training': 'Skill Training',
+  skill: 'Skill Details',
   world: 'World',
   menu: 'Life Menu',
   settings: 'Settings',
@@ -128,6 +133,9 @@ const parentPages: Partial<Record<DetailPage, GamePage>> = {
   'owned-assets': 'assets',
   appearance: 'activities',
   doctor: 'activities',
+  skills: 'statistics',
+  'skill-training': 'activities',
+  skill: 'skills',
   settings: 'menu',
   achievements: 'menu',
 };
@@ -137,13 +145,19 @@ export function PlayPageHeader({ page, person, schoolTitle, detail, go }: {
 }) {
   let parent = parentPages[page] ?? 'journal';
   if (page === 'education' && schoolTitle) parent = 'journal';
-  const parentDetail = page === 'shop-item' ? assetById.get(detail ?? '')?.kind : undefined;
+  const trainingCategory = page === 'skill' ? skillCategory(detail?.split('~')[1]) : undefined;
+  if (trainingCategory) parent = 'skill-training';
+  const parentDetail = page === 'shop-item' ? assetById.get(detail ?? '')?.kind : trainingCategory;
   const titleFor = (target: GamePage, value?: string) => {
     if (target === 'education' && schoolTitle) return schoolTitle;
     if (target === 'shop-category') {
       const kind = shoppingCategory(value);
       return kind ? propertyCategories[kind].label : pageTitles[target];
     }
+    const category = target === 'skill-training' ? skillCategory(value) : undefined;
+    if (category) return skillCategories[category];
+    const skill = target === 'skill' ? value?.split('~')[0] : undefined;
+    if (isSkillId(skill)) return skills[skill].name;
     if ((target === 'person' || target === 'class-person' || target === 'work-person') && person) {
       return target === 'person' ? contactRole(person) : person.role;
     }
@@ -328,6 +342,8 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
   const { character } = life;
   const job = life.career.current;
   const canFindJob = character.age >= workAge && !character.causeOfDeath && life.career.retiredYear === null;
+  const activityRow = (item: ActivityControl) => <MenuRow key={item.label} icon={item.icon} title={item.label}
+    detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onClick={() => void dispatch(item.action)} />;
 
   switch (page) {
     case 'career':
@@ -651,30 +667,34 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
     }
     case 'finances':
       return <Finances life={life} />;
-    case 'activities': {
-      const activityRow = (item: ActivityControl) => <MenuRow key={item.label}
-        icon={item.icon} title={item.label} detail={item.issue ?? item.detail} disabled={busy || !!item.issue}
-        onClick={() => void dispatch(item.action)} />;
+    case 'activities':
       return <>
-        <PageGroup title="Wellbeing">
-          <MenuRow icon="medical" title="Doctors" detail="Browse healthcare services." onClick={() => go('doctor')} />
+        <PageGroup title="Mind & Body">
           {wellbeingActivities(life).map(activityRow)}
+          {lifestyleActivities(life, 'Mind & Body').map(activityRow)}
         </PageGroup>
+        <PageGroup title="Skill Training">
+          {activitySkillCategories.map(({ category, label, icon }) => <MenuRow key={category} icon={icon} title={label}
+            onClick={() => go('skill-training', category)} />)}
+        </PageGroup>
+        <PageGroup title="Entertainment">{lifestyleActivities(life, 'Entertainment').map(activityRow)}</PageGroup>
         <PageGroup title="Social Activities">
           {socialActivities(life).map(activityRow)}
         </PageGroup>
+        <PageGroup title="Travel">{lifestyleActivities(life, 'Travel').map(activityRow)}</PageGroup>
+        <PageGroup title="Healthcare"><MenuRow icon="medical" title="Doctors" detail="Browse healthcare services." onClick={() => go('doctor')} /></PageGroup>
         {!character.causeOfDeath && <PageGroup title="Appearance">
           <MenuRow icon="hair" title={canEditFace(character.age) ? 'Customize Appearance' : 'Change Hairstyle'}
             onClick={() => go('appearance')} />
         </PageGroup>}
       </>;
-    }
     case 'doctor':
       return <DoctorsPage life={life} />;
     case 'appearance':
       return <AppearancePage life={life} back={() => go('activities')} />;
     case 'statistics':
       return <>
+        <PageGroup title="Personal Growth"><MenuRow icon="study" title="My Skills" onClick={() => go('skills')} /></PageGroup>
         <PageGroup title="Attributes"><Rows items={stats.map((stat) => ({ label: statLabels[stat], value: `${character.attributes[stat]}%` }))} /></PageGroup>
         <PageGroup title="Background"><Rows items={[
           { label: 'Personality', value: character.personality },
@@ -682,6 +702,34 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           { label: 'Family background', value: backgroundLabels[character.background] },
         ]} /></PageGroup>
       </>;
+    case 'skills': case 'skill-training': {
+      const category = page === 'skill-training' ? skillCategory(detail) : undefined;
+      return <>
+        <PageGroup title="Training this year"><Rows items={[{ label: 'Sessions', value: annualTrainingSummary(life) }]} /></PageGroup>
+        {!category && life.skills.hobbies.length > 0 && <PageGroup title="My Hobbies">{life.skills.hobbies.map((id) =>
+          <MenuRow key={id} icon={skills[id].icon} title={skills[id].name} onClick={() => go('skill', id)} />)}</PageGroup>}
+        {skillGroups(life, category).map(({ label, rows }) => <PageGroup key={label} title={label}>
+          {rows.map((row) => <MenuRow key={row.id} icon={row.icon} title={row.name} detail={row.detail}
+            onClick={() => go('skill', category ? `${row.id}~${category}` : row.id)}>
+            <PageMeter label="Proficiency" value={row.proficiency} />
+          </MenuRow>)}
+        </PageGroup>)}
+      </>;
+    }
+    case 'skill': {
+      const id = detail?.split('~')[0];
+      if (!isSkillId(id)) return <p className="play-empty">This skill is unavailable.</p>;
+      const details = skillDetails(life, id);
+      return <>
+        <PageGroup title="Progress">
+          <div className="play-group-inset"><PageMeter label="Proficiency" value={details.proficiency} /></div>
+          <Rows items={details.rows} />
+        </PageGroup>
+        <PageGroup title="Training">{details.controls.map(activityRow)}</PageGroup>
+        <PageGroup title="Achievements"><Rows items={details.achievements} /></PageGroup>
+        <PageGroup title="Hobby">{activityRow(details.hobby)}</PageGroup>
+      </>;
+    }
     case 'world':
       return <>
         <PageGroup title="Veyra"><Rows items={[

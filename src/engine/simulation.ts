@@ -4,14 +4,18 @@ import { advanceAcademics, chooseEducationPath, isTuitionDue, performAcademicAct
 import { activityStory } from './activityStories.ts';
 import { appearanceChanged, appearanceIssue, mergeAppearance, validFace, validHair } from './appearance.ts';
 import { advanceCareer, applyCareerEffect, closeCareerYear, endEmployment, performCareerAction, studyWorkload } from './career.ts';
+import { developChildInterests } from './childSkills.ts';
 import { annualFinance } from './finance.ts';
 import { enqueueNotice, eventTitle, recordNotice, resultMeter } from './eventNotices.ts';
 import { ageFamilyOpportunities, applyFamily } from './familyLife.ts';
 import { advanceIllnesses, startIllness, visitHealthcare } from './health.ts';
 import { playerPatient } from './healthTypes.ts';
+import { sharedHobbies, spendTimeOnHobby } from './hobbies.ts';
+import { skills } from '../data/skills.ts';
 import { contactIssue, performRelationshipActivity } from './interactions.ts';
 import { clamp, record } from './journal.ts';
 import { befriendLibraryGuest, visitLibrary } from './library.ts';
+import { doLifestyle } from './lifestyle.ts';
 import { applyLove } from './love.ts';
 import { advanceNpcLives, ageNewPeople, cloneSocial, ensureNpc, remember, syncNpcs } from './npcs.ts';
 import { applyPropertyAction, movingAge } from './property.ts';
@@ -19,6 +23,9 @@ import { seededRandom } from './random.ts';
 import { conversationStory, friendshipStory } from './relationshipStories.ts';
 import { answerSocialEvent, isSocialEvent, offerSocialEvent } from './socialEvents.ts';
 import { advanceContactOccupation, currentClass, findContact, isPeer, isSchoolStage } from './school.ts';
+import { ageSkills, cloneSkills, incidentalPractice, setHobby, trainSkill } from './skills.ts';
+import { developAcademicSkills } from './skillIntegration.ts';
+import { holdShowcase } from './skillShowcases.ts';
 import { ageWorkplace, canMakeFriend, coworkerAcquaintanceThreshold, coworkerFriendAffection, isWorkAcquaintance, isWorkContact } from './workplace.ts';
 import { stats } from './types.ts';
 import type { Action, Life } from './types.ts';
@@ -60,6 +67,7 @@ function ageUp(life: Life) {
   character.age += 1;
   life.year += 1;
   life.usedActions = [];
+  ageSkills(life);
   character.attributes.energy = 100;
   character.attributes.stress = clamp(character.attributes.stress - 5);
   const age = character.age;
@@ -99,6 +107,7 @@ function ageUp(life: Life) {
   closeCareerYear(life);
   advanceIllnesses(life);
   advanceNpcLives(life);
+  developChildInterests(life);
   const dies = character.attributes.health === 0 || age >= maxAge ||
     (age >= 72 && random.next() < (age - 69) / 650 + (100 - character.attributes.health) / 1800);
   if (dies) {
@@ -204,6 +213,24 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       if (issue) return { error: issue };
       break;
     }
+    case 'train-skill': case 'set-hobby': {
+      const issue = action.type === 'train-skill' ? trainSkill(life, action.skill, action.method) : setHobby(life, action.skill, action.enabled);
+      if (issue) return { error: issue };
+      break;
+    }
+    case 'skill-showcase': case 'lifestyle': {
+      const issue = action.type === 'skill-showcase' ? holdShowcase(life, action.skill) : doLifestyle(life, action.activity);
+      if (issue) return { error: issue };
+      if (life.journal.length === previous.journal.length) return { life: previous };
+      break;
+    }
+    case 'share-hobby': {
+      const person = findContact(life, action.person);
+      if (!person) return { error: 'This person is unavailable.' };
+      const issue = spendTimeOnHobby(life, person, action.skill);
+      if (issue) return { error: issue };
+      break;
+    }
     case 'buy-asset': case 'rent-home': case 'ask-for-home': case 'move-into-home': {
       const issue = applyPropertyAction(life, action);
       if (issue) return { error: issue };
@@ -257,16 +284,20 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
         if (effect.performance) enrollment.performanceRecorded = true;
         enrollment.attendance = clamp(enrollment.attendance + effect.attendance);
         enrollment.stress = clamp(enrollment.stress + effect.stress);
+        if (activity === 'study' || activity === 'library' || activity === 'exams') developAcademicSkills(life, enrollment.programId, 1);
       }
       const adviser = action.activity === 'academic-talk' ?
         currentClass(life).find((person) => person.alive && (person.role === 'Teacher' || person.role === 'Professor')) : undefined;
       const before = life.character.attributes[item.meter];
-      const repeatable = activity === 'walk' || activity === 'go-to-library';
+      const repeatable = activity === 'walk' || activity === 'go-to-library' || activity === 'rest';
       const repeatKey = `repeat:${activity}`;
       const count = repeatable ? life.usedActions.filter((key) => key === repeatKey).length : 0;
+      if (repeatable && count >= 6 && (activity !== 'rest' || life.character.attributes.energy >= 100)) return { life: previous };
       if (repeatable && count < 6) life.usedActions.push(repeatKey);
+      if (activity === 'go-to-library' && count < 4) incidentalPractice(life, 'writing', 1, 25);
       const effects = activity === 'walk' ? { health: Math.max(0, 3 - Math.floor(count / 2)), stress: -Math.max(0, 3 - Math.floor(count / 2)) } :
-        activity === 'go-to-library' ? { smarts: Math.max(0, 2 - Math.floor(count / 2)), happiness: count < 4 ? 1 : 0 } : item.effects;
+        activity === 'go-to-library' ? { smarts: Math.max(0, 2 - Math.floor(count / 2)), happiness: count < 4 ? 1 : 0 } :
+          activity === 'rest' ? { energy: 20, stress: -Math.max(0, 8 - count * 2) } : item.effects;
       record(life, academic ? 'school' : 'life', activityStory(life, activity, adviser?.name),
         academic ? { energy: -activities[activity].energy, ...effects } : effects);
       if (activity !== 'go-to-library' || !visitLibrary(life)) {
@@ -280,10 +311,11 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       const person = findContact(life, action.person)!;
       life.usedActions.push(`talk:${person.id}`);
       const previousAffection = person.bond.affection;
-      person.bond.affection = clamp(person.bond.affection + 3);
+      const shared = sharedHobbies(life, person)[0];
+      person.bond.affection = clamp(person.bond.affection + (shared ? 4 : 3));
       person.bond.trust = clamp(person.bond.trust + 2);
       person.bond.familiarity = clamp(person.bond.familiarity + 4);
-      const story = conversationStory(life, person);
+      const story = shared ? `${conversationStory(life, person)} We also traded ideas about ${skills[shared].name}.` : conversationStory(life, person);
       remember(life, person, story);
       const notice = recordNotice(life, isWorkContact(person) ? 'career' : 'friend' in person ? 'community' : 'family',
         'A Conversation', story, { energy: -8, happiness: 3 });
@@ -363,6 +395,7 @@ function structuredCloneLife(life: Life): Life {
       contacts: life.career.contacts.map((person) => ({ ...person, bond: { ...person.bond } })),
     },
     finance: { ...life.finance, arrears: { ...life.finance.arrears } },
+    skills: cloneSkills(life.skills),
     academic: {
       ...life.academic,
       enrollment: life.academic.enrollment ? { ...life.academic.enrollment } : null,
