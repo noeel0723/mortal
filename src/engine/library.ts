@@ -30,7 +30,7 @@ export function eventStory(life: Life, event: LifeEvent) {
 
 export function visitLibrary(life: Life) {
   const check = ['library-check-1', 'library-check-2', 'library-check-3'].find((key) => !life.usedActions.includes(key));
-  if (!check || life.usedActions.includes('library-encounter')) return;
+  if (!check || life.usedActions.includes('library-encounter')) return false;
   life.usedActions.push(check);
   const random = seededRandom(life.random);
   const roll = random.next();
@@ -38,11 +38,12 @@ export function visitLibrary(life: Life) {
     (event.id === libraryFriendEvent || !life.seen.includes(event.id)) && roll < event.probability);
   const event = available.length ? available[random.integer(0, available.length - 1)] : undefined;
   life.random = random.state;
-  if (!event) return;
+  if (!event) return false;
   life.usedActions.push('library-encounter');
   if (!life.seen.includes(event.id)) life.seen.push(event.id);
   record(life, event.category, eventStory(life, event));
   life.pending = event.id;
+  return true;
 }
 
 export function befriendLibraryGuest(life: Life) {

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decodeLife } from '../src/database/codec.ts';
+import { eventPopup } from '../src/eventView.ts';
 import { createLife } from '../src/engine/create.ts';
 import { seededRandom } from '../src/engine/random.ts';
 import { currentClass, findContact } from '../src/engine/school.ts';
@@ -175,6 +176,40 @@ test('personal activities can repeat at zero energy, while energy still resets o
   const after = apply(apply(life, walk), walk);
   assert.equal(after.character.attributes.energy, 0);
   assert.equal(apply(after, { type: 'age' }).character.attributes.energy, 100);
+});
+
+test('activity result pop-ups preserve varied stories and the actual change after clamping and reload', () => {
+  const life = ageTo(5);
+  life.notices = [];
+  life.character.attributes.health = 98;
+  const walk = { type: 'activity', activity: 'walk' } as const;
+  const first = apply(life, walk);
+  const original = eventPopup(decodeLife(JSON.stringify(first)))!;
+  assert.equal(original.title, 'A Walk Outside');
+  assert.deepEqual(original.meter, { label: 'Health', value: 100, change: 2 });
+  assert.equal(original.text, first.journal.at(-1)?.text);
+  const dismissed = apply(first, original.dismiss!);
+  const second = apply(dismissed, walk);
+  assert.notEqual(eventPopup(second)?.text, original.text);
+  assert.deepEqual(eventPopup(second)?.meter, { label: 'Health', value: 100, change: 0 });
+  assert.equal(second.journal.length, first.journal.length + 1);
+});
+
+test('complimenting a parent reports the actual affection change and does not create another result on rejection', () => {
+  const school = ageTo(6);
+  const life = apply(school, { type: 'choose', event: 'first-classroom', choice: 'join' });
+  life.notices = [];
+  const parent = life.family[0]!;
+  parent.bond.affection = 98;
+  const action = { type: 'interact', person: parent.id, activity: 'compliment' } as const;
+  const after = apply(life, action);
+  const popup = eventPopup(after)!;
+  assert.equal(popup.title, 'A Kind Word');
+  assert.ok(popup.text.startsWith(`I complimented ${parent.name}`));
+  assert.deepEqual(popup.meter, { label: 'Affection', value: 100, change: 2 });
+  assert.equal(parent.bond.affection, 98);
+  assert.match(advance(after, action).error ?? '', /already done/i);
+  assert.equal(after.notices.length, 1);
 });
 
 test('available family interactions update multiple bond dimensions', () => {

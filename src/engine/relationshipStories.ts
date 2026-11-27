@@ -1,20 +1,9 @@
 import { jobById } from '../data/jobs.ts';
-import { seededRandom } from './random.ts';
+import type { RelationshipActivity } from './interactions.ts';
+import { pickStory } from './stories.ts';
 import type { Contact, Life, Person, SchoolContact } from './types.ts';
 import { isWorkContact } from './workplace.ts';
 
-type Moment = 'conversation' | 'together';
-
-function pickStory(life: Life, person: Contact, moment: Moment, stories: readonly string[]) {
-  let seed = life.seed ^ Math.imul(life.year, 0x9e3779b9);
-  for (const letter of `${person.id}:${moment}`) seed = Math.imul(seed ^ letter.charCodeAt(0), 16777619);
-  const options = new Set(stories);
-  const previous = life.journal.filter(({ text }) => options.has(text));
-  const seen = new Set(previous.map(({ text }) => text));
-  const unused = stories.filter((story) => !seen.has(story));
-  const pool = unused.length ? unused : stories.filter((story) => story !== previous.at(-1)?.text);
-  return pool[seededRandom(seed).integer(0, pool.length - 1)]!;
-}
 
 function parentConversation(life: Life, parent: Person) {
   const name = `my ${parent.role.toLowerCase()}, ${parent.name}`;
@@ -98,10 +87,10 @@ export function conversationStory(life: Life, person: Contact) {
     ];
     stories = topics.map((topic) => `I talked with ${person.name} about ${topic}.`);
   }
-  return pickStory(life, person, 'conversation', stories);
+  return pickStory(life, `${person.id}:conversation`, stories);
 }
 
-export function timeTogetherStory(life: Life, person: Contact) {
+function timeTogetherStory(life: Life, person: Contact) {
   const { age, city } = life.character;
   const name = person.name;
   let stories: string[];
@@ -146,5 +135,84 @@ export function timeTogetherStory(life: Life, person: Contact) {
     ];
   }
   if ('hobby' in person) stories.push(`I spent an afternoon ${person.hobby} with ${name}.`);
-  return pickStory(life, person, 'together', stories);
+  return pickStory(life, `${person.id}:together`, stories);
+}
+
+export function friendshipStory(life: Life, person: Contact) {
+  const where = isWorkContact(person) ? 'at work' : 'in class';
+  return pickStory(life, `${person.id}:friendship`, [
+    `I became friends with ${person.name} after we found something in common ${where}.`,
+    `I became friends with ${person.name} when a short chat ${where} turned into a long one.`,
+    `I became friends with ${person.name} after we agreed to hang out away from the people we usually see ${where}.`,
+  ]);
+}
+
+type TogetherActivity = 'family-time' | 'hang-out' | 'work-break';
+
+export function interactionStory(life: Life, person: Contact, activity: RelationshipActivity) {
+  if (activity === 'family-time' || activity === 'hang-out' || activity === 'work-break') return timeTogetherStory(life, person);
+  const { name, role } = person;
+  const compliment = isWorkContact(person) ? ['how clearly they explain a difficult task', 'how calm they stay on busy days', 'how easy they are to work with'] :
+    role === 'Teacher' || role === 'Professor' ? ['how patient they are when someone has a question', 'how memorable their examples are', 'how much easier they make a difficult subject'] :
+      role === 'Mother' || role === 'Father' ? ['how good they are at making people feel welcome', 'how well their new outfit suits them', 'how thoughtful they are about the little things'] :
+        ['their sense of humor', 'how their outfit suited them', 'how easy they are to talk to'];
+  const stories = {
+    'ask-allowance': [
+      `I asked ${name} for pocket money and promised to save some of what they gave me.`,
+      `I told ${name} what I wanted to save for, and they gave me some pocket money.`,
+      `I asked ${name} for a little spending money. They gave me some and asked what I planned to buy.`,
+    ],
+    'thank-parent': [
+      `I thanked ${name} for the small things they do to make my day easier.`,
+      `I told ${name} I remembered a time they helped me when I was upset.`,
+      `I left ${name} a little note to say I appreciated being looked after.`,
+    ],
+    'ask-advice': [
+      `I asked ${name} what to do when a friend and I disagree. We talked through how to listen first.`,
+      `I told ${name} I was nervous about trying something new. They helped me think of a small first step.`,
+      `I asked ${name} how they make tough decisions and wrote down one piece of advice I wanted to remember.`,
+    ],
+    compliment: compliment.map((topic) => `I complimented ${name} on ${topic}.`),
+    'study-together': [
+      `I traded quiz questions with ${name} on material we both needed to practice.`,
+      `I compared notes with ${name} and we filled in the points we had each missed.`,
+      `I worked through a tricky problem with ${name} and we talked through two ways to solve it.`,
+    ],
+    gift: [
+      `I bought a small box of sweets to give ${name}.`,
+      `I picked out a bookmark for ${name} and wrote a short note to go with it.`,
+      `I bought ${name} a little plant after spotting it in a shop window.`,
+    ],
+    'academic-help': [
+      `I showed ${name} where I got stuck and we worked through the first step together.`,
+      `I asked ${name} to review an assignment and they pointed out one change I could make.`,
+      `I went over my notes with ${name} and asked them to clarify a concept I kept mixing up.`,
+    ],
+    'mentor-guidance': [
+      `I asked ${name} how to choose a project that I could realistically finish.`,
+      `I talked through my study goals with ${name} and left with a clearer idea of what to focus on.`,
+      `I asked ${name} how they learned to handle setbacks in their field.`,
+    ],
+    'thank-educator': [
+      `I thanked ${name} for taking time to explain a difficult lesson again.`,
+      `I told ${name} that an example they shared had made a topic click for me.`,
+      `I stopped after class to thank ${name} for encouraging me when I was stuck.`,
+    ],
+    'discuss-work': [
+      `I compared task lists with ${name} and we agreed on what needed to get done first.`,
+      `I asked ${name} how they would tackle a task I had been putting off.`,
+      `I talked through a handover with ${name} and noticed a detail we would have missed.`,
+    ],
+    insult: [
+      `I told ${name} their idea was ridiculous. The conversation turned tense.`,
+      `I made a cutting remark about ${name} in the middle of a conversation. They went quiet.`,
+      `I mocked ${name} over a small mistake, and they took offense.`,
+    ],
+    'mess-with': [
+      `I stuck a silly label on ${name}’s notebook. They peeled it off and asked me to stop.`,
+      `I tried to fool ${name} with a made-up story. They were annoyed when I admitted it was a prank.`,
+      `I hid ${name}’s pen as a joke, then gave it back when they got upset.`,
+    ],
+  } satisfies Record<Exclude<RelationshipActivity, TogetherActivity>, readonly string[]>;
+  return pickStory(life, `${person.id}:${activity}`, stories[activity]);
 }

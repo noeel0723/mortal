@@ -115,6 +115,7 @@ export default function Career() {
     </Page>;
   }
   const career = careerCard(life);
+  const canRetire = canShowRetirement(life);
   return <Page inGame>
     <Heading title="Career" back={back} />
     <Section title={job ? 'Current job' : 'Employment'}>
@@ -129,11 +130,7 @@ export default function Career() {
       {job && <Section title="Work performance">{jobRatings(life).map((row) => <DetailMeter key={row.label} {...row} />)}</Section>}
       <Section title="Education">{educationOverview(life).map((row) => <DataRow key={row.label} {...row} />)}</Section>
     </DetailModal>
-    <Section title="Career actions">
-      {canFindJob && <ActionButton icon="search" label="Find a Job" disabled={busy} onPress={() => {
-        if (!job && !life.career.seeking && !life.pending) void dispatch({ type: 'seek-work' }).then((success) => { if (success) open('jobs'); });
-        else open('jobs');
-      }} />}
+    {((canFindJob && !!job) || canRetire) && <Section title="Career Actions">
       {canFindJob && job && <>
         <Controls items={[
           careerControl(life, { type: 'work-harder' }, 'Work Harder', 'harder', 'Uses 16 energy. Improves performance and increases stress.'),
@@ -143,7 +140,13 @@ export default function Career() {
         <ActionButton icon="relationships" label="Co-workers" onPress={() => open('coworkers')} />
         <ActionButton icon="exit" label="Resign" onPress={() => open('exit', 'resign')} />
       </>}
-      {canShowRetirement(life) && <ActionButton icon="retire" label="Retire" onPress={() => open('exit', 'retire')} />}
+      {canRetire && <ActionButton icon="retire" label="Retire" onPress={() => open('exit', 'retire')} />}
+    </Section>}
+    <Section title="Career Navigation">
+      {canFindJob && <ActionButton icon="search" label="Find a Job" disabled={busy} onPress={() => {
+        if (!job && !life.career.seeking && !life.pending) void dispatch({ type: 'seek-work' }).then((success) => { if (success) open('jobs'); });
+        else open('jobs');
+      }} />}
       <ActionButton icon="history" label="Career History" onPress={() => open('history')} />
       <ActionButton icon="school" label="View Education" onPress={() => router.push('/game/education')} />
     </Section>

@@ -1,7 +1,7 @@
 import { eventById } from './data/events.ts';
 import { eventTitle } from './engine/eventNotices.ts';
 import { eventStory } from './engine/library.ts';
-import type { Action, Category, Life } from './engine/types.ts';
+import type { Action, Category, Life, ResultMeter } from './engine/types.ts';
 import type { Emoji } from './theme/tokens.ts';
 
 const categories: Record<Category, { label: string; icon: Emoji }> = {
@@ -18,6 +18,7 @@ type EventPopup = {
   category: { label: string; icon: Emoji };
   actions: { label: string; icon: Emoji; action: Action }[];
   dismiss?: Action;
+  meter?: ResultMeter;
 };
 
 export function eventPopup(life: Life): EventPopup | undefined {
@@ -33,5 +34,10 @@ export function eventPopup(life: Life): EventPopup | undefined {
   const entry = life.journal[notice.entry]!;
   const dismiss = { type: 'acknowledge-event', entry: notice.entry } as const;
   return { key: `notice-${notice.entry}`, title: notice.title, text: entry.text, category: categories[entry.category],
-    dismiss, actions: [{ label: 'Continue', icon: 'next', action: dismiss }] };
+    meter: notice.meter, dismiss, actions: [{ label: 'Continue', icon: 'next', action: dismiss }] };
+}
+
+export function resultChange(change: number) {
+  if (!change) return '0 pts';
+  return `${change > 0 ? '+' : '−'}${Math.abs(change)} pts`;
 }

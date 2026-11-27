@@ -3,9 +3,9 @@ import { Redirect, Slot, router, usePathname } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActionButton, Feedback, Loading } from '../../src/components/ui';
-import { DetailModal } from '../../src/components/detailModal';
+import { DetailMeter, DetailModal } from '../../src/components/detailModal';
 import { educationTab } from '../../src/educationView';
-import { eventPopup } from '../../src/eventView';
+import { eventPopup, resultChange } from '../../src/eventView';
 import { useGame } from '../../src/stores/game';
 import { colors, emoji, radius, space } from '../../src/theme/tokens';
 
@@ -68,8 +68,12 @@ export default function GameLayout() {
         </View>
       )}
       {popup && <DetailModal open title={popup.title} onDismiss={dismiss ? () => { if (!busy) void dispatch(dismiss); } : undefined}>
-        <Text style={styles.eventCategory}>{emoji[popup.category.icon]} {popup.category.label}</Text>
+        <Text style={styles.eventCategory}>{emoji[popup.category.icon]} {popup.meter ? 'Activity result' : popup.category.label}</Text>
         <Text style={styles.eventStory}>{popup.text}</Text>
+        {popup.meter && <View style={styles.result}>
+          <DetailMeter label={popup.meter.label} value={popup.meter.value} />
+          <Text style={styles.resultChange}>{resultChange(popup.meter.change)}</Text>
+        </View>}
         {!dismiss && <Text style={styles.eventQuestion}>What will you do?</Text>}
         {popup.actions.map(({ label, icon, action }) => <ActionButton key={label} label={label} icon={icon}
           testID={action.type === 'choose' ? `choice-${action.choice}` : undefined}
@@ -85,6 +89,8 @@ const styles = StyleSheet.create({
   feedback: { paddingHorizontal: space.lg, paddingBottom: space.sm },
   eventCategory: { color: colors.action, fontWeight: '700', fontSize: 14 },
   eventStory: { color: colors.ink, fontSize: 15, lineHeight: 22, marginBottom: space.xs },
+  result: { padding: space.md, gap: space.xs, backgroundColor: colors.softBlue, borderRadius: radius.sm },
+  resultChange: { color: colors.action, fontSize: 12, fontWeight: '700', alignSelf: 'flex-end' },
   eventQuestion: { color: colors.ink, fontWeight: '700', fontSize: 14 },
   navigation: { flexDirection: 'row', gap: 2, borderTopWidth: 1, borderColor: colors.line,
     paddingHorizontal: 5, paddingTop: 5, paddingBottom: 4, width: '100%', maxWidth: 580, alignSelf: 'center' },

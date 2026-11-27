@@ -328,6 +328,9 @@ button.play-row:disabled .play-row-icon { background: #edf2f7; opacity: .65; }
 .event-category { display: flex; gap: .42rem; align-items: center; color: var(--blue-dark); font-size: .82rem; font-weight: 750; }
 .event-category .emoji { font-size: 1.28rem; }
 .event-story { margin: .65rem 0 1rem; line-height: 1.5; overflow-wrap: anywhere; }
+.event-result-meter { display: grid; gap: .34rem; margin-bottom: .85rem; padding: .62rem .72rem; background: var(--blue-soft); border-radius: .68rem; }
+.event-result-meter .play-meter { width: 100%; margin: 0; color: var(--ink); font-size: .82rem; font-weight: 650; }
+.event-result-change { justify-self: end; color: var(--blue-dark); font-size: .76rem; font-weight: 700; }
 .event-question { margin: 0 0 .5rem; font-size: .89rem; font-weight: 750; }
 .event-options { display: grid; gap: .42rem; }
 .event-options .button { min-height: 2.75rem; justify-content: start; text-align: start; }

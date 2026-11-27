@@ -1,7 +1,8 @@
 import { isTuitionDue } from './academics.ts';
 import { applyCareerEffect } from './career.ts';
-import { clamp, record } from './journal.ts';
-import { timeTogetherStory } from './relationshipStories.ts';
+import { eventTitle, recordNotice, resultMeter } from './eventNotices.ts';
+import { clamp } from './journal.ts';
+import { interactionStory } from './relationshipStories.ts';
 import { findContact, isCurrentClassContact, isPeer } from './school.ts';
 import { isWorkContact } from './workplace.ts';
 import type { Contact, Effect, Life } from './types.ts';
@@ -14,35 +15,31 @@ type Rule = {
   bond: Partial<Contact['bond']>;
   effects?: Effect;
   academic?: { performance: number; attendance: number; stress: number };
-  text: (name: string, life: Life, person: Contact) => string;
+  title: string;
 };
 
 export const giftCost = 500;
 const allowance = { 'working-class': 200, 'middle-income': 500, affluent: 800 };
 
 export const relationshipActivities = {
-  'ask-allowance': { groups: ['parent'], age: 8, energy: 5, bond: { familiarity: 2 }, text: (name) => `I received pocket money from ${name}.` },
-  'thank-parent': { groups: ['parent'], age: 3, energy: 4, bond: { affection: 4, trust: 3 }, text: (name) => `I thanked ${name} for taking care of me.` },
-  'family-time': { groups: ['parent'], age: 3, energy: 12, bond: { affection: 5, familiarity: 5 }, effects: { happiness: 5, stress: -4 }, text: together },
-  'ask-advice': { groups: ['parent'], age: 8, energy: 7, bond: { trust: 4, respect: 3 }, effects: { stress: -4, discipline: 1 }, text: (name) => `I asked ${name} for advice and felt better about what to do next.` },
-  compliment: { groups: ['peer'], age: 6, energy: 4, bond: { affection: 4, respect: 2 }, text: (name) => `I gave ${name} a compliment.` },
-  'hang-out': { groups: ['peer'], age: 6, energy: 12, bond: { affection: 5, familiarity: 6, compatibility: 2 }, effects: { happiness: 5, stress: -3 }, text: together },
-  'study-together': { groups: ['peer'], age: 6, energy: 10, bond: { trust: 3, familiarity: 3 }, academic: { performance: 3, attendance: 1, stress: -2 }, text: (name) => `I studied with ${name} and understood the material better.` },
-  gift: { groups: ['parent', 'peer'], age: 8, energy: 5, bond: { affection: 5, trust: 2 }, effects: { bank: -giftCost }, text: (name) => `I bought a small gift for ${name}.` },
-  'academic-help': { groups: ['educator'], age: 6, energy: 7, bond: { respect: 3, familiarity: 2 }, effects: { stress: -2 }, academic: { performance: 3, attendance: 2, stress: -4 }, text: (name) => `I asked ${name} for feedback on my coursework.` },
-  'mentor-guidance': { groups: ['educator'], age: 12, energy: 7, bond: { trust: 3, respect: 4 }, effects: { discipline: 2, stress: -3 }, text: (name) => `I spoke with ${name} about what to focus on next.` },
-  'thank-educator': { groups: ['educator'], age: 6, energy: 4, bond: { affection: 2, respect: 4 }, text: (name) => `I thanked ${name} for their help with my education.` },
-  'work-break': { groups: ['worker'], age: 18, energy: 8, bond: { affection: 4, familiarity: 5 }, effects: { happiness: 4, stress: -3 }, text: together },
-  'discuss-work': { groups: ['worker'], age: 18, energy: 9, bond: { respect: 3, trust: 3 }, text: (name) => `I discussed our work with ${name} and came away with a clearer plan.` },
-  insult: { groups: ['parent', 'peer', 'educator', 'worker'], age: 6, energy: 5, bond: { affection: -8, trust: -5, respect: -6, resentment: 7 }, effects: { reputation: -2, stress: 3 }, text: (name) => `I insulted ${name}. It strained our relationship.` },
-  'mess-with': { groups: ['parent', 'peer', 'educator', 'worker'], age: 6, energy: 6, bond: { affection: -4, trust: -4, resentment: 5 }, effects: { reputation: -1 }, text: (name) => `I played a silly prank on ${name}. They did not appreciate it.` },
+  'ask-allowance': { groups: ['parent'], age: 8, energy: 5, bond: { familiarity: 2 }, title: 'Pocket Money' },
+  'thank-parent': { groups: ['parent'], age: 3, energy: 4, bond: { affection: 4, trust: 3 }, title: 'A Word of Thanks' },
+  'family-time': { groups: ['parent'], age: 3, energy: 12, bond: { affection: 5, familiarity: 5 }, effects: { happiness: 5, stress: -4 }, title: 'Time Together' },
+  'ask-advice': { groups: ['parent'], age: 8, energy: 7, bond: { trust: 4, respect: 3 }, effects: { stress: -4, discipline: 1 }, title: 'A Little Advice' },
+  compliment: { groups: ['parent', 'peer', 'educator', 'worker'], age: 6, energy: 4, bond: { affection: 4, respect: 2 }, title: 'A Kind Word' },
+  'hang-out': { groups: ['peer'], age: 6, energy: 12, bond: { affection: 5, familiarity: 6, compatibility: 2 }, effects: { happiness: 5, stress: -3 }, title: 'Time Together' },
+  'study-together': { groups: ['peer'], age: 6, energy: 10, bond: { trust: 3, familiarity: 3 }, academic: { performance: 3, attendance: 1, stress: -2 }, title: 'Study Partners' },
+  gift: { groups: ['parent', 'peer'], age: 8, energy: 5, bond: { affection: 5, trust: 2 }, effects: { bank: -giftCost }, title: 'A Small Gift' },
+  'academic-help': { groups: ['educator'], age: 6, energy: 7, bond: { respect: 3, familiarity: 2 }, effects: { stress: -2 }, academic: { performance: 3, attendance: 2, stress: -4 }, title: 'Help with Coursework' },
+  'mentor-guidance': { groups: ['educator'], age: 12, energy: 7, bond: { trust: 3, respect: 4 }, effects: { discipline: 2, stress: -3 }, title: 'Mentor Guidance' },
+  'thank-educator': { groups: ['educator'], age: 6, energy: 4, bond: { respect: 4, affection: 2 }, title: 'A Word of Thanks' },
+  'work-break': { groups: ['worker'], age: 18, energy: 8, bond: { affection: 4, familiarity: 5 }, effects: { happiness: 4, stress: -3 }, title: 'Time Together' },
+  'discuss-work': { groups: ['worker'], age: 18, energy: 9, bond: { respect: 3, trust: 3 }, title: 'A Work Discussion' },
+  insult: { groups: ['parent', 'peer', 'educator', 'worker'], age: 6, energy: 5, bond: { affection: -8, trust: -5, respect: -6, resentment: 7 }, effects: { reputation: -2, stress: 3 }, title: 'Words That Hurt' },
+  'mess-with': { groups: ['parent', 'peer', 'educator', 'worker'], age: 6, energy: 6, bond: { affection: -4, trust: -4, resentment: 5 }, effects: { reputation: -1 }, title: 'A Joke Gone Wrong' },
 } as const satisfies Record<string, Rule>;
 
 export type RelationshipActivity = keyof typeof relationshipActivities;
-
-function together(_name: string, life: Life, person: Contact) {
-  return timeTogetherStory(life, person);
-}
 
 export function contactGroup(person: Contact): ContactGroup {
   if (isWorkContact(person)) return 'worker';
@@ -98,7 +95,10 @@ export function performRelationshipActivity(life: Life, id: string, activity: Re
   if (issue) return issue;
   const rule: Rule = relationshipActivities[activity];
   life.usedActions.push(annualKey(activity, id));
-  for (const stat of Object.keys(rule.bond) as (keyof Contact['bond'])[]) {
+  const stats = Object.keys(rule.bond) as (keyof Contact['bond'])[];
+  const tracked = stats[0]!;
+  const previous = person.bond[tracked];
+  for (const stat of stats) {
     person.bond[stat] = clamp(person.bond[stat] + (rule.bond[stat] ?? 0));
   }
   const enrollment = life.academic.enrollment;
@@ -113,9 +113,11 @@ export function performRelationshipActivity(life: Life, id: string, activity: Re
   if (isWorkContact(person) && person.employerId === life.career.current?.employerId && (activity === 'insult' || activity === 'mess-with')) {
     applyCareerEffect(life, { security: activity === 'insult' ? -9 : -5, reputation: -3 });
   }
-  record(life, rule.academic ? 'school' : group === 'parent' ? 'family' : group === 'worker' ? 'career' : 'community', rule.text(person.name, life, person), {
+  const notice = recordNotice(life, rule.academic ? 'school' : group === 'parent' ? 'family' : group === 'worker' ? 'career' : 'community',
+    rule.title, interactionStory(life, person, activity), {
     energy: -rule.energy, ...rule.effects,
     ...(activity === 'ask-allowance' ? { bank: allowance[life.character.background] } : {}),
   });
+  notice.meter = resultMeter(eventTitle(tracked), previous, person.bond[tracked]);
   return null;
 }

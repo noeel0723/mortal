@@ -71,7 +71,7 @@ Veyra uses a fictional currency scale. Retirement living costs are funded from s
 
 - Open **Activities → Doctors** to compare local doctors, book emergency or eye care, attend a psychiatry session, or donate blood or plasma. Doctor fees and chances of successful treatment vary with the provider and illness severity.
 - Successful treatment improves severe cases to moderate and clears mild and moderate cases. Emergency care guarantees stabilization for severe cases. The community doctor is free for players under 18. You can pay for a family member or friend after earning a salary if your balance covers the fee. NPCs can seek care independently.
-- Life events show as pop-ups and stay in the journal. Choose a response when an event calls for a decision. Use **Continue** to dismiss informational pop-ups. Open decisions and unread pop-ups persist when you reload.
+- Life events and completed activities show as pop-ups and stay in the journal. Activity results show the resulting relationship or character stat. Choose a response when an event calls for a decision. Use **Continue** to dismiss a result. Open decisions and unread pop-ups persist when you reload.
 
 ## Library, housing, and shopping
 

@@ -45,7 +45,9 @@ function validHealthAndNotices(life: Life) {
   if (!life.character.causeOfDeath) patients.add(playerPatient);
   return Array.isArray(life.notices) && life.notices.every((notice, index) => record(notice) &&
     integer(notice.entry, 0, life.journal.length - 1) && (index === 0 || notice.entry > life.notices[index - 1]!.entry) &&
-    typeof notice.title === 'string' && notice.title.trim().length > 0) &&
+    typeof notice.title === 'string' && notice.title.trim().length > 0 && (notice.meter === undefined || (record(notice.meter) &&
+      typeof notice.meter.label === 'string' && notice.meter.label.trim().length > 0 && bounded(notice.meter.value) &&
+      integer(notice.meter.change, notice.meter.value - 100, notice.meter.value)))) &&
     Array.isArray(life.illnesses) && life.illnesses.every((condition) => {
       if (!record(condition) || typeof condition.patient !== 'string' || !patients.delete(condition.patient) ||
         !integer(condition.started, life.character.birthYear, life.year)) return false;

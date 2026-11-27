@@ -95,6 +95,8 @@ try {
   await heading('Students').waitFor();
   await page.locator('button.play-row').filter({ hasText: 'Professor ·' }).click();
   await click('Ask for Academic Help');
+  await page.getByRole('dialog', { name: 'Help with Coursework' }).waitFor();
+  await acknowledgeEvents(page);
   assert.ok(await button('Ask for Academic Help').isDisabled());
   assert.equal(await button('Become Friends').count(), 0);
   await click('Back to Class');
@@ -102,6 +104,8 @@ try {
   const newFriend = await student.locator('strong').textContent();
   await student.click();
   await click('Become Friends');
+  await page.getByRole('dialog', { name: 'A New Friend' }).waitFor();
+  await acknowledgeEvents(page);
   await page.getByText(/^Friend · Age /).waitFor();
   await click('Back to Class');
   await click('Back to University');
@@ -133,6 +137,8 @@ try {
   const mother = legacy.family[0].name;
   await click(mother);
   await click('Spend Time Together');
+  await page.getByRole('dialog', { name: 'Time Together' }).waitFor();
+  await acknowledgeEvents(page);
   assert.ok(await button('Spend Time Together').isDisabled());
   assert.equal(await button('Ask for Academic Help').count(), 0);
   await click(mother);

@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text } from 'react-native';
 import { financeEntries, financeOverview, financeYears } from '../../src/careerView';
@@ -9,22 +9,31 @@ import { useGame } from '../../src/stores/game';
 import { space } from '../../src/theme/tokens';
 
 export default function Assets() {
+  const { screen } = useLocalSearchParams<{ screen?: string }>();
   const life = useGame((state) => state.slot?.life);
   const [selectedYear, setSelectedYear] = useState<number | 'all' | null>(null);
   if (!life) return null;
+  if (screen !== 'finances') return <Page inGame>
+    <Heading title="Assets" back={() => router.dismissTo('/game')} />
+    <Section title="Banking">
+      <ActionButton icon="bank" label="Finances" detail={money(life.character.bank)}
+        onPress={() => router.push({ pathname: '/game/assets', params: { screen: 'finances' } })} />
+      <ActionButton icon="assets" label="Owned Assets" detail={String(life.property.owned.length)}
+        onPress={() => router.push({ pathname: '/game/property', params: { mode: 'owned' } })} />
+    </Section>
+    <Section title="Property and vehicles">
+      <ActionButton icon="home" label="Housing" detail={residenceLabel(life)}
+        onPress={() => router.push({ pathname: '/game/property', params: { mode: 'housing' } })} />
+      <ActionButton icon="cart" label="Shopping" detail="Browse houses, cars, and motorcycles."
+        onPress={() => router.push({ pathname: '/game/property', params: { mode: 'shopping' } })} />
+    </Section>
+  </Page>;
+
   const year = selectedYear === 'all' ? null : selectedYear ?? life.year;
   const entries = financeEntries(life, year);
   return (
     <Page inGame>
-      <Heading title="Assets" back={() => router.dismissTo('/game')} />
-      <Section title="Property and vehicles">
-        <ActionButton icon="home" label="Housing" detail={residenceLabel(life)}
-          onPress={() => router.push({ pathname: '/game/property', params: { mode: 'housing' } })} />
-        <ActionButton icon="cart" label="Shopping" detail="Browse houses, cars, and motorcycles."
-          onPress={() => router.push({ pathname: '/game/property', params: { mode: 'shopping' } })} />
-        <ActionButton icon="assets" label="Owned Assets" detail={String(life.property.owned.length)}
-          onPress={() => router.push({ pathname: '/game/property', params: { mode: 'owned' } })} />
-      </Section>
+      <Heading title="Finances" back={() => router.dismissTo('/game/assets')} />
       <Section title={`Financial overview · ${year ?? life.year}`}>
         <Text style={shared.small}>Transaction year</Text>
         <ScrollView horizontal contentContainerStyle={styles.years}>

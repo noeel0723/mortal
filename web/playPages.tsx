@@ -190,7 +190,7 @@ function MenuRow({ title, detail, icon, avatar, value, children, onClick, disabl
     : <div className={className}>{content}</div>;
 }
 
-function PageMeter({ label, value }: { label: string; value: number }) {
+export function PageMeter({ label, value }: { label: string; value: number }) {
   return <span className="play-meter">
     <span>{label}</span>
     <progress aria-label={label} max={100} value={value} />
@@ -326,6 +326,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
     case 'career-info': {
       const career = careerCard(life);
       const details = careerRows(life);
+      const canRetire = canShowRetirement(life);
       return <>
         <PageGroup title={job ? 'Current job' : 'Employment'}>
           <MenuRow icon={career.icon} title={career.title} detail={career.detail} opensDialog onClick={() => go('career-info')}>
@@ -342,11 +343,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           </section>}
           <section className="detail-bond"><h3>Education</h3><Rows items={educationOverview(life)} /></section>
         </DetailDialog>}
-        <PageGroup title="Career actions">
-          {canFindJob && <MenuRow icon="search" title="Find a Job" onClick={() => {
-            if (!job && !life.career.seeking && !life.pending) void dispatch({ type: 'seek-work' }).then((success) => { if (success) go('jobs'); });
-            else go('jobs');
-          }} disabled={busy} />}
+        {((canFindJob && !!job) || canRetire) && <PageGroup title="Career Actions">
           {canFindJob && job && <>
             <ControlRows go={go} controls={[
               careerControl(life, { type: 'work-harder' }, 'Work Harder', 'harder', 'Uses 16 energy. Improves performance and increases stress.'),
@@ -356,7 +353,13 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
             <MenuRow icon="relationships" title="Co-workers" onClick={() => go('coworkers')} />
             <MenuRow icon="exit" title="Resign" onClick={() => go('career-exit', 'resign')} />
           </>}
-          {canShowRetirement(life) && <MenuRow icon="retire" title="Retire" onClick={() => go('career-exit', 'retire')} />}
+          {canRetire && <MenuRow icon="retire" title="Retire" onClick={() => go('career-exit', 'retire')} />}
+        </PageGroup>}
+        <PageGroup title="Career Navigation">
+          {canFindJob && <MenuRow icon="search" title="Find a Job" onClick={() => {
+            if (!job && !life.career.seeking && !life.pending) void dispatch({ type: 'seek-work' }).then((success) => { if (success) go('jobs'); });
+            else go('jobs');
+          }} disabled={busy} />}
           <MenuRow icon="history" title="Career History" onClick={() => go('career-history')} />
           <MenuRow icon="school" title="View Education" onClick={() => go('education')} />
         </PageGroup>
@@ -538,14 +541,14 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
     }
     case 'assets':
       return <>
-        <PageGroup title="Property and vehicles">
-          <MenuRow icon="home" title="Housing" detail={residenceLabel(life)} onClick={() => go('housing')} />
-          <MenuRow icon="cart" title="Shopping" detail="Browse houses, cars, and motorcycles." onClick={() => go('shopping')} />
-          <MenuRow icon="assets" title="Owned Assets" value={String(life.property.owned.length)} onClick={() => go('owned-assets')} />
-        </PageGroup>
         <PageGroup title="Banking">
           <MenuRow icon="bank" title="Finances" detail="Bank balance and transaction history."
             value={money(character.bank)} onClick={() => go('finances')} />
+          <MenuRow icon="assets" title="Owned Assets" value={String(life.property.owned.length)} onClick={() => go('owned-assets')} />
+        </PageGroup>
+        <PageGroup title="Property and vehicles">
+          <MenuRow icon="home" title="Housing" detail={residenceLabel(life)} onClick={() => go('housing')} />
+          <MenuRow icon="cart" title="Shopping" detail="Browse houses, cars, and motorcycles." onClick={() => go('shopping')} />
         </PageGroup>
       </>;
     case 'housing':

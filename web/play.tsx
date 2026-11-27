@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
-import { eventPopup } from '../src/eventView';
+import { eventPopup, resultChange } from '../src/eventView';
 import { educationStatus } from '../src/engine/academics';
 import { findContact, isSchoolStage } from '../src/engine/school';
 import type { Character, JournalEntry, Life, Stat } from '../src/engine/types';
@@ -7,7 +7,7 @@ import { educationTab } from '../src/educationView';
 import { en, money, statLabels } from '../src/i18n/en';
 import type { Emoji } from '../src/theme/tokens';
 import { useGame } from './browserStore';
-import { PlayPage, PlayPageHeader, backgroundPage } from './playPages';
+import { PageMeter, PlayPage, PlayPageHeader, backgroundPage } from './playPages';
 import type { GamePage, Navigate } from './playPages';
 import { Button, Feedback, Icon } from './ui';
 import { DetailDialog } from './detailDialog';
@@ -149,8 +149,12 @@ export function Play({ life, page, personId, go, home, newLife }: {
       {isJournal && <LifeStats character={life.character} go={go} />}
       {popup && <DetailDialog key={popup.key} eventKey={popup.key} title={popup.title}
         onDismiss={dismiss ? () => { if (!busy) void dispatch(dismiss); } : undefined}>
-        <div className="event-category"><Icon name={popup.category.icon} />{popup.category.label}</div>
+        <div className="event-category"><Icon name={popup.category.icon} />{popup.meter ? 'Activity result' : popup.category.label}</div>
         <p className="event-story">{popup.text}</p>
+        {popup.meter && <div className="event-result-meter">
+          <PageMeter label={popup.meter.label} value={popup.meter.value} />
+          <p className="event-result-change">{resultChange(popup.meter.change)}</p>
+        </div>}
         {!dismiss && <p className="event-question">What will you do?</p>}
         <div className="event-options">{popup.actions.map(({ label, icon, action }) =>
           <Button key={label} icon={icon} kind={dismiss ? 'primary' : 'plain'} disabled={busy}

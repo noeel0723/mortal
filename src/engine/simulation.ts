@@ -1,10 +1,11 @@
 import { eventById, events } from '../data/events.ts';
-import { libraryFriendEvent } from '../data/libraryEvents.ts';
+import { libraryEvents, libraryFriendEvent } from '../data/libraryEvents.ts';
 import { advanceAcademics, chooseEducationPath, isTuitionDue, performAcademicAction } from './academics.ts';
+import { activityStory } from './activityStories.ts';
 import { appearanceChanged, appearanceIssue, mergeAppearance, validFace, validHair } from './appearance.ts';
 import { advanceCareer, applyCareerEffect, closeCareerYear, endEmployment, performCareerAction, studyWorkload } from './career.ts';
 import { annualFinance } from './finance.ts';
-import { eventTitle, recordNotice } from './eventNotices.ts';
+import { enqueueNotice, eventTitle, recordNotice, resultMeter } from './eventNotices.ts';
 import { advanceIllnesses, startIllness, visitHealthcare } from './health.ts';
 import { playerPatient } from './healthTypes.ts';
 import { contactIssue, performRelationshipActivity } from './interactions.ts';
@@ -12,24 +13,25 @@ import { clamp, record } from './journal.ts';
 import { befriendLibraryGuest, visitLibrary } from './library.ts';
 import { applyPropertyAction, movingAge } from './property.ts';
 import { seededRandom } from './random.ts';
-import { conversationStory } from './relationshipStories.ts';
+import { conversationStory, friendshipStory } from './relationshipStories.ts';
 import { advanceContactOccupation, currentClass, findContact, isPeer, isSchoolStage } from './school.ts';
 import { ageWorkplace, canMakeFriend, isWorkContact } from './workplace.ts';
+import { stats } from './types.ts';
 import type { Action, Life } from './types.ts';
 
 export const maxAge = 115;
 export const friendshipEnergyCost = 6;
 
 export const activities = {
-  'go-to-library': { age: 5, effects: { smarts: 2, happiness: 1 }, text: 'I visited the public library and spent time browsing the shelves.' },
-  rest: { age: 4, energy: 0, effects: { energy: 20, stress: -8 }, text: 'I cleared my schedule and gave myself time to rest.' },
-  walk: { age: 4, effects: { health: 3, stress: -3 }, text: 'I went for a long walk around my neighborhood.' },
-  study: { age: 6, energy: 16, effects: { smarts: 4, discipline: 3, stress: 3 }, text: 'I spent extra time reviewing my schoolwork.' },
-  library: { age: 6, energy: 8, effects: { smarts: 1 }, text: 'I reviewed material at the school library.' },
-  socialize: { age: 6, energy: 8, effects: { happiness: 3 }, text: 'I got to know my classmates outside lessons.' },
-  extracurricular: { age: 6, energy: 12, effects: { discipline: 2, happiness: 2 }, text: 'I joined a school club and took part in its activities.' },
-  'academic-talk': { age: 6, energy: 7, effects: { stress: -2 }, text: 'I asked for academic feedback.' },
-  exams: { age: 6, energy: 14, effects: { discipline: 1, stress: 4 }, text: 'I prepared for my exams with a practice schedule.' },
+  'go-to-library': { age: 5, effects: { smarts: 2, happiness: 1 }, title: 'Library Visit', meter: 'smarts' },
+  rest: { age: 4, energy: 0, effects: { energy: 20, stress: -8 }, title: 'Time to Rest', meter: 'energy' },
+  walk: { age: 4, effects: { health: 3, stress: -3 }, title: 'A Walk Outside', meter: 'health' },
+  study: { age: 6, energy: 16, effects: { smarts: 4, discipline: 3, stress: 3 }, title: 'Study Session', meter: 'smarts' },
+  library: { age: 6, energy: 8, effects: { smarts: 1 }, title: 'School Library Visit', meter: 'smarts' },
+  socialize: { age: 6, energy: 8, effects: { happiness: 3 }, title: 'Time with Classmates', meter: 'happiness' },
+  extracurricular: { age: 6, energy: 12, effects: { discipline: 2, happiness: 2 }, title: 'Club Activity', meter: 'discipline' },
+  'academic-talk': { age: 6, energy: 7, effects: { stress: -2 }, title: 'Academic Feedback', meter: 'stress' },
+  exams: { age: 6, energy: 14, effects: { discipline: 1, stress: 4 }, title: 'Exam Practice', meter: 'discipline' },
 } as const;
 type Activity = keyof typeof activities;
 
@@ -203,7 +205,13 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       if (choice.academicPath === 'workforce' && !life.career.current && life.career.retiredYear === null) life.career.seeking = true;
       if (choice.careerEffects) applyCareerEffect(life, choice.careerEffects);
       const outcome = action.event === libraryFriendEvent && choice.id === 'befriend' ? befriendLibraryGuest(life) : choice.outcome;
+      const libraryStat = libraryEvents.some(({ id }) => id === action.event)
+        ? stats.find((stat) => choice.effects[stat] !== undefined) ?? 'happiness' : undefined;
+      const before = libraryStat ? life.character.attributes[libraryStat] : 0;
       record(life, 'decision', outcome, choice.effects);
+      if (libraryStat) {
+        enqueueNotice(life, 'Library Visit', resultMeter(eventTitle(libraryStat), before, life.character.attributes[libraryStat]));
+      }
       if (choice.delayed) {
         life.scheduled.push({ year: life.year + choice.delayed.years, text: choice.delayed.text, effects: choice.delayed.effects });
       }
@@ -226,9 +234,12 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       }
       const adviser = action.activity === 'academic-talk' ?
         currentClass(life).find((person) => person.alive && (person.role === 'Teacher' || person.role === 'Professor')) : undefined;
-      record(life, academic ? 'school' : 'life', adviser ? `I asked ${adviser.name} for academic feedback.` : item.text,
+      const before = life.character.attributes[item.meter];
+      record(life, academic ? 'school' : 'life', activityStory(life, activity, adviser?.name),
         academic ? { energy: -activities[activity].energy, ...item.effects } : item.effects);
-      if (activity === 'go-to-library') visitLibrary(life);
+      if (activity !== 'go-to-library' || !visitLibrary(life)) {
+        enqueueNotice(life, item.title, resultMeter(eventTitle(item.meter), before, life.character.attributes[item.meter]));
+      }
       break;
     }
     case 'talk': {
@@ -236,11 +247,13 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       if (issue) return { error: issue };
       const person = findContact(life, action.person)!;
       life.usedActions.push(`talk:${person.id}`);
+      const previousAffection = person.bond.affection;
       person.bond.affection = clamp(person.bond.affection + 3);
       person.bond.trust = clamp(person.bond.trust + 2);
       person.bond.familiarity = clamp(person.bond.familiarity + 4);
-      record(life, isWorkContact(person) ? 'career' : 'friend' in person ? 'community' : 'family',
-        conversationStory(life, person), { energy: -8, happiness: 3 });
+      const notice = recordNotice(life, isWorkContact(person) ? 'career' : 'friend' in person ? 'community' : 'family',
+        'A Conversation', conversationStory(life, person), { energy: -8, happiness: 3 });
+      notice.meter = resultMeter('Affection', previousAffection, person.bond.affection);
       break;
     }
     case 'befriend': {
@@ -248,12 +261,15 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       if (issue) return { error: issue };
       const person = findContact(life, action.person)!;
       if (!('friend' in person)) return { error: 'This contact cannot become a friend.' };
+      const previousAffection = person.bond.affection;
       person.friend = true;
       person.bond.affection = clamp(person.bond.affection + 8);
       person.bond.trust = clamp(person.bond.trust + 5);
       person.bond.familiarity = clamp(person.bond.familiarity + 6);
       const work = isWorkContact(person);
-      record(life, work ? 'career' : 'school', `I became friends with ${person.name} from my ${work ? 'workplace' : 'class'}.`, { energy: -friendshipEnergyCost, happiness: 5 });
+      const notice = recordNotice(life, work ? 'career' : 'school', 'A New Friend', friendshipStory(life, person),
+        { energy: -friendshipEnergyCost, happiness: 5 });
+      notice.meter = resultMeter('Affection', previousAffection, person.bond.affection);
       break;
     }
     case 'seek-work': case 'work-harder': case 'request-raise': case 'resign': case 'retire':

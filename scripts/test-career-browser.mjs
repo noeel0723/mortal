@@ -76,6 +76,14 @@ try {
   await details.waitFor({ state: 'hidden' });
   let life = await read();
   assert.equal(life.career.current.jobId, 'records-clerk');
+  const groups = page.locator('.play-group');
+  const actions = groups.filter({ has: page.getByRole('heading', { name: 'Career Actions', exact: true }) });
+  const navigation = groups.filter({ has: page.getByRole('heading', { name: 'Career Navigation', exact: true }) });
+  await actions.getByRole('button', { name: 'Work Harder', exact: true }).waitFor();
+  for (const name of ['Find a Job', 'Career History', 'View Education']) {
+    assert.equal(await actions.getByRole('button', { name, exact: true }).count(), 0);
+    assert.equal(await navigation.getByRole('button', { name, exact: true }).count(), 1);
+  }
   assert.ok(!life.transactions.some(({ category }) => category === 'salary'));
   const gross = life.career.current.salary;
   const performance = life.career.current.performance;
@@ -87,15 +95,32 @@ try {
   const coworkerName = await colleague.locator('strong').textContent();
   await colleague.click();
   await click('Become Friends');
+  await page.getByRole('dialog', { name: 'A New Friend' }).waitFor();
+  await acknowledgeEvents(page);
   await click('Have a Conversation');
+  const conversation = page.getByRole('dialog', { name: 'A Conversation' });
+  await conversation.getByRole('progressbar', { name: 'Affection' }).waitFor();
+  await acknowledgeEvents(page);
   await button('Have a Conversation').getByText('Already done this year.', { exact: true }).waitFor();
   assert.ok((await read()).journal.at(-1).text.startsWith(`I talked with ${coworkerName} about`));
   await click('Spend Time Together');
+  await page.getByRole('dialog', { name: 'Time Together' }).waitFor();
+  await acknowledgeEvents(page);
   await button('Spend Time Together').getByText('Already done this year.', { exact: true }).waitFor();
   assert.ok((await read()).journal.at(-1).text.includes(coworkerName));
-  await click('Discuss Work');
-  await click('Insult');
-  await click('Mess With');
+  await click('Give a Compliment');
+  const compliment = page.getByRole('dialog', { name: 'A Kind Word' });
+  await compliment.getByText(new RegExp(coworkerName)).waitFor();
+  const complimentAffinity = await compliment.getByRole('progressbar', { name: 'Affection' }).getAttribute('value');
+  await page.reload();
+  await compliment.waitFor();
+  assert.equal(await compliment.getByRole('progressbar', { name: 'Affection' }).getAttribute('value'), complimentAffinity);
+  await acknowledgeEvents(page);
+  for (const [label, title] of [['Discuss Work', 'A Work Discussion'], ['Insult', 'Words That Hurt'], ['Mess With', 'A Joke Gone Wrong']]) {
+    await click(label);
+    await page.getByRole('dialog', { name: title }).waitFor();
+    await acknowledgeEvents(page);
+  }
   const knownWorkplace = (await read()).career.contacts.map(({ id }) => id);
   await click('Back to Co-workers');
   await click('Back to Career');

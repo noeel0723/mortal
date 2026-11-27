@@ -66,6 +66,8 @@ export type JournalEntry = {
   text: string;
   changes: Effect;
 };
+export type ResultMeter = { label: string; value: number; change: number };
+export type LifeNotice = { entry: number; title: string; meter?: ResultMeter };
 export type EventChoice = {
   id: string;
   label: string;
@@ -104,7 +106,7 @@ export type Life = {
   career: CareerState;
   finance: FinanceState;
   journal: JournalEntry[];
-  notices: { entry: number; title: string }[];
+  notices: LifeNotice[];
   illnesses: IllnessCase[];
   seen: string[];
   pending: string | null;
