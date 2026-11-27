@@ -14,7 +14,9 @@ import { careerActionIssue, jobRequirementsIssue, vacancies } from '../src/engin
 import { createLife } from '../src/engine/create.ts';
 import { incomeTax, outstanding } from '../src/engine/finance.ts';
 import { familyIssue } from '../src/engine/familyLife.ts';
-import { activeRomance, datingCompatibility, loveIssue } from '../src/engine/love.ts';
+import { activeRomance, activeRomances, datingCompatibility, loveIssue } from '../src/engine/love.ts';
+import { agreementFor, careIssue, relationshipSatisfaction, visibleConcerns } from '../src/engine/relationships.ts';
+import type { RelationshipCareAction } from '../src/engine/relationshipTypes.ts';
 import { allContacts, newPeopleLimit } from '../src/engine/npcs.ts';
 import { doctors } from '../src/data/doctors.ts';
 import { healthcareQuote } from '../src/engine/health.ts';
@@ -26,7 +28,7 @@ import { estate } from '../src/engine/wealth.ts';
 import type { InstrumentId } from '../src/engine/wealthTypes.ts';
 import { salaryBand } from '../src/engine/pricing.ts';
 import { relocationIssue } from '../src/engine/relocation.ts';
-import { isSchoolStage } from '../src/engine/school.ts';
+import { findContact, isSchoolStage } from '../src/engine/school.ts';
 import { activityIssue, advance, maxAge } from '../src/engine/simulation.ts';
 import { hobbyIssue, skillRandom, skillTier, trainingIssue, trainingUsed } from '../src/engine/skills.ts';
 import { showcaseIssue } from '../src/engine/skillShowcases.ts';
@@ -323,11 +325,27 @@ function educationChoice(life: Life, seed: number) {
   return life;
 }
 
-function socialChoice(life: Life, seed: number) {
+const relationshipStrategies = ['healthy', 'neglectful', 'conflict-heavy', 'single', 'married', 'divorced', 'non-exclusive', 'broken-agreement'] as const;
+type RelationshipStrategy = typeof relationshipStrategies[number];
+type RelationshipOutcome = { lives: number; withMarriage: number; withNonExclusive: number; concurrentNonExclusive: number;
+  duration: number[]; satisfaction: number[]; breakupCauses: Record<string, number>; conflicts: number; resolved: number };
+const relationshipOutcomes = new Map<RelationshipStrategy, RelationshipOutcome>();
+
+function socialChoice(life: Life, seed: number, strategy: RelationshipStrategy) {
   const { age, causeOfDeath } = life.character;
-  if (age < 18 || age > 52 || causeOfDeath || seed % 3 === 2) return life;
+  if (age < 18 || causeOfDeath || strategy === 'single' ||
+    (strategy === 'divorced' && life.social.romances.some(({ status }) => status === 'divorced'))) return life;
   const romance = activeRomance(life);
+  const visit = (source: 'date' | 'app') => {
+    const match = { type: 'dating-match', source } as const;
+    if (!loveIssue(life, match)) {
+      life = apply(life, match);
+      life = apply(life, { type: 'choose', event: 'social-dating-match', choice: 'accept' });
+      decisions++;
+    }
+  };
   if (!romance) {
+    if (age > 52 || age % 2 !== 0) return life;
     const candidates = datingCandidates(life).sort((a, b) => datingCompatibility(life, b) - datingCompatibility(life, a));
     const candidate = candidates.find((person) => (seed + life.year) % 4 !== 0 &&
       !loveIssue(life, { type: 'romance', person: person.id, action: 'ask' }));
@@ -339,14 +357,56 @@ function socialChoice(life: Life, seed: number) {
       const ask = { type: 'romance', person: candidate.id, action: 'ask' } as const;
       if (!loveIssue(life, ask)) life = apply(life, ask);
     } else {
-      const meet = { type: 'meet', source: seed % 2 ? 'date' : 'app' } as const;
-      if (!loveIssue(life, meet)) life = apply(life, meet);
+      visit(seed % 2 ? 'date' : 'app');
     }
-  } else if (romance.status === 'dating') {
+    return life;
+  }
+  const partner = findContact(life, romance.person)!;
+  const care = (kind: RelationshipCareAction['action'], person = partner) => {
+    if (!careIssue(life, person, kind)) life = apply(life, { type: 'relationship-care', person: person.id, action: kind });
+  };
+  if (strategy === 'neglectful') return life;
+  if (strategy === 'conflict-heavy') {
+    for (const activity of ['insult', 'mess-with'] as const) {
+      const result = advance(life, { type: 'interact', person: partner.id, activity });
+      if (result.life) life = result.life;
+    }
+    if (age % 5 === 0) care('discuss');
+    return life;
+  }
+  if (strategy === 'non-exclusive') {
+    for (const entry of activeRomances(life)) {
+      const person = findContact(life, entry.person)!;
+      if (agreementFor(life, person.id) !== 'non-exclusive') care('non-exclusive', person);
+      care('phone', person);
+    }
+    if (age <= 52 && age % 3 === 0 && activeRomances(life).length < 2 && agreementFor(life, partner.id) === 'non-exclusive') visit('app');
+    return life;
+  }
+  if (strategy === 'broken-agreement') {
+    if (activeRomances(life).length === 1 && age <= 52) {
+      if (agreementFor(life, partner.id) !== 'exclusive') care('exclusive');
+      else if (life.year > romance.started && age % 3 === 0) visit('app');
+    }
+    if (life.year % 2 === 0) care('phone');
+    return life;
+  }
+  if (age % 2 === 0 || visibleConcerns(life, partner.id).length) {
+    care('phone');
+    if (visibleConcerns(life, partner.id).length) {
+      care('discuss');
+      care('reconcile');
+    }
+  }
+  if (romance.status === 'dating' || romance.status === 'committed') {
     const support = { type: 'romance', person: romance.person, action: 'support' } as const;
+    if (romance.status === 'dating' && age <= 53) care('exclusive');
     if (!loveIssue(life, support)) life = apply(life, support);
     const proposal = { type: 'romance', person: romance.person, action: 'propose' } as const;
-    if (life.year > romance.started && !loveIssue(life, proposal)) life = apply(life, proposal);
+    if ((strategy === 'married' || strategy === 'divorced') && life.year > romance.started && age <= 56) {
+      if (partner.city !== life.character.city) care('visit');
+      if (!loveIssue(life, proposal)) life = apply(life, proposal);
+    }
   } else if (romance.status === 'engaged') {
     const wedding = { type: 'wedding', person: romance.person, plan: 'civil' } as const;
     if (!loveIssue(life, wedding)) {
@@ -355,7 +415,7 @@ function socialChoice(life: Life, seed: number) {
     }
   } else if (romance.status === 'married') {
     const divorce = { type: 'romance', person: romance.person, action: 'divorce' } as const;
-    if (seed % 19 === 0 && age === 40 && !loveIssue(life, divorce)) {
+    if (strategy === 'divorced' && age >= 38 && !loveIssue(life, divorce)) {
       life = apply(life, divorce);
       divorces++;
       return life;
@@ -384,6 +444,11 @@ for (let seed = 1; seed <= count; seed++) {
   const rotation = skillRandom(0xd51c95b, `strategy:${block}`).integer(0, developmentStrategies.length - 1);
   const strategy = developmentStrategies[(seed - 1 + rotation) % developmentStrategies.length]!;
   const financialStrategy = financeStrategies[(seed + Math.floor(seed / 11)) % financeStrategies.length]!;
+  const relationshipStrategy = relationshipStrategies[(seed - 1) % relationshipStrategies.length]!;
+  const relationshipStats = relationshipOutcomes.get(relationshipStrategy) ?? { lives: 0, withMarriage: 0, withNonExclusive: 0,
+    concurrentNonExclusive: 0, duration: [], satisfaction: [], breakupCauses: {}, conflicts: 0, resolved: 0 };
+  relationshipOutcomes.set(relationshipStrategy, relationshipStats);
+  let hadConcurrent = false;
   let firstEliteAge: number | undefined;
   let turns = 0;
   let jobless = 0;
@@ -431,7 +496,9 @@ for (let seed = 1; seed <= count; seed++) {
     if (life.pending) {
       const pending = life.pending;
       const choices = eventById.get(pending)?.choices;
-      const choice = choices?.[seed % choices.length];
+      const preference = pending === 'social-affair' ? (relationshipStrategy === 'broken-agreement' && seed % 2 === 0 ? 'deny' : 'apologize') :
+        pending.startsWith('social-') ? (relationshipStrategy === 'neglectful' || relationshipStrategy === 'conflict-heavy' ? 'pass' : 'accept') : undefined;
+      const choice = choices?.find(({ id }) => id === preference) ?? choices?.[seed % choices.length];
       assert.ok(choice);
       life = apply(life, { type: 'choose', event: pending, choice: choice.id });
       if (pending === 'graduation-plan') plans[choice.id] = (plans[choice.id] ?? 0) + 1;
@@ -445,7 +512,10 @@ for (let seed = 1; seed <= count; seed++) {
       }
     }
     if (!life.character.causeOfDeath) life = employmentChoice(educationChoice(life, seed), seed);
-    life = socialChoice(life, seed);
+    life = socialChoice(life, seed, relationshipStrategy);
+    const partners = activeRomances(life);
+    hadConcurrent ||= partners.filter(({ person }) => agreementFor(life, person) === 'non-exclusive').length > 1;
+    for (const { person } of partners) relationshipStats.satisfaction.push(relationshipSatisfaction(life, findContact(life, person)!));
     if (!life.character.causeOfDeath) life = skillChoice(life, seed, strategy);
     life = financialChoice(life, seed, financialStrategy);
     if (!life.character.causeOfDeath && life.character.age >= 5 && life.character.age <= 25 && (seed + life.year) % 6 === 0) {
@@ -512,6 +582,20 @@ for (let seed = 1; seed <= count; seed++) {
     }
   }
   if (seed % 47 === 0) assert.deepEqual(decodeLife(JSON.stringify(life)), life);
+  relationshipStats.lives++;
+  relationshipStats.withMarriage += Number(life.social.romances.some(({ wedding }) => wedding !== null) ||
+    Object.values(life.social.relationships).some((state) => !!state.milestones.marriage));
+  relationshipStats.withNonExclusive += Number(Object.values(life.social.relationships).some(({ agreement }) => agreement === 'non-exclusive'));
+  relationshipStats.concurrentNonExclusive += Number(hadConcurrent);
+  for (const romance of life.social.romances) {
+    const state = life.social.relationships[romance.person];
+    if (state?.milestones.date) relationshipStats.duration.push((romance.ended ?? life.year) - romance.started);
+    if (state?.endedBecause) relationshipStats.breakupCauses[state.endedBecause] = (relationshipStats.breakupCauses[state.endedBecause] ?? 0) + 1;
+  }
+  for (const state of Object.values(life.social.relationships)) {
+    relationshipStats.conflicts += state.conflicts.length;
+    relationshipStats.resolved += state.conflicts.filter(({ state }) => state === 'resolved').length;
+  }
   const final = estate(life);
   assert.equal(final.total, final.liquid + final.property + final.vehicles - final.liabilities);
   assert.deepEqual(life.wealth.snapshots.at(-1), { year: life.year, ...final });
@@ -644,6 +728,10 @@ console.log(JSON.stringify({
   children,
   adoptions,
   divorces,
+  relationships: Object.fromEntries([...relationshipOutcomes].map(([strategy, { duration, satisfaction, ...stats }]) => [strategy, {
+    ...stats, durationYears: percentiles(duration), annualSatisfaction: percentiles(satisfaction),
+    marriageRate: Math.round(stats.withMarriage / stats.lives * 1000) / 10,
+  }])),
   wealth: {
     finalNetWorthCents: percentiles(netWorth), savingsCents: percentiles(deposits), finalLiabilitiesCents: percentiles(liabilities),
     everHomeowners, householdsWithHomes, householdsWithVehicles, loanApplications, loanApprovals, loanDeclines, loanDefaults,

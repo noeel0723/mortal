@@ -13,6 +13,8 @@ import { postTransaction } from '../src/engine/journal.ts';
 import { activeRomance, activeRomances, loveIssue, romanceFor } from '../src/engine/love.ts';
 import { advanceNpcLives, allContacts, ensureNpc, makeNpc, npcRandom, syncNpcs } from '../src/engine/npcs.ts';
 import { findContact } from '../src/engine/school.ts';
+import { agreementFor, attraction, openConcern, relationshipState, setAgreement, visibleConcerns } from '../src/engine/relationships.ts';
+import { cities } from '../src/data/veyra.ts';
 import { advance } from '../src/engine/simulation.ts';
 import { offerSocialEvent } from '../src/engine/socialEvents.ts';
 import { datingSources } from '../src/engine/socialTypes.ts';
@@ -67,6 +69,9 @@ function marry() {
   forceRoll(life, `advance:${friend.id}`);
   life = act(life, { type: 'romance', person: friend.id, action: 'ask' });
   assert.equal(activeRomance(life)?.status, 'dating');
+  forceRoll(life, `agreement:${friend.id}:exclusive`);
+  life = act(life, { type: 'relationship-care', person: friend.id, action: 'exclusive' });
+  assert.equal(activeRomance(life)?.status, 'committed');
   life = age(life);
   forceRoll(life, `advance:${friend.id}`);
   life = act(life, { type: 'romance', person: friend.id, action: 'propose' });
@@ -184,8 +189,13 @@ test('Love introductions are adult-only and keep the match and response after re
   assert.equal(stories.size, datingSources.length);
 });
 
-test('two dating partners persist together until one discovers the other', () => {
+test('exclusive partners may discover actual violations and respond to how I handle them', () => {
   const first = acceptMatch(adult(), 'date');
+  const firstId = activeRomance(first)!.person;
+  const partner = findContact(first, firstId)!;
+  Object.assign(partner.bond, { affection: 80, trust: 76, familiarity: 75, respect: 65, compatibility: 74 });
+  ensureNpc(first, partner).traits.loyalty = 70;
+  setAgreement(first, firstId, 'exclusive');
   const both = acceptMatch(age(first), 'app');
   const partners = activeRomances(both);
   assert.equal(partners.length, 2);
@@ -211,19 +221,24 @@ test('two dating partners persist together until one discovers the other', () =>
   const denied = act(restored, { type: 'choose', event: 'social-affair', choice: 'deny' });
   for (const result of [honest, denied]) {
     assert.equal(result.social.pendingPerson, null);
-    assert.equal(romanceFor(result, discoverer)?.status, 'broken-up');
-    assert.deepEqual(activeRomances(result).map(({ person }) => person), [other]);
+    assert.equal(romanceFor(result, other)?.status, 'dating');
     assert.deepEqual(decodeLife(JSON.stringify(result)), result);
   }
+  assert.equal(romanceFor(honest, discoverer)?.ended, null);
+  const space = act(restored, { type: 'choose', event: 'social-affair', choice: 'space' });
+  assert.equal(relationshipState(space, discoverer)?.apartUntil, space.year + 1);
+  assert.ok(visibleConcerns(honest, discoverer).some(({ kind }) => kind === 'boundary'));
   assert.ok(findContact(denied, discoverer)!.bond.trust < findContact(honest, discoverer)!.bond.trust);
 });
 
-test('discovery by a spouse preserves the other partner and records the divorce settlement', () => {
+test('a severe betrayal can end a marriage while preserving the other relationship and settlement', () => {
   const { life, id } = marry();
-  const both = acceptMatch(life, 'app');
+  const both = acceptMatch(age(life), 'app');
   const other = activeRomances(both).find(({ person }) => person !== id)!.person;
   const proposal = { type: 'romance', person: other, action: 'propose' } as const;
-  assert.match(loveIssue(both, proposal) ?? '', /existing engagement or marriage/);
+  assert.match(loveIssue(both, proposal) ?? '', /one engagement or marriage/);
+  const spouse = findContact(both, id)!;
+  Object.assign(spouse.bond, { trust: 12, affection: 14, compatibility: 20, respect: 20, resentment: 75 });
   let discovered: Life | undefined;
   for (let offset = 0; offset < 60; offset++) {
     const candidate = act({ ...both, seed: both.seed + offset }, { type: 'age' });
@@ -234,12 +249,123 @@ test('discovery by a spouse preserves the other partner and records the divorce 
   }
   assert.ok(discovered);
   const amount = Math.min(5000, Math.floor(discovered.character.bank * .08));
-  const divorced = act(discovered, { type: 'choose', event: 'social-affair', choice: 'apologize' });
+  const divorced = act(discovered, { type: 'choose', event: 'social-affair', choice: 'deny' });
   assert.equal(romanceFor(divorced, id)?.status, 'divorced');
   assert.equal(romanceFor(divorced, other)?.status, 'dating');
   assert.equal(divorced.character.bank, discovered.character.bank - amount);
   assert.equal(divorced.transactions.reduce((sum, entry) => sum + entry.amount, 0), divorced.character.bank);
   assert.deepEqual(decodeLife(JSON.stringify(divorced)), divorced);
+});
+
+test('mutual non-exclusivity preserves concurrent partners without making breach evidence', () => {
+  const first = acceptMatch(adult(), 'date');
+  const firstId = activeRomance(first)!.person;
+  const agreement = (life: Life, person: string) => {
+    forceRoll(life, `agreement:${person}:non-exclusive`, .2);
+    return act(life, { type: 'relationship-care', person, action: 'non-exclusive' });
+  };
+  const both = acceptMatch(age(agreement(first, firstId)), 'app');
+  const second = activeRomances(both).find(({ person }) => person !== firstId)!.person;
+  const arranged = agreement(both, second);
+  for (const id of [firstId, second]) {
+    assert.equal(agreementFor(arranged, id), 'non-exclusive');
+    assert.equal(romanceFor(arranged, id)?.status, 'committed');
+    assert.ok(!relationshipState(arranged, id)?.conflicts.some(({ kind }) => kind === 'boundary'));
+  }
+  assert.match(advance(arranged, { type: 'relationship-care', person: firstId, action: 'exclusive' }).error ?? '', /other active/);
+  assert.deepEqual(decodeLife(JSON.stringify(arranged)), arranged);
+});
+
+test('getting to know someone, first date, and commitment have distinct states', () => {
+  const invited = act(adult(), { type: 'dating-match', source: 'app' });
+  const id = invited.social.pendingPerson!;
+  const slow = act(invited, { type: 'choose', event: 'social-dating-match', choice: 'slow' });
+  assert.equal(romanceFor(slow, id)?.status, 'getting-to-know');
+  assert.equal(activeRomance(slow), undefined);
+  assert.ok(relationshipState(slow, id)?.milestones.meeting);
+  const person = findContact(slow, id)!;
+  assert.ok(attraction(slow, person) > 0);
+  forceRoll(slow, `advance:${id}`, .03);
+  const dated = act(slow, { type: 'romance', person: id, action: 'ask' });
+  assert.equal(agreementFor(dated, id), 'casual');
+  assert.ok(relationshipState(dated, id)?.milestones.date);
+  assert.match(loveIssue(age(dated), { type: 'romance', person: id, action: 'propose' }) ?? '', /commitment/);
+});
+
+test('distance separates physical visits from remote calls, and blocked promises survive reload', () => {
+  const { life, id } = marry();
+  const spouse = findContact(life, id)!;
+  spouse.city = cities.find((city) => city !== life.character.city)!;
+  const date = { type: 'romance', person: id, action: 'date' } as const;
+  assert.match(loveIssue(life, date) ?? '', /different cities/);
+  let connected = act(life, { type: 'relationship-care', person: id, action: 'phone' });
+  connected = act(connected, { type: 'relationship-care', person: id, action: 'visit' });
+  assert.equal(loveIssue(connected, date), null);
+  assert.equal(findContact(connected, id)?.city, spouse.city);
+  assert.ok(connected.character.bank < life.character.bank);
+  assert.deepEqual(decodeLife(JSON.stringify(connected)), connected);
+
+  const single = adult();
+  const friend = knownFriend(single);
+  openConcern(single, friend.id, 'argument', 56);
+  const promised = act(single, { type: 'relationship-care', person: friend.id, action: 'promise-time' });
+  const after = age(age(promised));
+  assert.equal(relationshipState(after, friend.id)?.promise?.status, 'broken');
+  assert.ok(visibleConcerns(after, friend.id).some(({ kind }) => kind === 'promise'));
+  assert.deepEqual(decodeLife(JSON.stringify(after)), after);
+});
+
+test('apologies leave serious conflicts open and reconciliation requires follow-through in another year', () => {
+  const { life, id } = marry();
+  openConcern(life, id, 'argument', 56);
+  forceRoll(life, `bond:${id}:apologize:0`, .2);
+  let repaired = act(life, { type: 'romance', person: id, action: 'apologize' });
+  assert.ok(visibleConcerns(repaired, id).some((entry) => entry.state === 'repairing' && entry.severity > 0));
+  const reconcile = { type: 'relationship-care', person: id, action: 'reconcile' } as const;
+  assert.match(advance(repaired, reconcile).error ?? '', /more than one year/);
+  repaired = act(repaired, { type: 'relationship-care', person: id, action: 'promise-support' });
+  forceRoll(repaired, `bond:${id}:support:1`, .2);
+  repaired = act(repaired, { type: 'romance', person: id, action: 'support' });
+  assert.equal(relationshipState(repaired, id)?.promise?.status, 'kept');
+  repaired = age(repaired);
+  forceRoll(repaired, `reconciliation:${id}`, .1);
+  repaired = act(repaired, reconcile);
+  assert.ok(relationshipState(repaired, id)?.milestones.reconciliation);
+  assert.ok(relationshipState(repaired, id)?.conflicts.some((entry) => entry.state === 'resolved'));
+});
+
+test('an NPC can independently end a long, unhealthy relationship', () => {
+  const life = acceptMatch(adult(), 'date');
+  const id = activeRomance(life)!.person;
+  const person = findContact(life, id)!;
+  Object.assign(person.bond, { affection: 12, trust: 8, respect: 8, resentment: 80, compatibility: 10 });
+  const issue = openConcern(life, id, 'neglect', 80);
+  issue.year -= 1;
+  issue.id = `concern:${id}:neglect:${issue.year}`;
+  while (npcRandom(life, `romance-discovery:${id}`, life.year + 1).next() >= .22) life.seed++;
+  const ended = age(life);
+  assert.equal(romanceFor(ended, id)?.status, 'broken-up');
+  assert.equal(relationshipState(ended, id)?.endedBecause, 'neglect');
+  assert.ok(ended.notices.some(({ title }) => title === 'Their Decision'));
+  assert.deepEqual(decodeLife(JSON.stringify(ended)), ended);
+});
+
+test('V10 saves preserve concurrent partners and pending decisions without fabricating agreements', () => {
+  const life = acceptMatch(age(acceptMatch(adult(), 'date')), 'app');
+  const first = activeRomance(life)!.person;
+  life.pending = 'social-affair';
+  life.seen.push('social-affair');
+  life.social.pendingPerson = first;
+  const old = { ...life, version: 10, social: { ...life.social, relationships: undefined } };
+  const restored = decodeLife(JSON.stringify(old));
+  assert.equal(restored.version, 11);
+  assert.equal(agreementFor(restored, first), 'legacy');
+  assert.deepEqual(restored.social.relationships, {});
+  assert.deepEqual(restored.social.romances, life.social.romances);
+  assert.deepEqual(restored.wealth, life.wealth);
+  assert.equal(restored.random, life.random);
+  assert.equal(restored.pending, life.pending);
+  assert.equal(restored.social.pendingPerson, first);
 });
 
 test('V6 migration preserves old NPCs, illnesses, homes and decisions, with reproducible personality', () => {
@@ -251,7 +377,7 @@ test('V6 migration preserves old NPCs, illnesses, homes and decisions, with repr
   const legacyProperty = { residence: 'cedar-starter', owned: life.property.owned.map(({ id, year, source }) => ({ id, year, source })) };
   const snapshot = JSON.stringify({ ...life, version: 6, social: undefined, property: legacyProperty });
   const restored = decodeLife(snapshot);
-  assert.equal(restored.version, 10);
+  assert.equal(restored.version, 11);
   assert.deepEqual(findContact(restored, friend.id), findContact(life, friend.id));
   for (const key of ['illnesses', 'transactions', 'journal', 'notices', 'random', 'character'] as const) {
     assert.deepEqual(restored[key], life[key]);
@@ -269,11 +395,12 @@ test('V7 migration preserves a married household and owned property without inve
   const housed = act(purchased, { type: 'move-into-home', id: 'cedar-starter' });
   const legacyProperty = { residence: 'cedar-starter', owned: housed.property.owned.map(({ id, year, source }) => ({ id, year, source })) };
   const restored = decodeLife(JSON.stringify({ ...housed, version: 7, skills: undefined, property: legacyProperty }));
-  assert.equal(restored.version, 10);
+  assert.equal(restored.version, 11);
   assert.deepEqual(restored.skills.entries, {});
-  for (const key of ['social', 'journal', 'notices', 'transactions', 'random', 'character'] as const) {
+  for (const key of ['journal', 'notices', 'transactions', 'random', 'character'] as const) {
     assert.deepEqual(restored[key], housed[key]);
   }
+  assert.deepEqual(restored.social, { ...housed.social, relationships: {} });
   assert.deepEqual(restored.property, { ...housed.property, owned: housed.property.owned.map((item) => ({ ...item, acquisition: null })) });
 });
 

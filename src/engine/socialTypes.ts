@@ -1,4 +1,5 @@
 import type { City, Gender, Person } from './types.ts';
+import type { RelationshipCareAction, RelationshipState } from './relationshipTypes.ts';
 
 export const traits = ['ambition', 'loyalty', 'empathy', 'sociability', 'discipline', 'confidence', 'temperament', 'materialism', 'riskTolerance'] as const;
 export type Traits = Record<typeof traits[number], number>;
@@ -13,11 +14,13 @@ export type NpcProfile = {
   memories: { year: number; text: string }[]; conflicts: number;
   localPartner: string | null; movedFrom?: City;
 };
-export const romanceStatuses = ['interest', 'dating', 'engaged', 'married', 'broken-up', 'divorced', 'widowed'] as const;
+export const activeRomanceStatuses = ['dating', 'committed', 'engaged', 'married'] as const;
+export const romanceStatuses = ['getting-to-know', 'interest', ...activeRomanceStatuses, 'broken-up', 'divorced', 'widowed'] as const;
 export type Romance = { person: string; status: typeof romanceStatuses[number]; started: number; engagement: number | null;
   wedding: number | null; ended: number | null; history: { year: number; text: string }[] };
 export const socialEvents = ['social-dinner', 'social-time', 'social-proposal', 'social-support', 'social-school', 'social-finances',
-  'social-dating-match', 'social-casual-match', 'social-affair', 'social-make-love', 'social-hookup', 'social-threesome'] as const;
+  'social-dating-match', 'social-casual-match', 'social-affair', 'social-make-love', 'social-hookup', 'social-threesome',
+  'social-expectations', 'social-space', 'social-concern', 'social-reconnect'] as const;
 export type SocialEventId = typeof socialEvents[number];
 export const datingSources = ['spotlight', 'date', 'app', 'lgbtq', 'casual', 'matchmaking'] as const;
 export type DatingSource = typeof datingSources[number];
@@ -25,7 +28,7 @@ export type ChildRecord = { year: number; adopted: boolean; wellbeing: number; l
 export type SocialState = {
   people: SocialPerson[]; profiles: Record<string, NpcProfile>;
   parents: Record<string, string[]>; children: Record<string, ChildRecord>;
-  romances: Romance[]; pendingPerson: string | null; pendingGuest?: string;
+  romances: Romance[]; relationships: Record<string, RelationshipState>; pendingPerson: string | null; pendingGuest?: string;
 };
 export const romanticActivities = ['date', 'gift', 'dinner', 'movie', 'support', 'future', 'apologize'] as const;
 export const parentingActivities = ['care', 'read', 'school', 'hobby', 'lesson', 'gift', 'support', 'future'] as const;
@@ -35,6 +38,7 @@ export type IntimacyAction =
   | { type: 'intimacy'; encounter: 'threesome'; first: string; second: string };
 export type SocialAction =
   | IntimacyAction
+  | RelationshipCareAction
   | { type: 'meet'; source: 'neighborhood' | 'hobbies' | 'date' | 'app' }
   | { type: 'dating-match'; source: DatingSource }
   | { type: 'romance'; person: string; action: 'interest' | 'ask' | 'propose' | 'breakup' | 'divorce' | typeof romanticActivities[number] }

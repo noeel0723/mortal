@@ -19,7 +19,8 @@ import { industries } from '../src/engine/careerTypes';
 import { currentClass, findContact, isPeer, isSchoolStage } from '../src/engine/school';
 import { romanceLabels } from '../src/engine/love';
 import { intimacyGuests, intimacyIssue } from '../src/engine/intimacy';
-import { childParents, datingCandidates, datingControls, datingSummary, familyTreeGroups, meetingControls, relationshipControls, relationshipGroups } from '../src/socialView';
+import { childParents, datingCandidates, datingControls, datingSummary, familyTreeGroups, meetingControls, relationshipCareControls,
+  relationshipControls, relationshipGroups, relationshipOverview } from '../src/socialView';
 import { canEditFace } from '../src/engine/appearance';
 import { propertyIssue, propertyQuote } from '../src/engine/property';
 import { assetArt } from '../src/portraits/assetArt';
@@ -719,10 +720,14 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
         </PageGroup>)}
       </>;
     case 'love-life': {
-      const { partners } = relationshipGroups(life);
+      const { partners, prospects } = relationshipGroups(life);
       return <>
         {partners.length > 0 && <PageGroup title={partners.length === 1 ? 'Current Partner' : 'Current Partners'}>
-          {partners.map((partner) => <PersonRow key={partner.id} life={life} person={partner} onClick={() => go('person', partner.id)} />)}
+          {partners.map((partner) => <PersonRow key={partner.id} life={life} person={partner}
+            detail={relationshipOverview(life, partner)?.summary} onClick={() => go('person', partner.id)} />)}
+        </PageGroup>}
+        {prospects.length > 0 && <PageGroup title="Getting to Know Each Other">
+          {prospects.map((person) => <PersonRow key={person.id} life={life} person={person} onClick={() => go('person', person.id)} />)}
         </PageGroup>}
         <PageGroup title="Dating">
           {meetingControls(life, true).map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label}
@@ -770,18 +775,25 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       if (!person) return <p className="play-empty">This character is unavailable.</p>;
       const contact = person;
       const social = relationshipControls(life, contact);
+      const care = relationshipCareControls(life, contact);
+      const overview = relationshipOverview(life, contact);
       const memories = contactHistory(life, contact);
       const showingProfile = page === 'person-info' || page === 'class-person-info' || page === 'work-person-info';
       const base = page === 'work-person' || page === 'work-person-info' ? 'work-person' :
         page === 'class-person' || page === 'class-person-info' ? 'class-person' : 'person';
       return <>
         <PageGroup title="Character">
-          <PersonRow person={contact} life={life} opensDialog onClick={() => go(`${base}-info`, contact.id)} />
+          <PersonRow person={contact} life={life} detail={overview?.summary} opensDialog onClick={() => go(`${base}-info`, contact.id)} />
         </PageGroup>
         {social.length > 0 && <PageGroup title={contact.role === 'Child' ? 'Parenting' : 'Love Life'}>
           {social.map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label}
             detail={item.issue ?? item.detail} disabled={busy || !!item.issue} opensDialog={item.action.type === 'intimacy'}
             onClick={() => void dispatch(item.action)} />)}
+        </PageGroup>}
+        {care.length > 0 && <PageGroup title="Relationship & Communication">
+          {overview?.agreement && <MenuRow title="Agreement" detail={overview.agreement} />}
+          {overview?.concerns.map(({ label, value }) => <MenuRow key={label} title={label} detail={value} />)}
+          {care.map(activityRow)}
         </PageGroup>}
         <PageGroup title="Interactions">
           {contactInteractions(life, contact).map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label}
@@ -795,6 +807,8 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           <section className="detail-bond"><h3>Your bond</h3>
             {contactBondRows(contact).map((row) => <PageMeter key={row.label} {...row} />)}
           </section>
+          {!!overview?.concerns.length && <section className="detail-bond"><h3>Relationship Concerns</h3><Rows items={overview.concerns} /></section>}
+          {!!overview?.milestones.length && <section className="detail-bond"><h3>Relationship Milestones</h3><Rows items={overview.milestones} /></section>}
           {memories.length > 0 && <section className="detail-bond"><h3>Shared history</h3>
             <Rows items={memories.map(({ year, text }, index) => ({ key: String(index), label: String(year), value: text }))} />
           </section>}

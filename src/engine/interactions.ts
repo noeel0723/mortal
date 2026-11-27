@@ -3,6 +3,7 @@ import { applyCareerEffect } from './career.ts';
 import { eventTitle, recordNotice, resultMeter } from './eventNotices.ts';
 import { clamp } from './journal.ts';
 import { interactionStory } from './relationshipStories.ts';
+import { inPersonIssue, knownRelationship, meaningfulTime, openConcern, responseScale, takingSpace } from './relationships.ts';
 import { ensureNpc, isParent, npcProfile, npcRandom, remember } from './npcs.ts';
 import { findContact, isCurrentClassContact, isPeer } from './school.ts';
 import { isWorkAcquaintance, isWorkContact } from './workplace.ts';
@@ -72,8 +73,13 @@ export function relationshipIssue(life: Life, person: Contact, activity: Relatio
   const rule: Rule = relationshipActivities[activity];
   const unavailable = contactIssue(life, person);
   if (unavailable) return unavailable;
+  if (takingSpace(life, person.id)) return 'They’ve asked for time apart.';
   if (!rule.groups.includes(contactGroup(person))) return 'This interaction is unavailable for this relationship.';
   if (life.character.age < rule.age) return `Available from age ${rule.age}.`;
+  if (['family-time', 'hang-out', 'gift', 'study-together', 'work-break', 'mess-with'].includes(activity)) {
+    const location = inPersonIssue(life, person);
+    if (location) return location;
+  }
   if (activity === 'ask-allowance') {
     if (!isParent(life, person.id)) return 'Only a parent can give an allowance.';
     if (life.character.age >= 18) return 'Pocket money is available before age 18.';
@@ -105,8 +111,10 @@ export function performRelationshipActivity(life: Life, id: string, activity: Re
   const profile = ensureNpc(life, person);
   const strained = (activity === 'compliment' || activity === 'family-time' || activity === 'hang-out' || activity === 'work-break') &&
     person.bond.resentment >= 25 && npcRandom(life, `interaction:${id}:${activity}`, life.year).next() > (profile.traits.empathy + person.bond.trust) / 210;
+  const conflict = activity === 'insult' || activity === 'mess-with';
+  const reception = conflict ? 1 : responseScale(life, person, activity);
   for (const stat of stats) {
-    person.bond[stat] = clamp(person.bond[stat] + Math.round((rule.bond[stat] ?? 0) * (strained ? .45 : 1)));
+    person.bond[stat] = clamp(person.bond[stat] + Math.round((rule.bond[stat] ?? 0) * reception * (strained ? .45 : 1)));
   }
   const enrollment = life.academic.enrollment;
   if (enrollment && rule.academic) {
@@ -116,13 +124,17 @@ export function performRelationshipActivity(life: Life, id: string, activity: Re
     enrollment.stress = clamp(enrollment.stress + rule.academic.stress);
   }
   const group = contactGroup(person);
-  const conflict = activity === 'insult' || activity === 'mess-with';
+  if (knownRelationship(life, person)) {
+    if (conflict) openConcern(life, id, 'argument', Math.min(75, 25 + person.bond.resentment));
+    else if (reception > 0 && ['family-time', 'hang-out', 'work-break', 'study-together'].includes(activity)) meaningfulTime(life, person, 'time', 5);
+  }
   if (activity === 'ask-allowance') profile.savings -= allowance[life.character.background];
   if (activity === 'discuss-work') applyCareerEffect(life, { performance: 4, stress: -2 });
   if (isWorkContact(person) && person.employerId === life.career.current?.employerId && conflict) {
     applyCareerEffect(life, { security: activity === 'insult' ? -9 : -5, reputation: -3 });
   }
-  const story = interactionStory(life, person, activity) + (strained ? ' The tension between us was still there.' : '');
+  const story = interactionStory(life, person, activity) + (reception === 0 ? ' They seemed distracted and didn’t respond as I expected.' :
+    strained ? ' The tension between us was still there.' : '');
   remember(life, person, story, conflict);
   const notice = recordNotice(life, rule.academic ? 'school' : group === 'parent' ? 'family' : group === 'worker' ? 'career' : 'community',
     rule.title, story, {

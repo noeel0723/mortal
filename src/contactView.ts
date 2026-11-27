@@ -10,8 +10,8 @@ import type { Action, Contact, Life } from './engine/types.ts';
 import { money } from './i18n/en.ts';
 import { profileHealthRows } from './healthView.ts';
 import { npcProfile } from './engine/npcs.ts';
-import { romanceFor } from './engine/love.ts';
-import { childParents, personalityLabels, socialRole } from './socialView.ts';
+import { isActiveRomance, romanceFor } from './engine/love.ts';
+import { childParents, personalityLabels, relationshipOverview, socialRole } from './socialView.ts';
 import type { Emoji } from './theme/tokens.ts';
 
 const presentation: Record<RelationshipActivity, { label: string; icon: Emoji; detail: string }> = {
@@ -41,8 +41,12 @@ export function contactProfileRows(life: Life, person: Contact) {
   const profile = npcProfile(life, person);
   const parents = childParents(life, person);
   const child = life.social.children[person.id];
+  const overview = relationshipOverview(life, person);
   return [
     { label: 'Relationship', value: contactRole(person, life) },
+    ...(overview?.condition ? [{ label: 'Relationship condition', value: overview.condition }] : []),
+    ...(overview?.years !== undefined ? [{ label: 'Years together', value: overview.years }] : []),
+    ...(overview?.agreement ? [{ label: 'Agreement', value: overview.agreement }] : []),
     { label: person.alive ? 'Age' : 'Age at death', value: person.age },
     { label: 'Gender identity', value: genderLabels[person.gender] },
     { label: 'City', value: person.city },
@@ -98,7 +102,7 @@ export function contactInteractions(life: Life, person: Contact) {
 
   for (const activity of Object.keys(relationshipActivities) as RelationshipActivity[]) {
     if (life.social.children[person.id]) continue;
-    if (activity === 'gift' && ['dating', 'engaged', 'married'].includes(romanceFor(life, person.id)?.status ?? '')) continue;
+    if (activity === 'gift' && isActiveRomance(romanceFor(life, person.id))) continue;
     const rule = relationshipActivities[activity];
     if (!rule.groups.some((allowed) => allowed === group)) continue;
     if (activity === 'study-together' && !canStudyWith(life, person)) continue;

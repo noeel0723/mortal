@@ -2,12 +2,15 @@ import { adoptionCost, familyIssue, parenting } from './engine/familyLife.ts';
 import { activeRomances, dateActivities, datingCompatibility, isActiveRomance, loveIssue, romanceFor, romanceLabels, weddingPlans } from './engine/love.ts';
 import { allContacts, isFamily, npcProfile } from './engine/npcs.ts';
 import { intimacyIssue, isIntimacyContact } from './engine/intimacy.ts';
+import { activeFor, agreementFor, agreementLabels, careIssue, concernLabels, counselingFee, knownRelationship, relationshipCondition,
+  relationshipState, visibleConcerns, visitFee } from './engine/relationships.ts';
+import type { MemoryKind, RelationshipCareAction } from './engine/relationshipTypes.ts';
 import { findContact, isCurrentClassContact, isPeer } from './engine/school.ts';
 import { isWorkAcquaintance, isWorkContact } from './engine/workplace.ts';
 import { datingSources } from './engine/socialTypes.ts';
 import type { DatingSource, IntimacyAction, SocialAction } from './engine/socialTypes.ts';
 import type { Contact, Life } from './engine/types.ts';
-import { money } from './i18n/en.ts';
+import { en, money } from './i18n/en.ts';
 import type { Emoji } from './theme/tokens.ts';
 
 export function friendshipLabel(life: Life, person: Contact) {
@@ -25,7 +28,7 @@ export function friendshipLabel(life: Life, person: Contact) {
 export function socialRole(life: Life, person: Contact) {
   const relationship = romanceFor(life, person.id);
   if (relationship?.status === 'married') return 'Spouse';
-  if (relationship && relationship.status !== 'interest') return romanceLabels[relationship.status];
+  if (relationship) return romanceLabels[relationship.status];
   if (isFamily(life, person.id)) return person.role;
   const status = friendshipLabel(life, person);
   return status === 'Acquaintance' && !isWorkAcquaintance(person) ? person.role : status;
@@ -52,6 +55,7 @@ export function relationshipGroups(life: Life) {
   return {
     family: known.filter(({ id }) => isFamily(life, id)),
     partners: known.filter(({ id }) => partnerIds.has(id)),
+    prospects: known.filter(({ id, alive }) => alive && ['getting-to-know', 'interest'].includes(romanceFor(life, id)?.status ?? '')),
     friends: known.filter((person) => !isFamily(life, person.id) && !partnerIds.has(person.id) && 'friend' in person && person.friend && !former(person)),
     acquaintances: known.filter((person) => person.alive && !partnerIds.has(person.id) && !isFamily(life, person.id) &&
       'friend' in person && !person.friend && !former(person) && (isWorkContact(person) ? isWorkAcquaintance(person) :
@@ -102,6 +106,60 @@ const family = (life: Life, action: Parameters<typeof familyIssue>[1], label: st
 const intimacy = (life: Life, action: IntimacyAction, label: string, icon: Emoji, detail: string): Control =>
   ({ action, label, icon, detail, issue: intimacyIssue(life, action) });
 
+const memories: Record<MemoryKind, string> = { meeting: 'First Meeting', date: 'First Date', commitment: 'Commitment', engagement: 'Engagement',
+  marriage: 'Marriage', support: 'Meaningful Support', conflict: 'Conflict', promise: 'A Promise', boundary: 'Boundary Violation',
+  reconciliation: 'Reconciliation', breakup: 'Relationship Ended' };
+
+export function relationshipOverview(life: Life, person: Contact) {
+  const romance = romanceFor(life, person.id);
+  const state = relationshipState(life, person.id);
+  const active = activeFor(life, person.id);
+  if (!romance && !knownRelationship(life, person)) return null;
+  const years = active ? life.year - romance!.started : undefined;
+  const condition = person.alive && (active || knownRelationship(life, person)) ? relationshipCondition(life, person) : undefined;
+  const agreement = active ? agreementLabels[agreementFor(life, person.id)] : undefined;
+  const summary = [socialRole(life, person), person.alive ? en.age(person.age) : 'Deceased',
+    active ? `${years} ${years === 1 ? 'year' : 'years'} together` : undefined,
+    condition, person.alive && person.city !== life.character.city ? 'Long-distance' : undefined].filter(Boolean).join(' · ');
+  const concerns = visibleConcerns(life, person.id).map((entry) => ({ label: concernLabels[entry.kind],
+    value: `${entry.state === 'repairing' ? 'Working on it' : 'Open'} · Since ${entry.year}` }));
+  if (state?.promise) concerns.push({ label: state.promise.kind === 'time' ? 'Promise to make time' : 'Promise to offer support',
+    value: state.promise.status === 'pending' ? `Due by ${state.promise.due}` : state.promise.status === 'kept' ? 'Kept' : 'Broken' });
+  if ((state?.apartUntil ?? 0) > life.year) concerns.push({ label: 'Taking time apart', value: `Until ${state!.apartUntil}` });
+  const milestones = Object.values(state?.milestones ?? {}).sort((a, b) => a.year - b.year)
+    .map((entry) => ({ label: memories[entry.kind], value: String(entry.year) }));
+  return { summary, years, condition, agreement, concerns, milestones };
+}
+
+export function relationshipCareControls(life: Life, person: Contact): Control[] {
+  if (!person.alive || life.character.age < 18 || person.age < 18 || !knownRelationship(life, person)) return [];
+  const active = activeFor(life, person.id);
+  const hasConcern = visibleConcerns(life, person.id).length > 0;
+  const rows: Control[] = [];
+  const add = (action: RelationshipCareAction['action'], label: string, icon: Emoji, detail?: string) => {
+    rows.push({ label, icon, detail, issue: careIssue(life, person, action), action: { type: 'relationship-care', person: person.id, action } });
+  };
+  add('phone', 'Call', 'phone', 'Make time for a phone call.');
+  add('message', 'Send a Message', 'loveLetter', 'Check in from wherever you are.');
+  add('video', 'Video Call', 'camera', 'Talk face-to-face from a distance.');
+  if (!active) add('support', 'Check In and Offer Support', 'support', 'Show up for a friend who needs you.');
+  if (person.city !== life.character.city) add('visit', 'Plan a Visit', 'train', `Visit ${person.city} this year · ${money(visitFee(life, person))}`);
+  if (active) {
+    add('exclusive', 'Discuss Exclusivity', 'ring', 'Agree to date only each other.');
+    add('non-exclusive', 'Discuss Non-Exclusivity', 'talk', 'Agree that other dates and relationships are allowed.');
+    add('relocation', 'Discuss Relocation', 'location', 'Talk about living in the same city.');
+  }
+  if (hasConcern) {
+    add('discuss', 'Discuss Concerns', 'thoughts', 'Hear how they feel about the most urgent issue.');
+    add('promise-time', 'Promise to Make Time', 'calendar');
+    add('promise-support', 'Promise to Offer Support', 'support');
+    add('space', 'Take Time Apart', 'walk');
+    add('reconcile', 'Try to Reconcile', 'thanks');
+    if (active) add('counseling', 'Relationship Counseling', 'medical', money(counselingFee));
+  }
+  return rows;
+}
+
 const datingActivities: Record<DatingSource, { label: string; icon: Emoji; detail: string }> = {
   spotlight: { label: 'Spotlight Dating', icon: 'star', detail: 'Get matched with a local public figure.' },
   date: { label: 'Find a Date', icon: 'health', detail: 'Meet someone at a singles event.' },
@@ -147,7 +205,7 @@ export function relationshipControls(life: Life, person: Contact) {
       love(life, { type: 'romance', person: id, action }, dateActivities[action].label, romanceIcons[action],
         dateActivities[action].cost ? money(dateActivities[action].cost) : undefined));
     const rows = [...privateEvening, ...dates];
-    if (status === 'dating') rows.push(love(life, { type: 'romance', person: id, action: 'propose' }, 'Propose Marriage', 'ring'));
+    if (status === 'dating' || status === 'committed') rows.push(love(life, { type: 'romance', person: id, action: 'propose' }, 'Propose Marriage', 'ring'));
     if (status === 'engaged') for (const plan of Object.keys(weddingPlans) as (keyof typeof weddingPlans)[]) {
       rows.push(love(life, { type: 'wedding', person: id, plan }, weddingPlans[plan].label, 'ring', money(weddingPlans[plan].cost)));
     }

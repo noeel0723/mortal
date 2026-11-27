@@ -2,6 +2,7 @@ import { recordNotice, resultMeter } from './eventNotices.ts';
 import { supportChildHobby } from './childSkills.ts';
 import { clamp } from './journal.ts';
 import { romanceFor } from './love.ts';
+import { inPersonIssue } from './relationships.ts';
 import { ensureNpc, makeNpc, newPeopleLimit, npcRandom, remember } from './npcs.ts';
 import { findContact } from './school.ts';
 import { pickStory } from './stories.ts';
@@ -53,6 +54,8 @@ export function familyIssue(life: Life, action: FamilyAction): string | null {
   if (!person?.alive) return 'This person is unavailable.';
   if (action.type === 'plan-child') {
     if (life.character.age < 18 || person.age < 18 || romanceFor(life, person.id)?.status !== 'married') return 'Available to adult spouses.';
+    const meeting = inPersonIssue(life, person);
+    if (meeting) return meeting;
     if (Object.keys(life.social.children).length >= 4 || life.social.people.length >= newPeopleLimit) return 'Your household is full.';
     if (life.usedActions.includes('family-planning')) return 'You already discussed family planning this year.';
     if (action.name !== undefined && (!/^\p{L}[\p{L}\p{M} '’.-]{0,27}$/u.test(action.name.trim()))) return 'Enter a name using 1–28 letters.';

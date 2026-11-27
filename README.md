@@ -56,7 +56,7 @@ Earlier academic grades from version 1 saves are unavailable. Qualifications now
 
 Use **Custom Life → Appearance** to choose a hairstyle, hair color, eyes, nose, and mouth. Random lives can use **Activities → Customize Appearance** at age zero. After the first **Age Up**, use **Activities → Change Hairstyle** to edit your hair. Tap your portrait in the journal for **My Profile**. When you open a contact from **Relationships** or **Class**, tap their name or portrait to see their profile and bond. Available interactions depend on the contact’s role and your age.
 
-Version 1 and 2 saves get stable portraits when they open. Versions 1–9 load as version 10 and persist in the new format on the next successful save. Existing contacts, assets, bank balances, skills, and decisions retain their records. Versions 1–8 start recording Veyra’s economy at their current year with a consumer price index of 100. Known acquisition prices stay on record and unknown prices continue to show as unknown. Active job offers keep their original pay until they expire.
+Version 1 and 2 saves get stable portraits when they open. Versions 1–10 load as version 11 and persist in the new format on the next successful save. Existing contacts, relationships, assets, bank balances, skills, and decisions retain their records. Older relationships start with expectations unrecorded. Versions 1–8 start recording Veyra’s economy at their current year with a consumer price index of 100. Known acquisition prices stay on record and unknown prices continue to show as unknown. Active job offers keep their original pay until they expire.
 
 ### Work and money
 
@@ -83,7 +83,7 @@ Veyra uses a fictional currency scale. Retirement living costs are funded from s
 
 ## Phase 2.3 · Relationships and family
 
-- At age 18, open **Activities → Love** to find a match and decide whether to date. Use **Family → Open Love Life** to view current partners, ask someone you know out, or review past relationships. Dating several people can trigger a discovery event during Age Up. The partner who finds out ends their relationship with you.
+- At age 18, open **Activities → Love** to meet someone, get to know them, or go on a first date. Use **Family → Open Love Life** to see current partners, relationship conditions, and past relationships.
 - **Make Love** appears on adult partners’ and friends’ profiles. **Activities → Love** also offers **Hook Up** for a one-night match and **Threesome** for inviting two eligible adults. NPCs decide whether to join, and accepted encounters leave an account in the journal.
 - Dates and shared activities build a bond. An engagement opens three wedding options. Spouses can discuss family planning or adoption. Parenting actions appear on each child’s profile.
 - **Family Tree** shows relatives, spouses, former spouses, and children. **Relationship History** preserves the relationship timeline. Profiles show known education, interests, and personality alongside the existing portraits.
@@ -109,6 +109,12 @@ Veyra uses a fictional currency scale. Retirement living costs are funded from s
 - From age 18, use **Savings Account** to deposit or withdraw cash and earn annual interest. **Loans & Debts** shows creditworthiness, fixed-rate personal-loan offers, and repayment history.
 - Open a house or vehicle from **Properties**, **Vehicles**, or **Owned Assets** for its condition, market price, and available actions. Maintain or renovate houses, rent out an unoccupied house, or service and repair a vehicle. To sell your current home, first move into another home or rent a place.
 - Open **Retirement** for pension eligibility and payment history. **Investments** offers four fictional funds with current prices and realized and unrealized results. Home and vehicle purchases are paid in cash.
+
+## v0.3.2 · Relationship Overhaul
+
+- Open a partner’s **Relationship & Communication** section to discuss exclusivity or mutual non-exclusivity. Agreeing turns casual dates into a commitment. An exclusive agreement can be broken by a date, commitment, or private encounter outside that agreement. NPC reactions range from asking for space to ending the relationship.
+- Review concerns, promises, and milestones in **Character Profile**. Discuss problems, make time for each other, offer support, or attend counseling. Serious problems take continued work, and the other person can decline reconciliation.
+- Call, message, or video call people in other cities. **Plan a Visit** pays a local travel fee and opens in-person actions for the year. Talk about relocation before assuming a partner will move.
 
 ## Verify
 

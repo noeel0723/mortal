@@ -7,6 +7,7 @@ import { illnessLevels, illnesses, playerPatient } from './healthTypes.ts';
 import type { HealthVisit, IllnessCase, IllnessId, IllnessLevel, PatientService } from './healthTypes.ts';
 import type { Contact, Life } from './types.ts';
 import { allContacts, isFamily } from './npcs.ts';
+import { activeFor } from './relationships.ts';
 
 const effects: Record<IllnessLevel, { health: number; energy: number; cost: number; recovery: number }> = {
   mild: { health: 2, energy: 5, cost: 250, recovery: .88 },
@@ -28,7 +29,7 @@ export function activeIllness(life: Life, patient = playerPatient) {
 
 export function canAccompany(life: Life, person: Contact) {
   return isFamily(life, person.id) || ('friend' in person && person.friend) ||
-    life.social.romances.some(({ person: id, status, ended }) => id === person.id && status !== 'interest' && ended === null);
+    activeFor(life, person.id);
 }
 
 function hasIncome(life: Life) {

@@ -141,7 +141,7 @@ test('V8 migration starts neutral and preserves a live offer, progression, recor
   const snapshot = { ...before, version: 8, world: undefined, character: { ...before.character, birthCity: undefined },
     property: { ...before.property, owned: before.property.owned.map(({ id, year, source }) => ({ id, year, source })) } };
   const restored = decodeLife(JSON.stringify(snapshot));
-  assert.equal(restored.version, 10);
+  assert.equal(restored.version, 11);
   assert.equal(restored.world.history.length, 1);
   assert.equal(national(restored.world).priceIndex, indexBase);
   assert.equal(national(restored.world).inflation, 0);
@@ -192,6 +192,7 @@ test('relocation updates the household and keeps homes, vehicle records, and his
   const spouse = makeNpc(life, 'npc-spouse', 32, 'Acquaintance');
   const child = makeNpc(life, 'npc-child', 6, 'Child');
   life.social.people.push(spouse, child);
+  spouse.bond.trust = 80;
   ensureNpc(life, spouse);
   ensureNpc(life, child);
   life.social.romances.push({ person: spouse.id, status: 'married', started: life.year, engagement: life.year, wedding: life.year, ended: null, history: [] });

@@ -118,9 +118,36 @@ The same age-84 sample life with seed 82 and no optional actions grew from 78,94
 
 The consumer price index had a median of 199.05 and reached its ceiling of 250 at P90. Cost growth flattens in long lives near that ceiling. Raising it would expand essential bills and purchase prices beyond the tested currency scale while salaries only partially follow inflation. The market salary factor stays within 0.80–1.85 to keep job bands within the existing economy. These decisions preserve the recorded nominal amounts for contracts and assets.
 
-## Phase 4 · Specialized careers
+## v0.3.2 · Relationship Overhaul
 
-Build specialized professions in increments, beginning with one complete career loop. Plan business and further investment features around the underlying economy.
+Relationship progression and agreements now drive conflict, discovery, and repair. Version 11 keeps the existing social history and starts tracking agreements, concerns, and milestones from this release. Browser and native share the same NPC decisions.
+
+The simulation focuses on the player’s relationships. Trade-offs include capped memories and the latest conflict episode per category. Visits are modeled for one contact for the current calendar year. Native production export verifies bundling. Device behavior is tracked separately.
+
+### Relationship simulation
+
+The runner completed 2,000 seeded lives with 250 lives per strategy. Satisfaction is sampled from active relationships during the simulated years. Duration uses the relationship records retained at the end of each life. Conflict counts use the latest retained episode per category, and a life can contribute multiple breakups.
+
+| Strategy | Median duration | Median annual satisfaction | Lives with a marriage | Resolved / retained conflicts | Recorded endings |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Healthy | 58 years | 67/100 | 89.6% | 173 / 301 | 1 neglect |
+| Neglectful | 6 years | 34/100 | 0% | 0 / 1,003 | 1,003 neglect, 1 death |
+| Conflict-heavy | 3 years | 10/100 | 0% | 6 / 563 | 261 conflict, 15 neglect |
+| Single | — | — | 0% | 0 / 0 | — |
+| Married | 59 years | 63/100 | 94.8% | 150 / 295 | 13 neglect |
+| Divorced | 20 years | 55/100 | 99.6% | 136 / 338 | 239 player, 3 conflict, 7 neglect |
+| Non-exclusive | 31 years | 46/100 | 0% | 1 / 891 | 405 neglect |
+| Broken agreement | 7 years | 37/100 | 0% | 2 / 3,425 | 1,114 betrayal, 643 neglect |
+
+In the non-exclusive strategy, 238 lives maintained more than one mutually non-exclusive relationship at the same time. That strategy focused on periodic calls and left many concerns unresolved. The broken-agreement strategy deliberately broke exclusive agreements and varied the response to discovery. The results describe these programmed choices. Player enjoyment remains a question for playtesting.
+
+## Next · v0.3.3 NPC social network
+
+Extend independent NPC relationships and their histories. Keep improving the depth and consistency of the existing core systems.
+
+## Future expansions · Specialized careers
+
+Build business and CEO, football, basketball, entertainment, and politics as separate expansions after the core systems mature.
 
 ## Phase 5 · Generational legacy
 

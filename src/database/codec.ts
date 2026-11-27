@@ -104,7 +104,7 @@ export function decodeLife(json: string): Life {
   }
   if (!record(value)) throw new Error('This saved life is damaged.');
   const version = value.version;
-  if (!integer(version, 1, 10)) throw new Error('This saved life uses an unsupported version.');
+  if (!integer(version, 1, 11)) throw new Error('This saved life uses an unsupported version.');
   const { character, family, schoolContacts, journal, pending, scheduled, seen, usedActions, transactions, year } = value;
   if (!record(character) || typeof character.firstName !== 'string' || typeof character.lastName !== 'string' ||
     validateProfile(character as ProfileInput) || (version >= 3 && !validAppearance(character.appearance)) || !integer(character.age, 0, maxAge) ||
@@ -178,8 +178,11 @@ export function decodeLife(json: string): Life {
   if (version < 7) {
     life.social = newSocial(life);
     syncNpcs(life);
-  } else if (!validateSocial(life, (person): person is Record<string, unknown> => savedPerson(person, true))) {
-    throw new Error('This saved life has invalid social data.');
+  } else {
+    if (version < 11 && record(life.social)) life.social.relationships = {};
+    if (!validateSocial(life, (person): person is Record<string, unknown> => savedPerson(person, true))) {
+      throw new Error('This saved life has invalid social data.');
+    }
   }
   if (version < 5) {
     life.notices = [];
@@ -199,7 +202,6 @@ export function decodeLife(json: string): Life {
     throw new Error('This saved life has invalid world data.');
   }
   if (version < 10) {
-    life.version = 10;
     life.wealth = initialWealth();
     const { residence } = life.property;
     life.property.owned = life.property.owned.map(({ id, year, source, city, acquisition }, sequence) =>
@@ -209,5 +211,6 @@ export function decodeLife(json: string): Life {
     if (!validateOwnership(life)) throw new Error('This saved life has invalid assets or ownership data.');
     if (!validateWealth(life)) throw new Error('This saved life has invalid banking or investment data.');
   }
+  life.version = 11;
   return life;
 }

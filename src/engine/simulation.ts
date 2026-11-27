@@ -23,6 +23,7 @@ import { seededRandom } from './random.ts';
 import { relocate } from './relocation.ts';
 import { conversationStory, friendshipStory } from './relationshipStories.ts';
 import { answerSocialEvent, applyDatingMatch, applyIntimacy, isSocialEvent, offerSocialEvent } from './socialEvents.ts';
+import { advanceRelationships, applyRelationshipCare, meaningfulTime, responseScale, takingSpace } from './relationships.ts';
 import { advanceContactOccupation, currentClass, findContact, isPeer, isSchoolStage } from './school.ts';
 import { ageSkills, cloneSkills, incidentalPractice, setHobby, trainSkill } from './skills.ts';
 import { developAcademicSkills } from './skillIntegration.ts';
@@ -157,6 +158,7 @@ function ageUp(life: Life) {
     } else recordNotice(life, triggered.category, eventTitle(triggered.id), triggered.text, triggered.effects);
     if (triggered.careerEffects) applyCareerEffect(life, triggered.careerEffects);
   }
+  advanceRelationships(life);
   offerSocialEvent(life);
   recordValuation(life);
   life.random = random.state;
@@ -183,6 +185,7 @@ export function talkIssue(life: Life, id: string) {
   if (!person) return 'This person is no longer available.';
   const issue = contactIssue(life, person);
   if (issue) return issue;
+  if (takingSpace(life, id)) return 'They’ve asked for time apart.';
   if (life.character.age < 3) return 'Available from age 3.';
   if (person.age < 3) return 'They are too young for a conversation.';
   if (life.usedActions.includes(`talk:${id}`)) return 'Already done this year.';
@@ -263,6 +266,11 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       if (issue) return { error: issue };
       break;
     }
+    case 'relationship-care': {
+      const issue = applyRelationshipCare(life, action);
+      if (issue) return { error: issue };
+      break;
+    }
     case 'plan-child': case 'parent-child': {
       const issue = applyFamily(life, action);
       if (issue) return { error: issue };
@@ -334,13 +342,16 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       life.usedActions.push(`talk:${person.id}`);
       const previousAffection = person.bond.affection;
       const shared = sharedHobbies(life, person)[0];
-      person.bond.affection = clamp(person.bond.affection + (shared ? 4 : 3));
-      person.bond.trust = clamp(person.bond.trust + 2);
-      person.bond.familiarity = clamp(person.bond.familiarity + 4);
-      const story = shared ? `${conversationStory(life, person)} We also traded ideas about ${skills[shared].name}.` : conversationStory(life, person);
+      const reception = responseScale(life, person, 'conversation');
+      person.bond.affection = clamp(person.bond.affection + Math.round((shared ? 4 : 3) * reception));
+      person.bond.trust = clamp(person.bond.trust + Math.round(2 * reception));
+      person.bond.familiarity = clamp(person.bond.familiarity + Math.round(4 * reception));
+      if (reception > 0) meaningfulTime(life, person, 'time', 4);
+      const story = `${conversationStory(life, person)}${reception === 0 ? ' They had a lot on their mind, so we kept it short.' :
+        shared ? ` We also traded ideas about ${skills[shared].name}.` : ''}`;
       remember(life, person, story);
       const notice = recordNotice(life, isWorkContact(person) ? 'career' : 'friend' in person ? 'community' : 'family',
-        'A Conversation', story, { energy: -8, happiness: 3 });
+        'A Conversation', story, { energy: -8, happiness: Math.round(3 * reception) });
       notice.meter = resultMeter('Affection', previousAffection, person.bond.affection);
       break;
     }

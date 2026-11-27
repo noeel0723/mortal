@@ -3,6 +3,7 @@ import { isSkillId, skills } from '../data/skills.ts';
 import type { SkillId } from '../data/skills.ts';
 import { recordNotice, resultMeter } from './eventNotices.ts';
 import { contactIssue } from './interactions.ts';
+import { activeFor, inPersonIssue, meaningfulTime } from './relationships.ts';
 import { clamp } from './journal.ts';
 import { allContacts, isFamily, npcProfile, remember } from './npcs.ts';
 import { incidentalPractice, openingIssue, skillRandom } from './skills.ts';
@@ -43,7 +44,7 @@ export function hobbyGroupContact(life: Life) {
 
 export function canShareHobby(life: Life, person: Contact) {
   const friends = 'friend' in person && person.friend && !npcProfile(life, person).formerFriend;
-  const partner = life.social.romances.some((entry) => entry.person === person.id && ['dating', 'engaged', 'married'].includes(entry.status));
+  const partner = activeFor(life, person.id);
   return friends || partner;
 }
 
@@ -51,6 +52,8 @@ export function sharedHobbyIssue(life: Life, person: Contact, id: SkillId) {
   const blocked = openingIssue(life) ?? contactIssue(life, person);
   if (blocked) return blocked;
   if (!isSkillId(id) || !canShareHobby(life, person) || !sharedHobbies(life, person).includes(id)) return 'Choose a hobby you share with a friend or partner.';
+  const meeting = inPersonIssue(life, person);
+  if (meeting) return meeting;
   if (Math.min(person.age, life.character.age) < skills[id].age) return `Available from age ${skills[id].age}.`;
   if (life.usedActions.includes(`shared-hobby:${person.id}`)) return 'Available again next year.';
   if (life.character.attributes.energy < 6) return 'You need 6 energy.';
@@ -72,6 +75,7 @@ export function spendTimeOnHobby(life: Life, person: Contact, id: SkillId) {
   life.usedActions.push(`shared-hobby:${person.id}`);
   incidentalPractice(life, id, 1, 45);
   remember(life, person, story);
+  meaningfulTime(life, person, 'time', 5);
   recordNotice(life, 'community', 'A Shared Interest', story, { happiness: 3, stress: -2, energy: -6 }).meter =
     resultMeter('Affection', before, bond.affection);
   return null;

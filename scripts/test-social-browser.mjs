@@ -5,6 +5,7 @@ import { createLife } from '../src/engine/create.ts';
 import { postTransaction } from '../src/engine/journal.ts';
 import { activeRomance } from '../src/engine/love.ts';
 import { makeNpc } from '../src/engine/npcs.ts';
+import { boundaryEvidence, relationshipState, setAgreement } from '../src/engine/relationships.ts';
 import { advance } from '../src/engine/simulation.ts';
 import { acknowledgeEvents, saveSlot, startBrowser, url } from './browserTestSupport.mjs';
 
@@ -24,6 +25,8 @@ function scenario() {
     test = advance(test, { type: 'meet', source: 'app' }).life;
     test = advance(test, { type: 'romance', person: id, action: 'ask' }).life;
     if (activeRomance(test)?.status !== 'dating') continue;
+    test = advance(test, { type: 'relationship-care', person: id, action: 'exclusive' }).life;
+    if (activeRomance(test)?.status !== 'committed') continue;
     test = advance(test, { type: 'age' }).life;
     if (test.pending) test = advance(test, { type: 'choose', event: test.pending, choice: eventById.get(test.pending).choices[0].id }).life;
     if (activeRomance(test)?.status !== 'engaged') test = advance(test, { type: 'romance', person: id, action: 'propose' }).life;
@@ -59,7 +62,7 @@ try {
   await click('Dating App');
   await dialog('Someone New').waitFor();
   await acknowledgeEvents(page);
-  assert.equal((await read()).version, 10);
+  assert.equal((await read()).version, 11);
   await click('Ask Someone Out');
   await heading('Dating Profiles').waitFor();
   await page.getByText(/compatibility/).first().waitFor();
@@ -69,6 +72,10 @@ try {
   await page.reload();
   await dialog('A First Date').waitFor();
   await acknowledgeEvents(page);
+  await click('Discuss Exclusivity');
+  await dialog('An Agreement').waitFor();
+  await acknowledgeEvents(page);
+  await page.getByText('Exclusive', { exact: true }).waitFor();
   await click('Back to Relationships');
   await click('Close Relationships');
   await click('Age Up');
@@ -77,7 +84,7 @@ try {
   await click('Family');
   await click('Open Love Life');
   await click(friend.name);
-  if ((await read()).social.romances.find(({ person }) => person === friend.id).status === 'dating') {
+  if ((await read()).social.romances.find(({ person }) => person === friend.id).status === 'committed') {
     await click('Propose Marriage');
     await dialog('Engaged').waitFor();
     await acknowledgeEvents(page);
@@ -85,6 +92,10 @@ try {
   await click('Civil Ceremony');
   await dialog('Wedding Day').waitFor();
   await acknowledgeEvents(page);
+  await click(friend.name);
+  await dialog('Character Profile').getByRole('heading', { name: 'Relationship Milestones' }).waitFor();
+  await dialog('Character Profile').getByText('Marriage', { exact: true }).waitFor();
+  await click('Close Character Profile');
   await click('Discuss Adoption');
   await dialog('Adoption Day').waitFor();
   await acknowledgeEvents(page);
@@ -140,8 +151,8 @@ try {
   await dialog('Dating Match').waitFor();
   await page.reload();
   await dialog('Dating Match').waitFor();
-  await click('Start Dating');
-  await dialog('Dating Now').waitFor();
+  await click('Go on a First Date');
+  await dialog('A First Date').waitFor();
   await acknowledgeEvents(page);
   await click('Back to Activities');
   await click('Close Activities');
@@ -161,8 +172,8 @@ try {
   await click('Love');
   await click('LGBTQ+ Dating');
   await dialog('Dating Match').waitFor();
-  await click('Start Dating');
-  await dialog('Dating Now').waitFor();
+  await click('Go on a First Date');
+  await dialog('A First Date').waitFor();
   await acknowledgeEvents(page);
   await click('Back to Activities');
   await click('Close Activities');
@@ -202,37 +213,15 @@ try {
   await click('Back to Activities');
   await click('Close Activities');
 
-  let discoverer;
-  for (let turn = 0; turn < 20; turn++) {
-    const next = await ageUp();
-    if (next.pending === 'social-affair') {
-      discoverer = next.social.pendingPerson;
-      break;
-    }
-    await acknowledgeEvents(page, true);
-  }
-  assert.ok(discoverer);
-  const caught = dialog('Caught Dating');
-  await caught.waitFor();
-  const story = await caught.locator('.event-story').textContent();
+  const grown = await ageUp();
+  assert.notEqual(grown.pending, 'social-affair');
+  assert.ok(partners.every(({ id }) => grown.social.relationships[id].agreement === 'casual'));
+  await acknowledgeEvents(page, true);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
-  await caught.getByText(story, { exact: true }).waitFor();
-  assert.equal((await read()).social.pendingPerson, discoverer);
-  await click('Take Responsibility');
-  await caught.waitFor({ state: 'hidden' });
-  const notices = (await read()).notices;
-  const resultIndex = notices.findIndex(({ title }) => title === 'Relationship Ended');
-  assert.ok(resultIndex >= 0);
-  for (const { entry } of notices.slice(0, resultIndex)) {
-    const earlier = page.locator(`dialog[data-life-event="notice-${entry}"]`);
-    await earlier.getByRole('button', { name: 'Continue', exact: true }).click();
-  }
-  await dialog('Relationship Ended').waitFor();
-  await acknowledgeEvents(page);
-  const afterDiscovery = (await read()).social.romances;
-  assert.equal(afterDiscovery.find(({ person }) => person === discoverer).status, 'broken-up');
-  assert.equal(afterDiscovery.filter(({ ended, status }) => ended === null && ['dating', 'engaged'].includes(status)).length, 1);
+  await heading('Life Journal').waitFor();
+  const casualPartners = (await read()).social.romances;
+  assert.equal(casualPartners.filter(({ ended, status }) => ended === null && ['dating', 'engaged', 'committed'].includes(status)).length, 2);
   await click('Activities');
   await click('Love');
   await click('Hook Up');
@@ -242,10 +231,43 @@ try {
   await dialog('A Night Together').waitFor();
   await acknowledgeEvents(page);
   assert.ok((await read()).social.people.some(({ id }) => id === matchId));
-  assert.deepEqual((await read()).social.romances, afterDiscovery);
+  assert.deepEqual((await read()).social.romances, casualPartners);
+  await click('Back to Activities');
+  await click('Close Activities');
+
+  const file = await page.evaluate(saveSlot, { id: slot });
+  const breach = JSON.parse(file.payload);
+  const listener = breach.social.people.find(({ id }) => id === partners[0].id);
+  Object.assign(listener.bond, { affection: 88, trust: 82, compatibility: 88, respect: 78, familiarity: 84, resentment: 0 });
+  setAgreement(breach, listener.id, 'exclusive');
+  boundaryEvidence(breach, [matchId], 'intimacy');
+  let verified = false;
+  for (let index = 0; index < 60; index++, breach.seed++) {
+    if (advance(breach, { type: 'age' }).life?.pending === 'social-affair') {
+      verified = true;
+      break;
+    }
+  }
+  assert.ok(verified);
+  await page.evaluate(saveSlot, { id: slot, entry: { ...file, payload: JSON.stringify(breach) } });
+  await page.reload();
+  await heading('Life Journal').waitFor();
+  const discovered = await ageUp();
+  assert.equal(discovered.social.pendingPerson, listener.id);
+  const caught = dialog('Caught Dating');
+  await caught.waitFor();
+  await page.reload();
+  await caught.getByText(/crossed the exclusive agreement/).waitFor();
+  await click('Offer Time Apart');
+  await caught.waitFor({ state: 'hidden' });
+  const repaired = await read();
+  assert.equal(repaired.social.pendingPerson, null);
+  assert.equal(relationshipState(repaired, listener.id).apartUntil, repaired.year + 1);
+  assert.ok(repaired.notices.some(({ title }) => title === 'Time Apart'));
+  await acknowledgeEvents(page);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   assert.deepEqual(errors, []);
-  console.log('Social smoke passed at 320px and 390px: family progression, concurrent dating, adult encounters and pending popups after reload.');
+  console.log('Social smoke passed at 320px and 390px: commitments, milestones, concurrent casual relationships, and adult encounters after reload.');
 } finally {
   await browser.close();
 }

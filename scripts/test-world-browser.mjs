@@ -58,7 +58,7 @@ try {
   await acknowledgeEvents(page);
   const moved = await read();
   const migrationYear = moved.world.history[0];
-  assert.equal(moved.version, 10);
+  assert.equal(moved.version, 11);
   assert.equal(migrationYear.priceIndex, 10000);
   assert.equal(moved.character.birthCity, city);
   assert.equal(moved.character.city, destination);

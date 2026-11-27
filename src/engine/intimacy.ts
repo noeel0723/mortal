@@ -3,6 +3,7 @@ import { clamp, record } from './journal.ts';
 import { isActiveRomance, romanceFor, romanceHistory } from './love.ts';
 import { allContacts, ensureNpc, isFamily, makeNpc, newPeopleLimit, npcProfile, npcRandom, remember } from './npcs.ts';
 import { findContact } from './school.ts';
+import { boundaryEvidence, inPersonIssue, meaningfulTime, relationshipMemory } from './relationships.ts';
 import type { IntimacyAction } from './socialTypes.ts';
 import { pickStory } from './stories.ts';
 import type { Contact, Life } from './types.ts';
@@ -21,14 +22,15 @@ export function isIntimacyContact(life: Life, person: Contact) {
 
 function contactIssue(life: Life, person: Contact | undefined) {
   if (!person || !isIntimacyContact(life, person)) return 'Choose a current partner or adult friend.';
-  if (person.city !== life.character.city) return 'They live in another city.';
+  const travel = inPersonIssue(life, person);
+  if (travel) return travel;
   if (life.usedActions.includes(`intimacy-declined:${person.id}`)) return 'They already declined this year.';
   return null;
 }
 
 export function canShareInvitation(life: Life, first: Contact, second: Contact) {
   const parents = life.social.parents;
-  return first.id !== second.id && !parents[first.id]?.includes(second.id) && !parents[second.id]?.includes(first.id) &&
+  return first.id !== second.id && first.city === second.city && !parents[first.id]?.includes(second.id) && !parents[second.id]?.includes(first.id) &&
     !parents[first.id]?.some((parent) => parents[second.id]?.includes(parent));
 }
 
@@ -62,6 +64,7 @@ export function prepareIntimacy(life: Life, action: IntimacyAction) {
   const random = npcRandom(life, 'hookup-introduction', life.year);
   const person = makeNpc(life, `npc-hookup-${life.year}`, Math.min(114, Math.max(18, life.character.age + random.integer(-5, 5))), 'Acquaintance');
   life.social.people.push(person);
+  relationshipMemory(life, person.id, 'meeting', 2);
   const profile = ensureNpc(life, person);
   profile.preferences = [...new Set([life.character.gender, ...profile.preferences])];
   return { event: 'social-hookup', person: person.id } as const;
@@ -134,8 +137,10 @@ export function answerIntimacy(life: Life, event: IntimacyEvent, person: Contact
       benefit = true;
     }
     remember(life, contact, story);
+    if (benefit) meaningfulTime(life, contact, 'time', 3);
     if (isPartner(life, contact)) romanceHistory(life, contact.id, story);
   }
+  boundaryEvidence(life, participants.map(({ id }) => id), 'intimacy');
   const titles = { 'social-hookup': 'A Night Together', 'social-make-love': 'A Private Evening', 'social-threesome': 'Just the Three of Us' };
   const notice = recordNotice(life, 'community', titles[event], story, benefit ? { happiness: 3, stress: -2 } : undefined);
   if (!guest) notice.meter = resultMeter('Affection', previous, person.bond.affection);

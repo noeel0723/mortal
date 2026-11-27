@@ -5,7 +5,7 @@ import { ActionButton, DataRow, Heading, Page, Section, shared } from '../../src
 import { romanceLabels } from '../../src/engine/love';
 import { findContact } from '../../src/engine/school';
 import type { Contact } from '../../src/engine/types';
-import { datingCandidates, datingSummary, meetingControls, relationshipGroups, socialRole } from '../../src/socialView';
+import { datingCandidates, datingSummary, meetingControls, relationshipGroups, relationshipOverview, socialRole } from '../../src/socialView';
 import { useGame } from '../../src/stores/game';
 
 export default function LoveLife() {
@@ -33,12 +33,13 @@ export default function LoveLife() {
       </Section>;
     }) : <Text style={shared.body}>Your relationship history is empty.</Text>}</Page>;
 
-  const { partners } = relationshipGroups(life);
+  const { partners, prospects } = relationshipGroups(life);
   return <Page inGame>
     <Heading title="Love Life" back={back} />
     {partners.length > 0 && <Section title={partners.length === 1 ? 'Current Partner' : 'Current Partners'}>
-      {partners.map((person) => row(person))}
+      {partners.map((person) => row(person, relationshipOverview(life, person)?.summary))}
     </Section>}
+    {prospects.length > 0 && <Section title="Getting to Know Each Other">{prospects.map((person) => row(person))}</Section>}
     <Section title="Dating">
       {meetingControls(life, true).map((item) => <ActionButton key={item.label} icon={item.icon} label={item.label}
         detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onPress={() => void dispatch(item.action)} />)}

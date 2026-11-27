@@ -4,13 +4,17 @@ import { hobbyGroupContact, sharedHobbies } from './hobbies.ts';
 import { clamp } from './journal.ts';
 import { ensureNpc, isFamily, makeNpc, newPeopleLimit, npcProfile, npcRandom, remember } from './npcs.ts';
 import { findContact } from './school.ts';
+import { agreementFor, attraction, boundaryEvidence, inPersonIssue, meaningfulTime, openConcern, relationshipEnded, relationshipMemory,
+  restartRelationship, responseScale, takingSpace } from './relationships.ts';
+import type { RelationshipState } from './relationshipTypes.ts';
 import { pickStory } from './stories.ts';
-import { datingSources } from './socialTypes.ts';
+import { activeRomanceStatuses, datingSources } from './socialTypes.ts';
 import type { Romance, SocialAction } from './socialTypes.ts';
 import type { Contact, Effect, Life } from './types.ts';
 
 export const romanceLabels: Record<Romance['status'], string> = {
-  interest: 'Romantic Interest', dating: 'Dating', engaged: 'Engaged', married: 'Married',
+  'getting-to-know': 'Getting to Know Each Other', interest: 'Romantic Interest', dating: 'Going on Dates',
+  committed: 'Committed Partners', engaged: 'Engaged', married: 'Married',
   'broken-up': 'Former Partner', divorced: 'Former Spouse', widowed: 'Late Partner',
 };
 
@@ -31,7 +35,7 @@ export const dateActivities = {
 } as const;
 
 export type LoveAction = Extract<SocialAction, { type: 'meet' | 'dating-match' | 'romance' | 'wedding' }>;
-export const isActiveRomance = (entry?: Romance) => !!entry && (entry.status === 'dating' || entry.status === 'engaged' || entry.status === 'married');
+export const isActiveRomance = (entry?: Romance) => !!entry && activeRomanceStatuses.some((status) => entry.status === status);
 export const romanceFor = (life: Life, id: string) => life.social.romances.find(({ person }) => person === id);
 export const committedRomance = (life: Life) => life.social.romances.find(({ status }) => status === 'engaged' || status === 'married');
 export const activeRomances = (life: Life) => life.social.romances.filter(isActiveRomance);
@@ -44,27 +48,44 @@ export function romanceHistory(life: Life, id: string, text: string) {
 
 export function changeRomance(life: Life, id: string, status: Romance['status'], text: string) {
   let romance = romanceFor(life, id);
+  const previous = romance?.status;
   if (!romance) {
     romance = { person: id, status, started: life.year, engagement: null, wedding: null, ended: null, history: [] };
     life.social.romances.push(romance);
   }
-  if (romance.ended !== null && (status === 'interest' || status === 'dating')) {
+  if (romance.ended !== null && (status === 'getting-to-know' || status === 'interest' || status === 'dating')) {
     Object.assign(romance, { started: life.year, engagement: null, wedding: null, ended: null });
   }
   romance.status = status;
+  if (status === 'dating' && (previous === 'getting-to-know' || previous === 'interest')) romance.started = life.year;
   if (status === 'engaged') romance.engagement = life.year;
   if (status === 'married') romance.wedding = life.year;
   if (status === 'broken-up' || status === 'divorced' || status === 'widowed') romance.ended = life.year;
   romanceHistory(life, id, text);
+  if (status === 'dating') {
+    restartRelationship(life, id);
+    relationshipMemory(life, id, 'date', 8, true);
+    boundaryEvidence(life, [id], 'date');
+  }
+  if (status === 'engaged' || status === 'married') {
+    relationshipMemory(life, id, status === 'engaged' ? 'engagement' : 'marriage', 12, true);
+    meaningfulTime(life, findContact(life, id)!, 'time', 8);
+  }
 }
 
-export function endRomance(life: Life, person: Contact, text: string) {
+export function endRomance(life: Life, person: Contact, text: string, reason: NonNullable<RelationshipState['endedBecause']> = 'player') {
   const divorce = romanceFor(life, person.id)?.status === 'married';
   const settlement = divorce ? Math.min(5000, Math.floor(life.character.bank * .08)) : 0;
   ensureNpc(life, person).savings += settlement;
   changeRomance(life, person.id, divorce ? 'divorced' : 'broken-up', text);
   person.bond.affection = clamp(person.bond.affection - 12);
+  relationshipEnded(life, person.id, reason);
   return settlement;
+}
+
+export function canPropose(life: Life, romance?: Romance) {
+  return !committedRomance(life) && (romance?.status === 'committed' ||
+    (romance?.status === 'dating' && agreementFor(life, romance.person) === 'legacy'));
 }
 
 function related(life: Life, id: string) {
@@ -103,19 +124,23 @@ export function loveIssue(life: Life, action: LoveAction): string | null {
   if (life.usedActions.includes(key) || life.usedActions.includes(`${key}:${person.id}`)) return 'Available again next year.';
   if (action.type === 'wedding') {
     if (romance?.status !== 'engaged') return 'You need to be engaged first.';
-    return life.character.bank < weddingPlans[action.plan].cost ? 'Your balance does not cover this wedding.' : null;
+    return inPersonIssue(life, person) ?? (life.character.bank < weddingPlans[action.plan].cost ? 'Your balance does not cover this wedding.' : null);
   }
   const kind = action.action;
+  if (takingSpace(life, person.id) && kind !== 'breakup' && kind !== 'divorce') return 'They’ve asked for time apart.';
   if (kind === 'interest' || kind === 'ask') {
     if (related(life, person.id)) return 'Dating is unavailable with relatives.';
     if (isActiveRomance(romance)) return 'You are already together.';
-    if (person.city !== life.character.city) return 'This person lives in another city.';
+    if (kind === 'ask' && inPersonIssue(life, person)) return inPersonIssue(life, person);
     if (npcProfile(life, person).localPartner) return 'This person is seeing someone.';
     if (kind === 'interest' && romance?.status === 'interest') return 'You already marked this interest.';
   } else if (!romance || !isActiveRomance(romance)) return 'Available with a current partner.';
-  else if (kind === 'propose' && (romance.status !== 'dating' || committedRomance(life))) return 'Proposals require dating and no existing engagement or marriage.';
+  else if (kind === 'propose' && !canPropose(life, romance)) return 'Discuss commitment first. Only one engagement or marriage can be active.';
   else if (kind === 'divorce' && romance.status !== 'married') return 'Available while married.';
   else if (kind === 'breakup' && romance.status === 'married') return 'Use Divorce to end a marriage.';
+  if ((kind === 'date' || kind === 'dinner' || kind === 'movie' || kind === 'gift' || kind === 'propose') && inPersonIssue(life, person)) {
+    return inPersonIssue(life, person);
+  }
   if (kind in dateActivities && life.character.bank < dateActivities[kind as keyof typeof dateActivities].cost) return 'Your balance does not cover this activity.';
   if (kind !== 'interest' && kind !== 'breakup' && kind !== 'divorce' && life.character.attributes.energy < 6) return 'You need 6 energy.';
   return null;
@@ -160,6 +185,7 @@ export function applyLove(life: Life, action: Exclude<LoveAction, { type: 'datin
     const common = matched ? ` We spent time on ${skills[matched].name}.` : '';
     const story = `I ${known ? 'ran into' : 'met'} ${person.name} ${where[action.source]} and got to know them a little.${common}`;
     if (known) person.bond.affection = clamp(person.bond.affection + 2);
+    else relationshipMemory(life, person.id, 'meeting', 2);
     remember(life, person, story);
     recordNotice(life, 'community', 'Someone New', story, { happiness: 2 });
     return null;
@@ -184,14 +210,13 @@ export function applyLove(life: Life, action: Exclude<LoveAction, { type: 'datin
     changeRomance(life, person.id, 'interest', story);
   } else if (action.action === 'ask' || action.action === 'propose') {
     const proposing = action.action === 'propose';
-    const compatible = profile.preferences.includes(life.character.gender);
-    const recent = Math.min(6, Math.max(0, life.year - profile.lastInteraction));
+    const mutualInterest = attraction(life, person);
     const history = Math.min(10, profile.conflicts * 2);
-    const chance = Math.max(5, Math.min(88, datingCompatibility(life, person) * .55 + person.bond.trust * .37 +
-      profile.traits.confidence * .12 - person.bond.resentment * .25 - recent * 2 - history - (proposing ? 17 : 0)));
-    const accepted = compatible && !profile.localPartner && npcRandom(life, `advance:${person.id}`, life.year).next() * 100 < chance;
+    const chance = Math.max(5, Math.min(88, mutualInterest * .64 + person.bond.trust * .19 + profile.traits.confidence * .16 -
+      person.bond.resentment * .25 - history - (proposing ? 16 : 0)));
+    const accepted = mutualInterest > 0 && npcRandom(life, `advance:${person.id}`, life.year).next() * 100 < chance;
     title = accepted ? proposing ? 'Engaged' : 'A First Date' : proposing ? 'Proposal Declined' : 'Date Declined';
-    story = accepted ? proposing ? `${person.name} accepted my proposal.` : `${person.name} agreed to go out with me. We decided to start dating.` :
+    story = accepted ? proposing ? `${person.name} accepted my proposal.` : `${person.name} agreed to go out with me. We left room to see where it might lead.` :
       proposing ? `${person.name} said they were not ready to get engaged.` : `${person.name} declined my invitation. I respected their answer.`;
     if (accepted) {
       changeRomance(life, person.id, proposing ? 'engaged' : 'dating', story);
@@ -211,15 +236,20 @@ export function applyLove(life: Life, action: Exclude<LoveAction, { type: 'datin
     const item = dateActivities[action.action];
     title = item.label;
     story = dateStory(life, person, action.action);
-    const strained = action.action !== 'apologize' && person.bond.resentment > 45 &&
-      npcRandom(life, `${person.id}:${action.action}`, life.year).next() > profile.traits.empathy / 100;
-    const resistance = strained ? .5 : 1;
-    if (strained) story += ' The tension between us made it hard to relax.';
+    const resistance = responseScale(life, person, action.action);
+    if (resistance === 0) story += ' It didn’t land as I’d hoped. They needed space to think.';
     person.bond.affection = clamp(previous + Math.round(item.affection * resistance));
     person.bond.trust = clamp(person.bond.trust + Math.round(item.trust * resistance));
-    if (action.action === 'apologize') person.bond.resentment = clamp(person.bond.resentment - 10);
+    if (resistance > 0) {
+      const support = action.action === 'support';
+      meaningfulTime(life, person, support ? 'support' : 'time', Math.ceil((action.action === 'apologize' ? 8 : support ? 7 : 4) * resistance));
+      if (action.action === 'apologize') person.bond.resentment = clamp(person.bond.resentment - Math.ceil(7 * resistance));
+      if (action.action === 'date') boundaryEvidence(life, [person.id], 'date');
+    } else if (action.action === 'future' && Math.abs(profile.traits.ambition - life.character.attributes.discipline) >= 45) {
+      openConcern(life, person.id, 'goals', 38);
+    }
     romanceHistory(life, person.id, story);
-    effect = { bank: -item.cost, energy: -6, happiness: strained ? 0 : 3 };
+    effect = { bank: -item.cost, energy: -6, happiness: Math.round(3 * resistance) };
   }
   remember(life, person, story);
   const notice = recordNotice(life, 'community', title, story, effect, 'relationships');

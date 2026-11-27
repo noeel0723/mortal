@@ -3,6 +3,7 @@ import { recordNotice } from './eventNotices.ts';
 import { committedRomance } from './love.ts';
 import { ensureNpc } from './npcs.ts';
 import { localExpense } from './pricing.ts';
+import { agreesToMove, openConcern } from './relationships.ts';
 import { findContact } from './school.ts';
 import type { City, Life } from './types.ts';
 
@@ -30,12 +31,17 @@ export function relocate(life: Life, city: City) {
   const household = life.social.people.filter((person) => person.alive && person.age < 18 && life.social.children[person.id] &&
     life.social.parents[person.id]?.includes('self'));
   const partner = spouse?.status === 'married' ? findContact(life, spouse.person) : undefined;
-  for (const person of partner?.alive ? [...household, partner] : household) {
+  const moveTogether = !!partner?.alive && agreesToMove(life, partner);
+  for (const person of moveTogether && partner ? [...household, partner] : household) {
     if (person.city === city) continue;
     ensureNpc(life, person).movedFrom = person.city;
     person.city = city;
   }
   life.character.city = city;
+  if (partner?.alive && !moveTogether) {
+    openConcern(life, partner.id, 'distance', 34);
+    recordNotice(life, 'community', 'Living Apart', `${partner.name} decided to stay in ${partner.city} for now. We’ll need to talk about living apart.`);
+  }
   life.property.residence = 'rent';
   life.usedActions.push('relocate');
   recordNotice(life, 'life', 'A New City', `I moved from ${from} to a rented home in ${city}.`,

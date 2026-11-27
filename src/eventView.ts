@@ -2,6 +2,7 @@ import { eventById } from './data/events.ts';
 import { eventTitle } from './engine/eventNotices.ts';
 import { eventStory } from './engine/library.ts';
 import { isSocialEvent, socialEventText } from './engine/socialEvents.ts';
+import { visibleConcerns } from './engine/relationships.ts';
 import type { Action, Category, Life, ResultMeter } from './engine/types.ts';
 import type { Emoji } from './theme/tokens.ts';
 
@@ -28,7 +29,8 @@ export function eventPopup(life: Life): EventPopup | undefined {
     key: `decision-${event.id}`, title: event.id === 'social-affair' ? 'Caught Dating' :
       event.id === 'social-hookup' ? 'Hook Up' : eventTitle(event.id.replace(/^social-/, '')),
     text: isSocialEvent(event.id) ? socialEventText(life, event) : eventStory(life, event), category: categories[event.category],
-    actions: event.choices.map((choice) => ({ label: choice.label, icon: choice.emoji,
+    actions: event.choices.filter((choice) => event.id !== 'social-affair' || choice.id !== 'space' ||
+      visibleConcerns(life, life.social.pendingPerson ?? '').some((entry) => entry.breach?.discovered)).map((choice) => ({ label: choice.label, icon: choice.emoji,
       action: { type: 'choose', event: event.id, choice: choice.id } })),
   };
 

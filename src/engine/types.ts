@@ -98,7 +98,7 @@ export type LifeEvent = {
 };
 
 export type Life = {
-  version: 10;
+  version: 11;
   seed: number;
   random: number;
   character: Character;

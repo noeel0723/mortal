@@ -54,3 +54,9 @@ The native visual system uses white and soft-blue surfaces, subtle dividers, pas
 - An owned house can become a residence or earn rent when occupied by a tenant. Location, upkeep, and vacancies shape the return. Maintenance, improvements, and vehicle repairs provide choices about when to spend cash to preserve usefulness or market value.
 - Retirement offers an annual pension after enough contribution years. The Veyra index, technology, healthcare, and government bond funds let players take market risk through a small portfolio. The Life Summary records the final estate and major career, family, and skill milestones.
 - Saved Lives supports backups and transfers between browser and native installs by JSON file. Each import creates a separate playable copy of the life.
+
+## v0.3.2 · Relationship Overhaul
+
+- Introduction, early interest, dating, commitment, engagement, and marriage have separate states. Adults can negotiate whether a commitment is exclusive. NPCs have preferences and can refuse an invitation, proposed agreement, or reconciliation.
+- Relationship history carries forward through unresolved concerns, follow-through on promises, and breaches of explicit agreements. A partner may initiate a conversation, request time apart, or end a relationship. Other adult relationships continue to exist when one ends.
+- Friends and partners can keep in touch remotely, schedule visits, or discuss a move. Profile panels explain the current agreement, active concerns, and recorded milestones alongside the existing bond attributes.

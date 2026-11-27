@@ -83,7 +83,7 @@ test('V9 assets gain stable identities without inventing prices or prior banking
   const restored = decodeLife(JSON.stringify(previous));
   const portable = importPortableLife(JSON.stringify({ format: 'mortal-life', version: 1, life: previous }));
   assert.deepEqual(portable, restored);
-  assert.equal(restored.version, 10);
+  assert.equal(restored.version, 11);
   assert.equal(restored.property.residence, restored.property.owned[0]?.ownershipId);
   assert.equal(restored.property.owned[1]?.acquisition, null);
   assert.deepEqual(restored.property.owned[0]?.acquisition, original.property.owned[0]?.acquisition);

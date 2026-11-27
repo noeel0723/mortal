@@ -83,4 +83,4 @@ export function worldHistory(life: Life) {
       value: `GDP ${ratioLabel(growth)} · Jobless ${ratioLabel(unemployment)} · Prices ${indexLabel(priceIndex)}` })) };
 }
 
-export const relocationDescription = 'You will rent in the destination city. Your spouse and dependent children move with you. Houses stay in their original city.';
+export const relocationDescription = 'You will rent in the destination city. Dependent children move with you. Your spouse decides whether to join you. Houses stay in their original city.';

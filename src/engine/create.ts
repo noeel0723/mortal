@@ -90,7 +90,7 @@ export function createLife(seed: number, profile?: ProfileInput): Life {
   const personality = random.pick(['curious', 'steady', 'outgoing', 'thoughtful'] as const);
   const appearance = input.appearance ? mergeAppearance(creationAppearance, input.appearance) : generateAppearance(seed, 'player');
   const life: Life = {
-    version: 10,
+    version: 11,
     seed: seed >>> 0,
     random: random.state,
     character: { ...input, birthCity: input.city, appearance, firstName, lastName, age: 0, attributes, bank, personality, education: 'early', causeOfDeath: null },

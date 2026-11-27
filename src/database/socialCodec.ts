@@ -3,6 +3,8 @@ import { cities, genders } from '../data/veyra.ts';
 import { allContacts, newPeopleLimit } from '../engine/npcs.ts';
 import { isActiveRomance } from '../engine/love.ts';
 import { canShareInvitation, isIntimacyContact, isIntimacyEvent } from '../engine/intimacy.ts';
+import { validateRelationships } from './relationshipCodec.ts';
+import { inPersonIssue, knownRelationship, visibleConcerns } from '../engine/relationships.ts';
 import { employment, npcEducation, romanceStatuses, socialEvents, traits } from '../engine/socialTypes.ts';
 import type { Life } from '../engine/types.ts';
 
@@ -26,6 +28,7 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
   const contacts = allContacts(life);
   const ids = new Set(contacts.map(({ id }) => id));
   if (ids.has('self') || ids.size !== contacts.length || Object.keys(social.profiles).length !== ids.size) return false;
+  if (!validateRelationships(life, ids)) return false;
   for (const id of ids) {
     if (!Object.hasOwn(social.profiles, id)) return false;
     const profile = social.profiles[id];
@@ -81,7 +84,7 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
   const participant = contacts.find(({ id, alive }) => id === social.pendingPerson && alive);
   if (!participant) return false;
   if (isIntimacyEvent(life.pending)) {
-    if (character.age < 18 || participant.age < 18 || participant.city !== character.city) return false;
+    if (character.age < 18 || participant.age < 18 || inPersonIssue(life, participant)) return false;
     if (life.pending === 'social-hookup') {
       return participant.id === `npc-hookup-${year}` && participant.role === 'Acquaintance' && !seen.has(participant.id) &&
         social.profiles[participant.id]!.preferences.includes(character.gender);
@@ -89,19 +92,25 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
     if (!isIntimacyContact(life, participant)) return false;
     if (life.pending === 'social-make-love') return true;
     const guest = contacts.find(({ id }) => id === social.pendingGuest);
-    return !!guest && guest.city === character.city && isIntimacyContact(life, guest) && canShareInvitation(life, participant, guest);
+    return !!guest && !inPersonIssue(life, guest) && isIntimacyContact(life, guest) && canShareInvitation(life, participant, guest);
   }
   if (life.pending === 'social-affair') {
     const partners = social.romances.filter(isActiveRomance);
     return partners.some(({ person }) => person === participant.id) &&
-      contacts.some(({ id, alive }) => alive && id !== participant.id && partners.some(({ person }) => person === id));
+      (visibleConcerns(life, participant.id).some((entry) => entry.breach?.discovered) ||
+        contacts.some(({ id, alive }) => alive && id !== participant.id && partners.some(({ person }) => person === id)));
   }
   if (life.pending === 'social-dating-match' || life.pending === 'social-casual-match') {
     return character.age >= 18 && participant.age >= 18 && participant.id === `npc-dating-${year}` &&
       !seen.has(participant.id) && social.profiles[participant.id]!.preferences.includes(character.gender);
   }
   if (life.pending === 'social-proposal') {
-    return commitments === 0 && social.romances.some(({ person, status }) => person === participant.id && status === 'dating');
+    return commitments === 0 && social.romances.some(({ person, status }) => person === participant.id && (status === 'dating' || status === 'committed'));
   }
+  if (life.pending === 'social-expectations' || life.pending === 'social-space') {
+    return participant.age >= 18 && social.romances.some((entry) => entry.person === participant.id && isActiveRomance(entry));
+  }
+  if (life.pending === 'social-concern') return knownRelationship(life, participant) && visibleConcerns(life, participant.id).length > 0;
+  if (life.pending === 'social-reconnect') return social.profiles[participant.id]!.formerFriend;
   return true;
 }

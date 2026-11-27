@@ -20,9 +20,10 @@ const regularInvitations: LifeEvent[] = invitations.map(({ id, text, label }) =>
 export const socialEventCatalog: readonly LifeEvent[] = [
   ...regularInvitations,
   { id: 'social-dating-match', category: 'community', ages: [18, 115], probability: 0,
-    text: 'would like to start dating me.',
+    text: 'would like to get to know me. We could meet for a first date or take it slowly.',
     choices: [
-      { id: 'accept', label: 'Start Dating', emoji: 'accept', outcome: '', effects: {} },
+      { id: 'accept', label: 'Go on a First Date', emoji: 'accept', outcome: '', effects: {} },
+      { id: 'slow', label: 'Get to Know Them', emoji: 'support', outcome: '', effects: {} },
       { id: 'pass', label: 'Pass', emoji: 'decline', outcome: '', effects: {} },
     ] },
   { id: 'social-casual-match', category: 'community', ages: [18, 115], probability: 0,
@@ -32,10 +33,11 @@ export const socialEventCatalog: readonly LifeEvent[] = [
       { id: 'pass', label: 'Pass', emoji: 'decline', outcome: '', effects: {} },
     ] },
   { id: 'social-affair', category: 'community', ages: [18, 115], probability: 0,
-    text: 'found out I have another partner and is ending our relationship.',
+    text: 'learned I crossed a boundary we had agreed on.',
     choices: [
       { id: 'apologize', label: 'Take Responsibility', emoji: 'support', outcome: '', effects: {} },
       { id: 'deny', label: 'Deny It', emoji: 'decline', outcome: '', effects: {} },
+      { id: 'space', label: 'Offer Time Apart', emoji: 'support', outcome: '', effects: {} },
     ] },
   { id: 'social-make-love', category: 'community', ages: [18, 115], probability: 0,
     text: 'I’ll only go ahead if they feel the same.',
@@ -55,4 +57,14 @@ export const socialEventCatalog: readonly LifeEvent[] = [
       { id: 'accept', label: 'Ask Both', emoji: 'accept', outcome: '', effects: {} },
       { id: 'pass', label: 'Keep Our Plans', emoji: 'decline', outcome: '', effects: {} },
     ] },
+  ...([
+    ['social-expectations', 'wants to talk about what we expect from this relationship.', 'Agree Together'],
+    ['social-space', 'asked for some time apart to think things through.', 'Respect Their Space'],
+    ['social-concern', 'wants to talk through a concern that’s still bothering them.', 'Talk It Through'],
+    ['social-reconnect', 'reached out after a long time apart and asked if we could reconnect.', 'Reconnect'],
+  ] as const).map(([id, text, label]): LifeEvent => ({
+    id, text, category: 'community', ages: [18, 115], probability: 0,
+    choices: [{ id: 'accept', label, emoji: 'accept', outcome: '', effects: {} },
+      { id: 'pass', label: 'Decline for Now', emoji: 'decline', outcome: '', effects: {} }],
+  })),
 ];

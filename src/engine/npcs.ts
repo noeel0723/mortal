@@ -22,7 +22,7 @@ export function allContacts(life: Life): Contact[] {
 }
 
 export function newSocial(life: Pick<Life, 'family'>): SocialState {
-  return { people: [], profiles: {}, parents: { self: life.family.map(({ id }) => id) }, children: {}, romances: [], pendingPerson: null };
+  return { people: [], profiles: {}, parents: { self: life.family.map(({ id }) => id) }, children: {}, romances: [], relationships: {}, pendingPerson: null };
 }
 
 export function npcRandom(life: Life, key: string, year = 0) {
@@ -86,6 +86,11 @@ export function cloneSocial(social: SocialState): SocialState {
     profiles: Object.fromEntries(Object.entries(social.profiles).map(([id, profile]) => [id, { ...profile, memories: [...profile.memories] }])),
     parents: { ...social.parents }, children: Object.fromEntries(Object.entries(social.children).map(([id, child]) => [id, { ...child }])),
     romances: social.romances.map((entry) => ({ ...entry, history: [...entry.history] })),
+    relationships: Object.fromEntries(Object.entries(social.relationships).map(([id, state]) => [id, {
+      ...state, conflicts: state.conflicts.map((entry) => ({ ...entry, ...(entry.breach ?
+        { breach: { ...entry.breach, evidence: [...entry.breach.evidence] } } : {}) })), memories: [...state.memories],
+      milestones: { ...state.milestones }, ...(state.promise ? { promise: { ...state.promise } } : {}),
+    }])),
   };
 }
 
@@ -251,8 +256,10 @@ export function advanceNpcLives(life: Life, elapsedWorld: WorldState = life.worl
   }
   for (const entry of life.social.romances) {
     if (entry.ended !== null || byId.get(entry.person)?.alive) continue;
-    entry.status = entry.status === 'interest' ? 'broken-up' : 'widowed';
+    entry.status = entry.status === 'interest' || entry.status === 'getting-to-know' ? 'broken-up' : 'widowed';
     entry.ended = life.year;
     entry.history = [...entry.history.slice(-29), { year: life.year, text: 'The relationship ended after their death.' }];
+    const state = life.social.relationships[entry.person];
+    if (state) state.endedBecause = 'death';
   }
 }
