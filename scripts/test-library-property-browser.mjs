@@ -44,6 +44,9 @@ try {
   reader.character.attributes.energy = 0;
   await open('library-test', reader);
   await click('Activities');
+  const social = page.locator('.play-group').filter({ has: page.getByRole('heading', { name: 'Social Activities', exact: true }) });
+  const socialLabels = ['Meet a Neighbor', 'Join a Hobby Group', 'Go to Library'];
+  for (const name of socialLabels) await social.getByRole('button', { name, exact: true }).waitFor();
   await click('Go to Library');
   await dialog('A Shared Hobby').waitFor();
   const hobbyStory = await dialog('A Shared Hobby').locator('.event-story').textContent();
@@ -67,6 +70,7 @@ try {
   await acknowledgeEvents(page);
   await click('Close Activities');
   await click('Family');
+  for (const name of socialLabels) assert.equal(await button(name).count(), 0);
   const readingLife = await read('library-test');
   assert.equal(readingLife.character.attributes.energy, 0);
   const friend = readingLife.communityFriends[0];
@@ -81,6 +85,11 @@ try {
   await page.locator('dialog[data-life-event][open]').waitFor();
   await acknowledgeEvents(page, true);
   assert.ok((await read('shopping-test')).journal.some(({ text }) => text.includes('My options are in Assets under Housing.')));
+  await click('Activities');
+  await click('Join a Hobby Group');
+  await dialog('Someone New').getByText(/at a hobby group/).waitFor();
+  await acknowledgeEvents(page);
+  await click('Close Activities');
   await click('Assets');
   const topGroup = page.locator('.play-group').first();
   await topGroup.getByRole('heading', { name: 'Banking', exact: true }).waitFor();

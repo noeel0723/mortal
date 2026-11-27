@@ -2,7 +2,7 @@ import { adoptionCost, familyIssue, parenting } from './engine/familyLife.ts';
 import { activeRomance, dateActivities, datingCompatibility, loveIssue, romanceFor, romanceLabels, weddingPlans } from './engine/love.ts';
 import { allContacts, isFamily, npcProfile } from './engine/npcs.ts';
 import { findContact, isCurrentClassContact, isPeer } from './engine/school.ts';
-import { isWorkContact } from './engine/workplace.ts';
+import { isWorkAcquaintance, isWorkContact } from './engine/workplace.ts';
 import type { SocialAction } from './engine/socialTypes.ts';
 import type { Contact, Life } from './engine/types.ts';
 import { money } from './i18n/en.ts';
@@ -26,7 +26,7 @@ export function socialRole(life: Life, person: Contact) {
   if (relationship && relationship.status !== 'interest') return romanceLabels[relationship.status];
   if (isFamily(life, person.id)) return person.role;
   const status = friendshipLabel(life, person);
-  return status === 'Acquaintance' ? person.role : status;
+  return status === 'Acquaintance' && !isWorkAcquaintance(person) ? person.role : status;
 }
 
 export function personalityLabels(life: Life, person: Contact) {
@@ -52,9 +52,9 @@ export function relationshipGroups(life: Life) {
     partner: partner ? findContact(life, partner) : undefined,
     friends: known.filter((person) => !isFamily(life, person.id) && person.id !== partner && 'friend' in person && person.friend && !former(person)),
     acquaintances: known.filter((person) => person.alive && person.id !== partner && !isFamily(life, person.id) &&
-      'friend' in person && !person.friend && !former(person) && (person.role === 'Acquaintance' || romanceFor(life, person.id)?.status === 'interest' ||
-      ('stage' in person && isPeer(person) && isCurrentClassContact(life, person)) ||
-      (isWorkContact(person) && person.employerId === life.career.current?.employerId))),
+      'friend' in person && !person.friend && !former(person) && (isWorkContact(person) ? isWorkAcquaintance(person) :
+      person.role === 'Acquaintance' || romanceFor(life, person.id)?.status === 'interest' ||
+      ('stage' in person && isPeer(person) && isCurrentClassContact(life, person)))),
     former: known.filter((person) => !isFamily(life, person.id) && former(person)),
   };
 }

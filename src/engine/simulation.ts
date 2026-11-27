@@ -19,7 +19,7 @@ import { seededRandom } from './random.ts';
 import { conversationStory, friendshipStory } from './relationshipStories.ts';
 import { answerSocialEvent, isSocialEvent, offerSocialEvent } from './socialEvents.ts';
 import { advanceContactOccupation, currentClass, findContact, isPeer, isSchoolStage } from './school.ts';
-import { ageWorkplace, canMakeFriend, isWorkContact } from './workplace.ts';
+import { ageWorkplace, canMakeFriend, coworkerAcquaintanceThreshold, coworkerFriendAffection, isWorkAcquaintance, isWorkContact } from './workplace.ts';
 import { stats } from './types.ts';
 import type { Action, Life } from './types.ts';
 
@@ -180,6 +180,9 @@ export function befriendIssue(life: Life, id: string) {
   if (person.friend && !life.social.profiles[person.id]?.formerFriend) return 'You are already friends.';
   const issue = contactIssue(life, person);
   if (issue) return issue;
+  if (isWorkContact(person) && !person.friend && !isWorkAcquaintance(person)) {
+    return `Affection must be above ${coworkerAcquaintanceThreshold}% to become friends.`;
+  }
   if (life.character.attributes.energy < friendshipEnergyCost) return 'You need more energy.';
   return null;
 }
@@ -293,14 +296,15 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       const person = findContact(life, action.person)!;
       if (!('friend' in person)) return { error: 'This contact cannot become a friend.' };
       const previousAffection = person.bond.affection;
+      const work = isWorkContact(person);
+      const newWorkFriend = work && !person.friend;
       const relationship = ensureNpc(life, person);
       relationship.formerFriend = false;
       relationship.friendsSince ??= life.year;
       person.friend = true;
-      person.bond.affection = clamp(person.bond.affection + 8);
+      person.bond.affection = newWorkFriend ? coworkerFriendAffection : clamp(person.bond.affection + 8);
       person.bond.trust = clamp(person.bond.trust + 5);
       person.bond.familiarity = clamp(person.bond.familiarity + 6);
-      const work = isWorkContact(person);
       const story = friendshipStory(life, person);
       remember(life, person, story);
       const notice = recordNotice(life, work ? 'career' : 'stage' in person ? 'school' : 'community', 'A New Friend', story,

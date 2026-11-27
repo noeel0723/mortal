@@ -5,7 +5,7 @@ import { clamp } from './journal.ts';
 import { interactionStory } from './relationshipStories.ts';
 import { ensureNpc, isParent, npcProfile, npcRandom, remember } from './npcs.ts';
 import { findContact, isCurrentClassContact, isPeer } from './school.ts';
-import { isWorkContact } from './workplace.ts';
+import { isWorkAcquaintance, isWorkContact } from './workplace.ts';
 import type { Contact, Effect, Life } from './types.ts';
 
 type ContactGroup = 'parent' | 'peer' | 'educator' | 'worker';
@@ -51,7 +51,8 @@ export function contactGroup(person: Contact): ContactGroup {
 
 export function contactIssue(life: Life, person: Contact) {
   if (!person.alive) return 'This person is no longer available.';
-  if (isWorkContact(person) && !person.friend && person.employerId !== life.career.current?.employerId) return 'This contact is from a previous workplace.';
+  if (isWorkContact(person) && !person.friend && !isWorkAcquaintance(person) &&
+    person.employerId !== life.career.current?.employerId) return 'This contact is from a previous workplace.';
   if ('stage' in person && !person.friend && !isCurrentClassContact(life, person)) return 'This contact is from a previous class.';
   return null;
 }

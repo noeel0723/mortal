@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { personalActivities } from '../src/activityView';
+import { socialActivities, wellbeingActivities, type ActivityControl } from '../src/activityView';
 import { assetById, assetKinds } from '../src/data/shops';
 import type { AssetListing } from '../src/data/shops';
 import { backgroundLabels, cities, cityDescriptions, genderLabels, talentLabels } from '../src/data/veyra';
@@ -19,7 +19,6 @@ import { currentClass, findContact, isPeer, isSchoolStage } from '../src/engine/
 import { romanceLabels } from '../src/engine/love';
 import { childParents, datingCandidates, datingSummary, familyTreeGroups, meetingControls, relationshipControls, relationshipGroups } from '../src/socialView';
 import { canEditFace } from '../src/engine/appearance';
-import { activityIssue } from '../src/engine/simulation';
 import { propertyIssue } from '../src/engine/property';
 import { assetArt } from '../src/portraits/assetArt';
 import { housingControls, listingsFor, ownedListings, propertyCategories, residenceLabel, shoppingCategory } from '../src/propertyView';
@@ -327,7 +326,6 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
 }) {
   const { busy, dispatch, save } = useGame();
   const { character } = life;
-  const blocked = life.pending ? 'Resolve the pending decision first.' : character.causeOfDeath ? 'This life has ended.' : null;
   const job = life.career.current;
   const canFindJob = character.age >= workAge && !character.causeOfDeath && life.career.retiredYear === null;
 
@@ -507,11 +505,9 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
         {groups.friends.length > 0 && <PageGroup title="Friends">
           {groups.friends.map((friend) => <PersonRow key={friend.id} life={life} person={friend} onClick={() => go('person', friend.id)} />)}
         </PageGroup>}
-        <PageGroup title="Acquaintances">
-          {meetingControls(life, false).map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label}
-            detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onClick={() => void dispatch(item.action)} />)}
+        {groups.acquaintances.length > 0 && <PageGroup title="Acquaintances">
           {groups.acquaintances.map((person) => <PersonRow key={person.id} life={life} person={person} onClick={() => go('person', person.id)} />)}
-        </PageGroup>
+        </PageGroup>}
         {groups.former.length > 0 && <PageGroup title="Former Relationships">
           {groups.former.map((person) => <PersonRow key={person.id} life={life} person={person} onClick={() => go('person', person.id)} />)}
         </PageGroup>}
@@ -655,22 +651,24 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
     }
     case 'finances':
       return <Finances life={life} />;
-    case 'activities':
+    case 'activities': {
+      const activityRow = (item: ActivityControl) => <MenuRow key={item.label}
+        icon={item.icon} title={item.label} detail={item.issue ?? item.detail} disabled={busy || !!item.issue}
+        onClick={() => void dispatch(item.action)} />;
       return <>
         <PageGroup title="Wellbeing">
           <MenuRow icon="medical" title="Doctors" detail="Browse healthcare services." onClick={() => go('doctor')} />
-          {personalActivities.map((item) => {
-            const issue = blocked ?? activityIssue(life, item.id);
-            return <MenuRow key={item.id} icon={item.icon} title={item.label}
-              detail={issue ?? item.description} disabled={busy || !!issue}
-              onClick={() => void dispatch({ type: 'activity', activity: item.id })} />;
-          })}
+          {wellbeingActivities(life).map(activityRow)}
+        </PageGroup>
+        <PageGroup title="Social Activities">
+          {socialActivities(life).map(activityRow)}
         </PageGroup>
         {!character.causeOfDeath && <PageGroup title="Appearance">
           <MenuRow icon="hair" title={canEditFace(character.age) ? 'Customize Appearance' : 'Change Hairstyle'}
             onClick={() => go('appearance')} />
         </PageGroup>}
       </>;
+    }
     case 'doctor':
       return <DoctorsPage life={life} />;
     case 'appearance':

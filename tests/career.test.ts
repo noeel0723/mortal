@@ -14,6 +14,7 @@ import { findContact } from '../src/engine/school.ts';
 import { advance, talkIssue } from '../src/engine/simulation.ts';
 import type { Action, Life } from '../src/engine/types.ts';
 import { activeCoworkers } from '../src/engine/workplace.ts';
+import { relationshipGroups } from '../src/socialView.ts';
 
 function act(life: Life, action: Action) {
   const result = advance(life, action);
@@ -178,7 +179,20 @@ test('former co-worker friends stay after a job change and negative interactions
   assert.equal(new Set(colleagues.map(({ id }) => id)).size, 5);
   assert.ok(colleagues.every(({ appearance, employerId }) => appearance && employerById.has(employerId)));
   const target = colleagues.find(({ role }) => role === 'Co-worker')!;
-  let life = act(hired, { type: 'befriend', person: target.id });
+  const befriend = { type: 'befriend', person: target.id } as const;
+  const includesTarget = ({ id }: { id: string }) => id === target.id;
+  assert.ok(!relationshipGroups(hired).acquaintances.some(includesTarget));
+  target.bond.affection = 70;
+  expectError(hired, befriend, /above 70%/);
+  assert.ok(!relationshipGroups(hired).acquaintances.some(includesTarget));
+  target.bond.affection = 71;
+  assert.ok(relationshipGroups(hired).acquaintances.some(includesTarget));
+  const leftWork = act(hired, { type: 'resign' });
+  assert.ok(relationshipGroups(leftWork).acquaintances.some(includesTarget));
+  assert.equal(talkIssue(leftWork, target.id), null);
+  let life = act(hired, befriend);
+  assert.ok(!relationshipGroups(life).acquaintances.some(includesTarget));
+  assert.equal(relationshipGroups(life).friends.find(includesTarget)?.bond.affection, 50);
   const atWork = act(life, { type: 'talk', person: target.id });
   assert.match(atWork.journal.at(-1)?.text ?? '', /at work|from work|a task|workplace gets busy/);
   assert.ok(atWork.journal.at(-1)?.text.includes(target.name));

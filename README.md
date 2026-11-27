@@ -60,7 +60,7 @@ Version 1 and 2 saves get stable portraits when they open. Versions 1–6 upgrad
 
 - From age 18, use **Career → Find a Job** to filter vacancies, read qualifications and experience requirements, and apply. Accept an offer to start working. While enrolled, use **School or University → View Career** to find compatible part-time work.
 - Tap your current job or employment status to see salary, workplace ratings, and education details in the Career pop-up.
-- Improve performance with **Work Harder**, adjust your work week, ask for a raise, or open **Co-workers**. Friends can stay in **Relationships** after leaving an employer. NPC pages also offer **Insult** and **Mess With**, with consequences for the relationship and for conduct at your current workplace.
+- Improve performance with **Work Harder**, adjust your work week, ask for a raise, or open **Co-workers**. Co-workers appear in **Relationships → Acquaintances** once Affection exceeds 70%. A new workplace friendship starts at 50% Affection and can continue after leaving the employer. NPC pages also offer **Insult** and **Mess With**, with consequences for the relationship and for conduct at your current workplace.
 - **Age Up** pays the elapsed work year and applies taxes and living costs before study and the next review. Use **Assets → Finances** to review the ledger, filter by year, and see unpaid living bills. Use **Career History** to see jobs, pay changes, and lifetime earnings. Retirement opens at age 65.
 
 Conversations and time spent together write different journal entries based on the relationship, age, school, or current job.
@@ -75,7 +75,7 @@ Veyra uses a fictional currency scale. Retirement living costs are funded from s
 
 ## Library, housing, and shopping
 
-- **Activities → Go to Library** is repeatable and can present an interactive encounter. Choose **Become Friends** at a shared-hobby encounter to add the character to **Relationships**. Personal activities and healthcare visits have no energy fee or yearly visit limit. The first plasma donation of the year is compensated.
+- Open **Activities → Social Activities** to meet a neighbor, join a hobby group, or go to the library. Library visits are repeatable and can present an interactive encounter. Choose **Become Friends** at a shared-hobby encounter to add the character to **Relationships**. Personal activities and healthcare visits have no energy fee or yearly visit limit. The first plasma donation of the year is compensated.
 - From age 18, use **Assets → Housing** to rent, ask a parent for a starter home, or move into a house you own. A parent must be able to afford the home and agree to buy it.
 - **Assets → Shopping** offers ten houses, ten cars, and ten motorcycles with original pixel illustrations. Purchases use the in-game balance and appear in **Owned Assets** and **Finances**.
 

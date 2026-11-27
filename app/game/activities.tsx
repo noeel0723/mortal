@@ -1,7 +1,6 @@
 import { router } from 'expo-router';
 import { ActionButton, Heading, Page, Section } from '../../src/components/ui';
-import { personalActivities } from '../../src/activityView';
-import { activityIssue } from '../../src/engine/simulation';
+import { socialActivities, wellbeingActivities, type ActivityControl } from '../../src/activityView';
 import { canEditFace } from '../../src/engine/appearance';
 import { useGame } from '../../src/stores/game';
 
@@ -10,11 +9,10 @@ export default function Activities() {
   if (!slot) return null;
   const life = slot.life;
 
-  function action(item: typeof personalActivities[number]) {
-    const issue = activityIssue(life, item.id);
+  function action(item: ActivityControl) {
     return (
-      <ActionButton key={item.id} icon={item.icon} label={item.label} detail={issue ?? item.description}
-        disabled={!!issue || busy || !!life.pending || !!life.character.causeOfDeath} onPress={() => void dispatch({ type: 'activity', activity: item.id })} />
+      <ActionButton key={item.label} icon={item.icon} label={item.label} detail={item.issue ?? item.detail}
+        disabled={busy || !!item.issue} onPress={() => void dispatch(item.action)} />
     );
   }
 
@@ -23,9 +21,9 @@ export default function Activities() {
       <Heading title="Activities" back={() => router.dismissTo('/game')} />
       <Section title="Health">
         <ActionButton icon="medical" label="Doctors" detail="Browse healthcare services." onPress={() => router.push('/game/doctor')} />
-        {personalActivities.slice(1).map(action)}
+        {wellbeingActivities(life).map(action)}
       </Section>
-      <Section title="Personal Development">{personalActivities.slice(0, 1).map(action)}</Section>
+      <Section title="Social Activities">{socialActivities(life).map(action)}</Section>
       {!life.character.causeOfDeath && <Section title="Appearance">
         <ActionButton icon="hair" label={canEditFace(life.character.age) ? 'Customize Appearance' : 'Change Hairstyle'}
           onPress={() => router.push('/game/appearance')} />

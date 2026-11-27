@@ -3,7 +3,7 @@ import { employerById } from './data/employers.ts';
 import { canStudyWith, contactGroup, giftCost, relationshipActivities, relationshipIssue } from './engine/interactions.ts';
 import type { RelationshipActivity } from './engine/interactions.ts';
 import { befriendIssue, friendshipEnergyCost, talkIssue } from './engine/simulation.ts';
-import { canMakeFriend, isWorkContact } from './engine/workplace.ts';
+import { canMakeFriend, coworkerFriendAffection, isWorkContact } from './engine/workplace.ts';
 import type { Action, Contact, Life } from './engine/types.ts';
 import { money } from './i18n/en.ts';
 import { profileHealthRows } from './healthView.ts';
@@ -82,7 +82,8 @@ export function contactInteractions(life: Life, person: Contact) {
   const rows: InteractionRow[] = [];
   const reconnect = npcProfile(life, person).formerFriend;
   if ('friend' in person && canMakeFriend(person) && (!person.friend || reconnect)) {
-    rows.push({ label: reconnect ? 'Reconnect' : 'Become Friends', icon: 'relationships', detail: `Uses ${friendshipEnergyCost} energy. Adds them to Relationships.`,
+    const outcome = isWorkContact(person) && !person.friend ? `Starts the friendship at ${coworkerFriendAffection}% Affection.` : 'Adds them to Relationships.';
+    rows.push({ label: reconnect ? 'Reconnect' : 'Become Friends', icon: 'relationships', detail: `Uses ${friendshipEnergyCost} energy. ${outcome}`,
       issue: blocked ?? befriendIssue(life, person.id), action: { type: 'befriend', person: person.id } });
   }
   if (person.age >= 3) rows.push({ label: 'Have a Conversation', icon: 'talk', detail: 'Uses 8 energy. Strengthens affection and trust.',

@@ -6,8 +6,15 @@ import { seededRandom } from './random.ts';
 import type { WorkContact } from './careerTypes.ts';
 import type { Contact, Life } from './types.ts';
 
+export const coworkerAcquaintanceThreshold = 70;
+export const coworkerFriendAffection = 50;
+
 export function isWorkContact(person: Contact): person is WorkContact {
   return 'employerId' in person;
+}
+
+export function isWorkAcquaintance(person: Contact) {
+  return isWorkContact(person) && person.alive && !person.friend && person.bond.affection > coworkerAcquaintanceThreshold;
 }
 
 export function canMakeFriend(person: Contact) {
