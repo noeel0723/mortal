@@ -102,6 +102,10 @@ test('Make Love works with a current partner or adult friend and respects a refu
   const first = act(decodeLife(JSON.stringify(invited)), choice);
   const second = act(act(first, action), choice);
   assert.equal(first.notices.at(-1)?.title, 'A Private Evening');
+  const scores = first.notices.at(-1)?.details;
+  assert.equal(scores?.kind, 'enjoyment');
+  assert.deepEqual(scores.scores.map(({ person }) => person), ['self', friend.id]);
+  assert.deepEqual(decodeLife(JSON.stringify(first)).notices.at(-1)?.details, scores);
   assert.equal(second.notices.at(-1)?.title, 'A Private Evening');
   assert.notEqual(first.journal.at(-1)?.text, second.journal.at(-1)?.text);
   assert.deepEqual(second.social.romances, []);
@@ -117,6 +121,7 @@ test('Make Love works with a current partner or adult friend and respects a refu
   ensureNpc(single, friend).preferences = [single.character.gender === 'man' ? 'woman' : 'man'];
   const declined = act(act(single, action), choice);
   assert.equal(declined.notices.at(-1)?.title, 'Invitation Declined');
+  assert.equal(declined.notices.at(-1)?.details, undefined);
   assert.deepEqual(findContact(declined, friend.id)!.bond, friend.bond);
   assert.match(advance(declined, action).error ?? '', /already declined/);
 });
@@ -129,6 +134,10 @@ test('Hook Up keeps the match and choice through reload and remains a one-night 
   assert.ok(findContact(invited, id)!.age >= 18);
   const accepted = act(invited, { type: 'choose', event: 'social-hookup', choice: 'accept' });
   assert.equal(accepted.notices.at(-1)?.title, 'A Night Together');
+  const result = eventPopup(decodeLife(JSON.stringify(accepted)));
+  assert.equal(result?.enjoyment?.length, 2);
+  assert.deepEqual(result.enjoyment.map(({ key }) => key), ['self', id]);
+  assert.ok(result.enjoyment.every(({ value }) => Number.isInteger(value) && value >= 0 && value <= 100));
   assert.equal(romanceFor(accepted, id), undefined);
   assert.deepEqual(accepted.social.children, {});
   assert.match(advance(accepted, action).error ?? '', /this year/);
@@ -159,6 +168,13 @@ test('a group invitation validates both saved adults and requires both to consen
   const accepted = act(invited, choice);
   assert.equal(accepted.social.pendingGuest, undefined);
   assert.equal(accepted.notices.at(-1)?.title, 'Just the Three of Us');
+  const details = accepted.notices.at(-1)?.details;
+  assert.equal(details?.kind, 'enjoyment');
+  assert.deepEqual(details.scores.map(({ person }) => person), ['self', first.id, second.id]);
+  const invalid = { ...accepted, notices: [{ ...accepted.notices.at(-1), details: {
+    ...details, scores: [...details.scores.slice(0, -1), { person: second.id, value: 101 }],
+  } }] };
+  assert.throws(() => decodeLife(JSON.stringify(invalid)), /invalid health or event/);
   for (const person of [first, second]) assert.equal(findContact(accepted, person.id)!.bond.trust, person.bond.trust + 2);
 
   ensureNpc(invited, findContact(invited, second.id)!).preferences = [life.character.gender === 'man' ? 'woman' : 'man'];

@@ -2,6 +2,7 @@ import { jobs, jobById } from '../data/jobs.ts';
 import { employers } from '../data/employers.ts';
 import { cities, genders, givenNames, surnames } from '../data/veyra.ts';
 import { contactIdentity } from './appearance.ts';
+import { recordContactDeath } from './death.ts';
 import { recordNotice } from './eventNotices.ts';
 import { clamp } from './journal.ts';
 import { indexedCents, localExpense, marketSalaryFactor } from './pricing.ts';
@@ -117,8 +118,7 @@ export function ageNewPeople(life: Life, maxAge: number) {
     person.age++;
     if (person.age > 61) person.health = clamp(person.health - 2);
     if (person.age >= maxAge || person.health === 0) {
-      person.alive = false;
-      recordNotice(life, isFamily(life, person.id) ? 'family' : 'community', 'A Loss', `${person.name} died at age ${person.age}.`);
+      recordContactDeath(life, person, person.health === 0 ? 'Declining health' : 'Natural causes', isFamily(life, person.id) ? 'family' : 'community');
     }
     const child = life.social.children[person.id];
     if (child && person.alive && person.age <= 18) {

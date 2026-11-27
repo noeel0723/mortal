@@ -1,6 +1,7 @@
 import { employerById } from '../data/employers.ts';
 import { genders, givenNames, surnames } from '../data/veyra.ts';
 import { contactIdentity } from './appearance.ts';
+import { recordContactDeath } from './death.ts';
 import { clamp } from './journal.ts';
 import { seededRandom } from './random.ts';
 import type { WorkContact } from './careerTypes.ts';
@@ -56,6 +57,8 @@ export function ageWorkplace(life: Life, maxAge: number) {
     if (!person.alive) continue;
     person.age += 1;
     if (person.age > 60) person.health = clamp(person.health - 2);
-    if (person.age >= maxAge || !person.health) person.alive = false;
+    if (person.age >= maxAge || !person.health) {
+      recordContactDeath(life, person, !person.health ? 'Declining health' : 'Natural causes', 'career');
+    }
   }
 }

@@ -1,4 +1,5 @@
 import { doctors } from '../data/doctors.ts';
+import { recordContactDeath } from './death.ts';
 import { findContact } from './school.ts';
 import { seededRandom } from './random.ts';
 import { clamp, record } from './journal.ts';
@@ -175,9 +176,8 @@ function progressIllness(life: Life, condition: IllnessCase, random: ReturnType<
   const text = getsWorse ? `${npc ? `${npc.name}’s` : 'My'} ${definition.name.toLowerCase()} worsened to ${condition.level}.` :
     `${npc ? `${npc.name} is` : 'I am'} still dealing with ${definition.name.toLowerCase()}.`;
   if (npc && npc.health === 0) {
-    npc.alive = false;
     removeIllness(life, condition);
-    recordNotice(life, 'health', 'A Loss', `${npc.name} died at age ${npc.age} while dealing with ${definition.name.toLowerCase()}.`,
+    recordContactDeath(life, npc, definition.name, 'health',
       canAccompany(life, npc) ? { happiness: -8, stress: 6 } : undefined);
   } else if (getsWorse) recordNotice(life, 'health', 'Illness Worsened', text, npc ? undefined : { health: -health, energy: -energy });
   else if (!npc) record(life, 'health', text, { health: -health, energy: -energy });

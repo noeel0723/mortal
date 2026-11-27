@@ -5,6 +5,8 @@ import { createLife } from '../src/engine/create.ts';
 import { startIllness } from '../src/engine/health.ts';
 import { postTransaction } from '../src/engine/journal.ts';
 import { advance } from '../src/engine/simulation.ts';
+import { newWorld } from '../src/engine/world.ts';
+import { portraitSrc } from '../src/portraits/portrait.ts';
 import { acknowledgeEvents, saveSlot, startBrowser, url } from './browserTestSupport.mjs';
 
 function atAge(age) {
@@ -132,8 +134,46 @@ try {
   const saved = JSON.parse((await page.evaluate(saveSlot, { id: 'health-adult' })).payload);
   assert.deepEqual(saved.transactions.filter(({ category }) => category === 'medical').map(({ amount }) => amount), [-2400, -250]);
   assert.equal(saved.character.bank, adult.character.bank - 2650);
+  await page.keyboard.press('Escape');
+  await page.setViewportSize({ width: 320, height: 740 });
+  const loss = atAge(18);
+  const lovedOne = loss.family[0];
+  Object.assign(lovedOne, { age: 74, health: 0, city: loss.character.city });
+  const next = advance(loss, { type: 'age' }).life;
+  assert.ok(next);
+  const noticed = next.pending ? advance(next, { type: 'choose', event: next.pending, choice: eventById.get(next.pending).choices[0].id }).life : next;
+  await open('health-death', noticed);
+  const death = dialog('Death');
+  await death.waitFor();
+  await page.reload();
+  const portrait = death.getByRole('img', { name: `Portrait of ${lovedOne.name}` });
+  await portrait.waitFor();
+  assert.equal(await portrait.getAttribute('src'), portraitSrc(lovedOne.appearance, 75));
+  await death.getByText('Declining health', { exact: true }).waitFor();
+  assert.equal(await death.getByRole('button').count(), 3);
+  const deathBounds = await death.boundingBox();
+  assert.ok(deathBounds && deathBounds.width < 320 && deathBounds.height < 500);
+  if (process.env.MORTAL_CAPTURE_EVENT_DIALOGS) await page.screenshot({ path: '.expo/web-qa/death-dialog.png' });
+  await button('Attend Funeral').click();
+  await death.waitFor({ state: 'hidden' });
+  await page.getByText(/I attended .* funeral and shared a memory/).waitFor();
+
+  const finalLife = createLife(15);
+  finalLife.character.age = 114;
+  finalLife.year += 114;
+  finalLife.world = newWorld(finalLife.seed, finalLife.year, true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open('health-player-death', finalLife);
+  await button('Age Up').click();
+  await dialog('I Fell Ill').getByRole('button', { name: 'Continue', exact: true }).click();
+  const end = dialog('End of Life');
+  const name = `${finalLife.character.firstName} ${finalLife.character.lastName}`;
+  await end.getByRole('img', { name: `Portrait of ${name}` }).waitFor();
+  assert.equal(await end.getByRole('img').getAttribute('src'), portraitSrc(finalLife.character.appearance, 115));
+  await end.getByRole('button', { name: 'View Life Summary', exact: true }).click();
+  await page.getByRole('heading', { name: 'Life Summary' }).waitFor();
   assert.deepEqual(errors, []);
-  console.log('Health and event popups passed at 320px and 390px, including treatment, ledger, and reload.');
+  console.log('Health, death choices, and NPC and player portraits passed at 320px and 390px.');
 } finally {
   await browser.close();
 }

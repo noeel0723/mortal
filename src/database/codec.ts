@@ -50,12 +50,31 @@ function savedPerson(person: unknown, withAppearance: boolean): person is Record
 }
 
 function validHealthAndNotices(life: Life) {
-  const patients = new Set(allContacts(life)
-    .filter((person) => person.alive).map((person) => person.id));
+  const contacts = new Map(allContacts(life).map((person) => [person.id, person]));
+  const patients = new Set([...contacts.values()].filter((person) => person.alive).map((person) => person.id));
   if (!life.character.causeOfDeath) patients.add(playerPatient);
+  function validDetails(details: unknown) {
+    if (details === undefined) return true;
+    if (!record(details)) return false;
+    if (details.kind === 'death') {
+      if (typeof details.person !== 'string' || typeof details.role !== 'string' || !details.role.trim() || details.role.length > 64 ||
+        typeof details.cause !== 'string' || !details.cause.trim() || details.cause.length > 100) return false;
+      if (details.person === 'self') return life.character.causeOfDeath === details.cause && details.age === life.character.age;
+      const contact = contacts.get(details.person);
+      return contact?.alive === false && contact.age === details.age;
+    }
+    if (details.kind !== 'enjoyment' || !Array.isArray(details.scores) || details.scores.length < 2 || details.scores.length > 3 ||
+      life.character.age < 18) return false;
+    const seen = new Set<string>();
+    return details.scores.every((score: unknown, index: number) => {
+      if (!record(score) || typeof score.person !== 'string' || !bounded(score.value) || seen.has(score.person)) return false;
+      seen.add(score.person);
+      return index === 0 ? score.person === 'self' : (contacts.get(score.person)?.age ?? 0) >= 18;
+    });
+  }
   return Array.isArray(life.notices) && life.notices.every((notice, index) => record(notice) &&
     integer(notice.entry, 0, life.journal.length - 1) && (index === 0 || notice.entry > life.notices[index - 1]!.entry) &&
-    typeof notice.title === 'string' && notice.title.trim().length > 0 && (notice.meter === undefined || (record(notice.meter) &&
+    typeof notice.title === 'string' && notice.title.trim().length > 0 && validDetails(notice.details) && (notice.meter === undefined || (record(notice.meter) &&
       typeof notice.meter.label === 'string' && notice.meter.label.trim().length > 0 && bounded(notice.meter.value) &&
       integer(notice.meter.change, notice.meter.value - 100, notice.meter.value)))) &&
     Array.isArray(life.illnesses) && life.illnesses.every((condition) => {

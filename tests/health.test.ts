@@ -190,6 +190,33 @@ test('legacy V4 games preserve existing decisions and journal, and the current c
   const ending = apply(atAge(114), { type: 'age' });
   const finalNotice = eventPopup(ending);
   assert.equal(finalNotice?.title, 'End of Life');
-  assert.ok(finalNotice?.dismiss);
-  assert.deepEqual(apply(ending, finalNotice.dismiss).notices, []);
+  assert.deepEqual(finalNotice.portrait?.appearance, ending.character.appearance);
+  assert.deepEqual(finalNotice.actions.map(({ destination }) => destination), ['summary', 'journal']);
+  assert.deepEqual(apply(ending, finalNotice.actions[0]!.action).notices, []);
+});
+
+test('death notices keep the character portrait and funeral choice after reload', () => {
+  const life = atAge(35);
+  const parent = life.family[0]!;
+  Object.assign(parent, { age: 74, health: 0, city: life.character.city });
+  const aged = apply(life, { type: 'age' });
+  const restored = decodeLife(JSON.stringify({ ...aged, pending: null, social: { ...aged.social, pendingPerson: null } }));
+  const popup = eventPopup(restored)!;
+  assert.equal(popup.special, 'death');
+  assert.equal(popup.cause, 'Declining health');
+  assert.deepEqual(popup.portrait, { appearance: parent.appearance, age: 75, name: parent.name, role: parent.role });
+  assert.deepEqual(popup.actions.map(({ label }) => label), ['Attend Funeral', 'Skip Funeral', 'Surprise Me']);
+  assert.match(advance(restored, { type: 'acknowledge-event', entry: restored.notices[0]!.entry }).error ?? '', /remember/);
+  const attended = apply(restored, popup.actions[0]!.action);
+  assert.match(attended.journal.at(-1)!.text, /attended/);
+  assert.equal(attended.notices.length, restored.notices.length - 1);
+  assert.match(advance(attended, popup.actions[0]!.action).error ?? '', /no longer available/);
+  const skipped = apply(restored, popup.actions[1]!.action);
+  assert.match(skipped.journal.at(-1)!.text, /didn’t go/);
+  assert.deepEqual(apply(restored, popup.actions[2]!.action), apply(decodeLife(JSON.stringify(restored)), popup.actions[2]!.action));
+  const remote = decodeLife(JSON.stringify(restored));
+  remote.character.city = remote.character.city === 'Bellmere' ? 'Northwick' : 'Bellmere';
+  const send = eventPopup(remote)!.actions[0]!;
+  assert.equal(send.label, 'Send Condolences');
+  assert.match(apply(remote, send.action).journal.at(-1)!.text, /sent condolences/);
 });

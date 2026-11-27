@@ -5,6 +5,7 @@ import { activityStory } from './activityStories.ts';
 import { appearanceChanged, appearanceIssue, mergeAppearance, validFace, validHair } from './appearance.ts';
 import { advanceCareer, applyCareerEffect, closeCareerYear, endEmployment, performCareerAction, studyWorkload } from './career.ts';
 import { developChildInterests } from './childSkills.ts';
+import { recordContactDeath, recordPlayerDeath, respondToDeath } from './death.ts';
 import { annualFinance } from './finance.ts';
 import { enqueueNotice, eventTitle, recordNotice, resultMeter } from './eventNotices.ts';
 import { ageFamilyOpportunities, applyFamily } from './familyLife.ts';
@@ -84,15 +85,16 @@ function ageUp(life: Life) {
     person.age += 1;
     if (person.age > 55) person.health = clamp(person.health - random.integer(0, 3));
     if (person.age > 70 && (person.health === 0 || person.age >= maxAge || random.next() < (person.age - 70) / 500)) {
-      person.alive = false;
-      recordNotice(life, 'family', 'A Loss in the Family', `My ${person.role.toLowerCase()}, ${person.name}, died at age ${person.age}.`, { happiness: -10, stress: 10 });
+      recordContactDeath(life, person, person.health === 0 ? 'Declining health' : 'Natural causes', 'family', { happiness: -10, stress: 10 });
     }
   }
   for (const person of life.schoolContacts) {
     if (!person.alive) continue;
     person.age += 1;
     if (person.age > 60) person.health = clamp(person.health - 2);
-    if (person.age >= maxAge || person.health === 0) person.alive = false;
+    if (person.age >= maxAge || person.health === 0) {
+      recordContactDeath(life, person, person.health === 0 ? 'Declining health' : 'Natural causes', 'school');
+    }
     if (person.alive && !life.social.profiles[person.id]?.job && life.social.profiles[person.id]?.status !== 'retired') advanceContactOccupation(person);
   }
   for (const person of life.communityFriends) {
@@ -101,8 +103,7 @@ function ageUp(life: Life) {
     if (person.age === 18) person.occupation = 'Library member';
     if (person.age > 60) person.health = clamp(person.health - 2);
     if (person.age >= maxAge || person.health === 0) {
-      person.alive = false;
-      recordNotice(life, 'community', 'A Friend Remembered', `${person.name}, my friend from the library, died at age ${person.age}.`, { happiness: -5 });
+      recordContactDeath(life, person, person.health === 0 ? 'Declining health' : 'Natural causes', 'community', { happiness: -5 });
     }
   }
   ageWorkplace(life, maxAge);
@@ -122,7 +123,7 @@ function ageUp(life: Life) {
     life.academic.gapUntil = null;
     life.scheduled = [];
     endEmployment(life, 'died');
-    recordNotice(life, 'life', 'End of Life', `My life ended at age ${age}.`);
+    recordPlayerDeath(life, character.causeOfDeath);
     recordValuation(life);
     life.random = random.state;
     return;
@@ -208,13 +209,20 @@ export function befriendIssue(life: Life, id: string) {
 
 export function advance(previous: Life, action: Action): { life: Life; error?: never } | { error: string; life?: never } {
   if (action.type === 'acknowledge-event') {
-    if (previous.pending || previous.notices[0]?.entry !== action.entry) return { error: 'This event is no longer available.' };
+    const notice = previous.notices[0];
+    if (previous.pending || notice?.entry !== action.entry) return { error: 'This event is no longer available.' };
+    if (!previous.character.causeOfDeath && notice.details?.kind === 'death') return { error: 'Choose how to remember this person.' };
     return { life: { ...previous, notices: previous.notices.slice(1) } };
   }
   if (previous.character.causeOfDeath) return { error: 'This life has already ended.' };
   if (previous.pending && action.type !== 'choose') return { error: 'Resolve the pending decision first.' };
   const life = structuredCloneLife(previous);
   switch (action.type) {
+    case 'respond-death': {
+      const issue = respondToDeath(life, action.entry, action.response);
+      if (issue) return { error: issue };
+      break;
+    }
     case 'age':
       ageUp(life);
       break;

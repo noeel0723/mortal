@@ -117,8 +117,6 @@ export function Play({ life, page, personId, go, home, newLife }: {
   async function age() {
     if (await dispatch({ type: 'age' })) {
       if (haptics) navigator.vibrate?.(26);
-      const ended = useGame.getState().slot?.life.character.causeOfDeath;
-      if (ended) go('summary');
     }
   }
   const isJournal = page === 'journal';
@@ -147,18 +145,26 @@ export function Play({ life, page, personId, go, home, newLife }: {
         })}
       </nav>}
       {isJournal && <LifeStats character={life.character} go={go} />}
-      {popup && <DetailDialog key={popup.key} eventKey={popup.key} title={popup.title}
+      {popup && <DetailDialog key={popup.key} eventKey={popup.key} title={popup.title} special={popup.special}
+        identity={popup.portrait && <div className="event-identity">
+          <Portrait appearance={popup.portrait.appearance} age={popup.portrait.age} label={`Portrait of ${popup.portrait.name}`} />
+          <div><strong>{popup.portrait.name}</strong><span>{popup.portrait.role}</span></div>
+        </div>}
         onDismiss={dismiss ? () => { if (!busy) void dispatch(dismiss); } : undefined}>
-        <div className="event-category"><Icon name={popup.category.icon} />{popup.meter ? 'Activity result' : popup.category.label}</div>
+        {!popup.special && <div className="event-category"><Icon name={popup.category.icon} />{popup.meter ? 'Activity result' : popup.category.label}</div>}
         <p className="event-story">{popup.text}</p>
+        {popup.cause && <p className="event-death-cause"><span>Cause of death</span><strong>{popup.cause}</strong></p>}
+        {popup.enjoyment && <div className="event-enjoyment">
+          {popup.enjoyment.map(({ key, label, value }) => <PageMeter key={key} label={label} value={value} />)}
+        </div>}
         {popup.meter && <div className="event-result-meter">
           <PageMeter label={popup.meter.label} value={popup.meter.value} />
           <p className="event-result-change">{resultChange(popup.meter.change)}</p>
         </div>}
-        {!dismiss && <p className="event-question">What will you do?</p>}
-        <div className="event-options">{popup.actions.map(({ label, icon, action }) =>
-          <Button key={label} icon={icon} kind={dismiss ? 'primary' : 'plain'} disabled={busy}
-            onClick={() => void dispatch(action)}>{label}</Button>)}
+        {!dismiss && !popup.special && <p className="event-question">What will you do?</p>}
+        <div className="event-options">{popup.actions.map(({ label, icon, action, tone, destination }) =>
+          <Button key={label} icon={icon} kind={tone ?? (dismiss ? 'primary' : 'plain')} disabled={busy}
+            onClick={() => void dispatch(action).then((saved) => { if (saved && destination) go(destination); })}>{label}</Button>)}
         </div>
         <Feedback error={problem} />
       </DetailDialog>}

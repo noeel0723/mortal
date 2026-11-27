@@ -334,6 +334,26 @@ button.play-row:disabled .play-row-icon { background: #edf2f7; opacity: .65; }
 .event-question { margin: 0 0 .5rem; font-size: .89rem; font-weight: 750; }
 .event-options { display: grid; gap: .42rem; }
 .event-options .button { min-height: 2.75rem; justify-content: start; text-align: start; }
+.event-dialog--enjoyment, .event-dialog--death { border-top-width: 3px; }
+.event-dialog--death { border-top-color: #475b73; }
+.event-dialog--enjoyment .detail-dialog-header, .event-dialog--death .detail-dialog-header {
+  padding: .7rem .9rem 0; border: 0; background: var(--white); justify-content: center; min-height: 0; text-align: center;
+}
+.event-dialog--enjoyment .detail-dialog-header h2, .event-dialog--death .detail-dialog-header h2 { font-size: 1.14rem; }
+.event-dialog--enjoyment .detail-dialog-body, .event-dialog--death .detail-dialog-body { padding: .7rem .95rem .95rem; }
+.event-dialog--enjoyment .event-story, .event-dialog--death .event-story { margin: 0 0 .75rem; text-align: center; font-size: .92rem; }
+.event-dialog--enjoyment .event-options .button, .event-dialog--death .event-options .button { justify-content: center; text-align: center; }
+.event-enjoyment { display: grid; gap: .45rem; margin-bottom: .8rem; padding: .58rem .68rem; background: #f4f9f8; border-radius: .6rem; }
+.event-enjoyment .play-meter { width: 100%; margin: 0; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr) 2.15rem; font-size: .78rem; }
+.event-enjoyment .play-meter > span:first-child { overflow-wrap: anywhere; }
+.event-identity { display: flex; align-items: center; gap: .62rem; padding: .6rem .9rem; background: #eef2f6; border-bottom: 1px solid var(--line); }
+.event-identity .portrait { width: 2.75rem; height: 2.75rem; flex: none; }
+.event-identity div { min-width: 0; display: grid; gap: .12rem; overflow-wrap: anywhere; }
+.event-identity strong { font-size: .9rem; }
+.event-identity span { font-size: .76rem; color: var(--muted); }
+.event-death-cause { display: grid; gap: .1rem; text-align: center; margin: 0 0 .9rem; }
+.event-death-cause span { color: var(--muted); font-size: .74rem; }
+.event-death-cause strong { font-size: .87rem; }
 .healthcare-dialog-body { display: grid; gap: .6rem; font-size: .88rem; line-height: 1.42; }
 .healthcare-dialog-body > .event-category { padding-bottom: .35rem; border-bottom: 1px solid var(--line); }
 .healthcare-patient { display: grid; gap: .28rem; padding: .55rem .65rem; border-radius: .65rem; background: var(--blue-soft); color: var(--blue-dark); }

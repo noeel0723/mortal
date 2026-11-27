@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActionButton, Feedback, Loading } from '../../src/components/ui';
 import { DetailMeter, DetailModal } from '../../src/components/detailModal';
+import { Portrait } from '../../src/components/portrait';
 import { educationTab } from '../../src/educationView';
 import { eventPopup, resultChange } from '../../src/eventView';
 import { useGame } from '../../src/stores/game';
@@ -29,8 +30,7 @@ export default function GameLayout() {
   async function age() {
     if (await dispatch({ type: 'age' })) {
       if (haptics) void Haptics.selectionAsync().catch(() => {});
-      if (useGame.getState().slot?.life.character.causeOfDeath) router.dismissTo('/game/summary');
-      else if (pathname !== '/game') router.dismissTo('/game');
+      if (pathname !== '/game') router.dismissTo('/game');
     }
   }
 
@@ -67,17 +67,29 @@ export default function GameLayout() {
           })}
         </View>
       )}
-      {popup && <DetailModal open title={popup.title} onDismiss={dismiss ? () => { if (!busy) void dispatch(dismiss); } : undefined}>
-        <Text style={styles.eventCategory}>{emoji[popup.category.icon]} {popup.meter ? 'Activity result' : popup.category.label}</Text>
-        <Text style={styles.eventStory}>{popup.text}</Text>
+      {popup && <DetailModal open title={popup.title} special={popup.special} identity={popup.portrait && <View style={styles.eventIdentity}>
+        <Portrait appearance={popup.portrait.appearance} age={popup.portrait.age} size={46} label={`Portrait of ${popup.portrait.name}`} />
+        <View style={styles.identityBody}><Text style={styles.identityName}>{popup.portrait.name}</Text>
+          <Text style={styles.identityRole}>{popup.portrait.role}</Text></View>
+      </View>} onDismiss={dismiss ? () => { if (!busy) void dispatch(dismiss); } : undefined}>
+        {!popup.special && <Text style={styles.eventCategory}>{emoji[popup.category.icon]} {popup.meter ? 'Activity result' : popup.category.label}</Text>}
+        <Text style={[styles.eventStory, !!popup.special && styles.center]}>{popup.text}</Text>
+        {popup.cause && <View style={styles.deathCause}><Text style={[styles.identityRole, styles.center]}>Cause of death</Text>
+          <Text style={[styles.identityName, styles.center]}>{popup.cause}</Text></View>}
+        {popup.enjoyment && <View style={[styles.result, styles.enjoyment]}>
+          {popup.enjoyment.map(({ key, label, value }) => <DetailMeter key={key} label={label} value={value} enjoyment />)}
+        </View>}
         {popup.meter && <View style={styles.result}>
           <DetailMeter label={popup.meter.label} value={popup.meter.value} />
           <Text style={styles.resultChange}>{resultChange(popup.meter.change)}</Text>
         </View>}
-        {!dismiss && <Text style={styles.eventQuestion}>What will you do?</Text>}
-        {popup.actions.map(({ label, icon, action }) => <ActionButton key={label} label={label} icon={icon}
+        {!dismiss && !popup.special && <Text style={styles.eventQuestion}>What will you do?</Text>}
+        {popup.actions.map(({ label, icon, action, tone, destination }) => <ActionButton key={label} label={label} icon={icon}
+          variant={tone === 'quiet' ? 'plain' : tone}
           testID={action.type === 'choose' ? `choice-${action.choice}` : undefined}
-          disabled={busy} onPress={() => void dispatch(action)} />)}
+          disabled={busy} onPress={() => void dispatch(action).then((saved) => {
+            if (saved && destination) router.navigate(destination === 'summary' ? '/game/summary' : '/game');
+          })} />)}
         {problem && <Feedback error={problem} />}
       </DetailModal>}
     </SafeAreaView>
@@ -89,6 +101,14 @@ const styles = StyleSheet.create({
   feedback: { paddingHorizontal: space.lg, paddingBottom: space.sm },
   eventCategory: { color: colors.action, fontWeight: '700', fontSize: 14 },
   eventStory: { color: colors.ink, fontSize: 15, lineHeight: 22, marginBottom: space.xs },
+  center: { textAlign: 'center' },
+  eventIdentity: { paddingHorizontal: space.lg, paddingVertical: space.sm, gap: space.sm,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: colors.paper },
+  identityBody: { flex: 1, gap: 2 },
+  identityName: { color: colors.ink, fontSize: 14, fontWeight: '700' },
+  identityRole: { color: colors.muted, fontSize: 12 },
+  deathCause: { gap: 2, marginBottom: space.xs },
+  enjoyment: { backgroundColor: '#F4F9F8', gap: 6 },
   result: { padding: space.md, gap: space.xs, backgroundColor: colors.softBlue, borderRadius: radius.sm },
   resultChange: { color: colors.action, fontSize: 12, fontWeight: '700', alignSelf: 'flex-end' },
   eventQuestion: { color: colors.ink, fontWeight: '700', fontSize: 14 },

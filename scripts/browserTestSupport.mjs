@@ -15,8 +15,10 @@ export async function acknowledgeEvents(page, chooseFirst = false) {
   while (await popup.isVisible()) {
     const key = await popup.getAttribute('data-life-event');
     if (key.startsWith('decision-') && !chooseFirst) return;
+    const death = await popup.getAttribute('data-event-kind') === 'death';
     const button = key.startsWith('decision-') ? popup.locator('.event-options button').first() :
-      popup.getByRole('button', { name: 'Continue', exact: true });
+      death ? popup.getByRole('button', { name: /^(Skip Funeral|Continue|View Life Summary)$/ }) :
+        popup.getByRole('button', { name: 'Continue', exact: true });
     await button.click();
     await page.locator(`dialog[data-life-event="${key}"]`).waitFor({ state: 'hidden' });
   }

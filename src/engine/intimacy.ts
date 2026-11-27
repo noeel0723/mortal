@@ -1,4 +1,4 @@
-import { recordNotice, resultMeter } from './eventNotices.ts';
+import { recordNotice } from './eventNotices.ts';
 import { clamp, record } from './journal.ts';
 import { isActiveRomance, romanceFor, romanceHistory } from './love.ts';
 import { allContacts, ensureNpc, isFamily, makeNpc, newPeopleLimit, npcProfile, npcRandom, remember } from './npcs.ts';
@@ -104,6 +104,21 @@ function privateStories(life: Life, person: Contact, event: IntimacyEvent, guest
   ];
 }
 
+function enjoyment(life: Life, event: IntimacyEvent, participants: readonly Contact[]) {
+  const random = npcRandom(life, `enjoyment:${event}:${participants.map(({ id }) => id).join(':')}:${life.journal.length}`, life.year);
+  const shared = participants.reduce((total, { bond }) => total + bond.compatibility * .24 + bond.trust * .14, 0) / participants.length;
+  const { happiness, stress } = life.character.attributes;
+  return [
+    { person: 'self', value: clamp(Math.round(38 + shared + happiness * .19 - stress * .20 + random.integer(-14, 14))) },
+    ...participants.map((person) => {
+      const { compatibility, affection, trust, resentment } = person.bond;
+      const openness = npcProfile(life, person).traits.riskTolerance;
+      return { person: person.id, value: clamp(Math.round(31 + compatibility * .22 + affection * .12 + trust * .16 +
+        person.health * .11 + openness * (event === 'social-hookup' ? .13 : .06) - resentment * .21 + random.integer(-14, 14))) };
+    }),
+  ];
+}
+
 export function answerIntimacy(life: Life, event: IntimacyEvent, person: Contact, guest: Contact | undefined, accepted: boolean) {
   if (event === 'social-threesome' && !guest?.alive) return;
   const participants = guest ? [person, guest] : [person];
@@ -126,7 +141,7 @@ export function answerIntimacy(life: Life, event: IntimacyEvent, person: Contact
     return;
   }
   const story = pickStory(life, `intimacy:${event}:${person.id}`, privateStories(life, person, event, guest));
-  const previous = person.bond.affection;
+  const scores = enjoyment(life, event, participants);
   let benefit = false;
   for (const contact of participants) {
     const key = `intimacy-accepted:${contact.id}`;
@@ -143,5 +158,5 @@ export function answerIntimacy(life: Life, event: IntimacyEvent, person: Contact
   boundaryEvidence(life, participants.map(({ id }) => id), 'intimacy');
   const titles = { 'social-hookup': 'A Night Together', 'social-make-love': 'A Private Evening', 'social-threesome': 'Just the Three of Us' };
   const notice = recordNotice(life, 'community', titles[event], story, benefit ? { happiness: 3, stress: -2 } : undefined);
-  if (!guest) notice.meter = resultMeter('Affection', previous, person.bond.affection);
+  notice.details = { kind: 'enjoyment', scores };
 }

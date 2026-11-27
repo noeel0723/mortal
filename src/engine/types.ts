@@ -72,7 +72,10 @@ export type JournalEntry = {
   changes: Effect;
 };
 export type ResultMeter = { label: string; value: number; change: number };
-export type LifeNotice = { entry: number; title: string; meter?: ResultMeter };
+export type DeathDetails = { kind: 'death'; person: string; age: number; role: string; cause: string };
+export type EnjoymentDetails = { kind: 'enjoyment'; scores: { person: string; value: number }[] };
+export type LifeNotice = { entry: number; title: string; meter?: ResultMeter; details?: DeathDetails | EnjoymentDetails };
+export type DeathResponse = 'honor' | 'skip' | 'surprise';
 export type EventChoice = {
   id: string;
   label: string;
@@ -129,6 +132,7 @@ export type Action =
   | { type: 'relocate'; city: City }
   | { type: 'choose'; event: string; choice: string }
   | { type: 'acknowledge-event'; entry: number }
+  | { type: 'respond-death'; entry: number; response: DeathResponse }
   | { type: 'healthcare'; visit: HealthVisit }
   | { type: 'activity'; activity: 'go-to-library' | 'rest' | 'walk' | 'study' | 'library' | 'socialize' | 'extracurricular' | 'academic-talk' | 'exams' }
   | { type: 'talk'; person: string }

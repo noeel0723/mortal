@@ -537,7 +537,8 @@ for (let seed = 1; seed <= count; seed++) {
       }
     }
     for (const notice of life.notices) {
-      life = apply(life, { type: 'acknowledge-event', entry: notice.entry });
+      life = apply(life, !life.character.causeOfDeath && notice.details?.kind === 'death' && notice.details.person !== 'self' ?
+        { type: 'respond-death', entry: notice.entry, response: 'skip' } : { type: 'acknowledge-event', entry: notice.entry });
       noticesReviewed++;
     }
     assert.equal(life.year, life.character.birthYear + life.character.age);
