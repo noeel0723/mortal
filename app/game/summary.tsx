@@ -5,6 +5,7 @@ import { ActionButton, DataRow, Heading, Page, Section, shared } from '../../src
 import { educationStatus } from '../../src/engine/academics';
 import { money } from '../../src/i18n/en';
 import { useGame } from '../../src/stores/game';
+import { familyTreeGroups, socialRole } from '../../src/socialView';
 
 export default function Summary() {
   const life = useGame((state) => state.slot?.life);
@@ -23,7 +24,8 @@ export default function Summary() {
         <DataRow label="Final bank balance" value={money(character.bank)} />
       </Section>
       <Section title="Family">
-        {life.family.map((person) => <DataRow key={person.id} label={person.role} value={person.name} />)}
+        {familyTreeGroups(life).flatMap(({ people }) => people).map((person) =>
+          <DataRow key={person.id} label={socialRole(life, person)} value={person.name} />)}
       </Section>
       {employment.length > 0 && <Section title="Career">{employment.map((row) => <DataRow key={row.label} {...row} />)}</Section>}
       {turningPoints.length > 0 && <Section title="Turning points">

@@ -104,5 +104,6 @@ export function advanceContactOccupation(person: SchoolContact) {
 
 export function findContact(life: Life, id: string | undefined) {
   return life.family.find((person) => person.id === id) ?? life.schoolContacts.find((person) => person.id === id) ??
-    life.career.contacts.find((person) => person.id === id) ?? life.communityFriends.find((person) => person.id === id);
+    life.career.contacts.find((person) => person.id === id) ?? life.communityFriends.find((person) => person.id === id) ??
+    life.social?.people.find((person) => person.id === id);
 }

@@ -17,6 +17,8 @@ import type { Life, ProfileInput } from '../engine/types.ts';
 import { cities, genders } from '../data/veyra.ts';
 import { validAcademicState } from './academicCodec.ts';
 import { validateCareer, validateFinance } from './careerCodec.ts';
+import { allContacts, newSocial, syncNpcs } from '../engine/npcs.ts';
+import { validateSocial } from './socialCodec.ts';
 
 const record = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -40,7 +42,7 @@ function savedPerson(person: unknown, withAppearance: boolean): person is Record
 }
 
 function validHealthAndNotices(life: Life) {
-  const patients = new Set([...life.family, ...life.schoolContacts, ...life.career.contacts, ...life.communityFriends]
+  const patients = new Set(allContacts(life)
     .filter((person) => person.alive).map((person) => person.id));
   if (!life.character.causeOfDeath) patients.add(playerPatient);
   return Array.isArray(life.notices) && life.notices.every((notice, index) => record(notice) &&
@@ -89,7 +91,7 @@ export function decodeLife(json: string): Life {
   }
   if (!record(value)) throw new Error('This saved life is damaged.');
   const version = value.version;
-  if (version !== 1 && version !== 2 && version !== 3 && version !== 4 && version !== 5 && version !== 6) throw new Error('This saved life uses an unsupported version.');
+  if (version !== 1 && version !== 2 && version !== 3 && version !== 4 && version !== 5 && version !== 6 && version !== 7) throw new Error('This saved life uses an unsupported version.');
   const { character, family, schoolContacts, journal, pending, scheduled, seen, usedActions, transactions, year } = value;
   if (!record(character) || typeof character.firstName !== 'string' || typeof character.lastName !== 'string' ||
     validateProfile(character as ProfileInput) || (version >= 3 && !validAppearance(character.appearance)) || !integer(character.age, 0, maxAge) ||
@@ -154,11 +156,17 @@ export function decodeLife(json: string): Life {
     throw new Error('This saved life has invalid career or finance data.');
   }
   if (version < 6) {
-    life.version = 6;
     life.property = initialProperty();
     life.communityFriends = [];
   } else if (!validAssetsAndFriends(life)) {
     throw new Error('This saved life has invalid assets or community friends.');
+  }
+  if (version < 7) {
+    life.version = 7;
+    life.social = newSocial(life);
+    syncNpcs(life);
+  } else if (!validateSocial(life, (person): person is Record<string, unknown> => savedPerson(person, true))) {
+    throw new Error('This saved life has invalid social data.');
   }
   if (version < 5) {
     life.notices = [];

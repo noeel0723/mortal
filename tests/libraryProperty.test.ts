@@ -63,13 +63,14 @@ test('adult housing choices honor age, parent affordability, and willingness', (
   const adult = atAge(18);
   adult.character.background = 'working-class';
   assert.match(propertyIssue(adult, request) ?? '', /cannot afford/);
-  adult.character.background = 'affluent';
+  adult.social.profiles[adult.family[0]!.id]!.savings = 82000;
   adult.random = 0;
   Object.assign(adult.family[0]!.bond, { affection: 95, trust: 99, resentment: 0 });
   const gifted = apply(adult, request);
   assert.equal(gifted.property.residence, starterHome.id);
   assert.deepEqual(gifted.property.owned, [{ id: starterHome.id, year: adult.year, source: 'gift' }]);
   assert.equal(gifted.character.bank, adult.character.bank);
+  assert.equal(gifted.social.profiles[adult.family[0]!.id]!.savings, 82000 - starterHome.price);
   Object.assign(adult.family[0]!.bond, { affection: 30, trust: 12, resentment: 60 });
   const declined = apply(adult, request);
   assert.equal(declined.property.residence, 'family');
@@ -106,6 +107,6 @@ test('each catalog has ten distinct pixel illustrations and V5 saves upgrade wit
   assert.equal(new Set(images).size, 30);
   const life = atAge(18);
   const legacy = { ...life, version: 5, property: undefined, communityFriends: undefined };
-  assert.deepEqual(decodeLife(JSON.stringify(legacy)), life);
+  assert.deepEqual({ ...decodeLife(JSON.stringify(legacy)), social: undefined }, { ...life, social: undefined });
   assert.throws(() => decodeLife(JSON.stringify({ ...life, property: { residence: 'toyota-yaris', owned: [] } })), /invalid assets/);
 });

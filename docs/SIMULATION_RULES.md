@@ -41,3 +41,12 @@ The headless runner varies education, employment, and doctor visits across seede
 - The first three library visits in a year can roll for an encounter, with at most one encounter that year. Shared-hobby encounters can add a friend and can happen again in a later year.
 - Renting, asking a parent for a home, and buying assets become available at 18. A housing request checks the parent's available funds and uses the relationship and seeded roll to determine consent. A gifted starter home becomes the player's residence automatically.
 - Each purchase debits the full in-game price and creates one owned item. Players can move into any house they own. The annual housing bill uses the current residence, from a family contribution or rent to maintenance for an owned home.
+
+## Social and family progression
+
+- Age Up preserves the order of player payroll, tax, expenses, and education. The living-cost pass charges childcare once per year for living dependents through the year they turn 18. Unpaid childcare is personal-expense arrears.
+- Parent support debits their savings. Up to 18 important NPCs receive annual progression, with relatives and current partners prioritized. Promotions require an available career path and suitable education. Retired NPCs use a small independent income and basic expenses.
+- Friendship tiers use familiarity over time, the six bond attributes, personality, and recent memories. A neglected bond can become a former friendship. Romantic advances and family planning use deterministic annual rolls and cooldowns. Refusal still consumes that year’s attempt.
+- An engagement opens three cash-paid wedding options. Divorce transfers 8% of the player’s balance up to $50 to the former spouse. Child and property IDs are retained. Parenting uses age-appropriate actions and modifies learning, wellbeing, confidence, and trust.
+- Mandatory life decisions take precedence over NPC invitations. An invitation stores its participant and applies its response before clearing the decision. A major promotion, relocation, or death may create an informational notice.
+- Walks, library visits, and psychiatry remain repeatable. Their incremental benefits taper with repetition. Clinical visits remain available for eligible illnesses.

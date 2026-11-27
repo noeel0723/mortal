@@ -54,7 +54,7 @@ Earlier academic grades from version 1 saves are unavailable. Qualifications now
 
 Use **Custom Life → Appearance** to choose a hairstyle, hair color, eyes, nose, and mouth. Random lives can use **Activities → Customize Appearance** at age zero. After the first **Age Up**, use **Activities → Change Hairstyle** to edit your hair. Tap your portrait in the journal for **My Profile**. When you open a contact from **Relationships** or **Class**, tap their name or portrait to see their profile and bond. Available interactions depend on the contact’s role and your age.
 
-Version 1 and 2 saves get stable portraits when they open. Saves from versions 1–5 retain their progress and upgrade on the next successful save. Adults coming from versions 1–3 start with a neutral career record.
+Version 1 and 2 saves get stable portraits when they open. Versions 1–6 upgrade to save version 7 on the next successful save. Existing contacts, assets, bank balances, and decisions retain their references. Adults coming from versions 1–3 start with a neutral career record.
 
 ### Work and money
 
@@ -79,6 +79,13 @@ Veyra uses a fictional currency scale. Retirement living costs are funded from s
 - From age 18, use **Assets → Housing** to rent, ask a parent for a starter home, or move into a house you own. A parent must be able to afford the home and agree to buy it.
 - **Assets → Shopping** offers ten houses, ten cars, and ten motorcycles with original pixel illustrations. Purchases use the in-game balance and appear in **Owned Assets** and **Finances**.
 
+## Phase 2.3 · Relationships and family
+
+- Open **Family → Open Love Life** at age 18 to meet local adults or ask someone you know on a date. NPCs can decline based on compatibility, preferences, circumstances, and your history together.
+- Dates and shared activities build a bond. An engagement opens three wedding options. Spouses can discuss family planning or adoption. Parenting actions appear on each child’s profile.
+- **Family Tree** shows relatives, spouses, former spouses, and children. **Relationship History** preserves the relationship timeline. Profiles show known education, interests, and personality alongside the existing portraits.
+- Parents use their own savings for allowance and house gifts. Weddings, adoption, and other paid activities appear in the ledger. Unpaid childcare is added to personal-expense arrears.
+
 ## Verify
 
 ```sh
@@ -92,7 +99,7 @@ npx expo install --check
 
 For a native smoke test, begin a random life, age to six, and exit with the first-day-of-school decision open. Force close and reopen the app, choose **Continue Life**, and verify the character, year, journal, and pending choice. Resolve the decision and confirm that Age Up becomes available. Repeat with a packaged build in airplane mode to verify offline use independently of Metro.
 
-For browser smoke tests, keep `npm run preview:web` running after building and install Playwright Core in the ignored tool directory with `npm install --prefix .expo/web-qa playwright-core`. Run `npm run test:web:education`, `npm run test:web:career`, `npm run test:web:health`, and `npm run test:web:library-property` in another terminal. The tests use fresh browser contexts and Edge on Windows by default. Set `MORTAL_BROWSER_PATH` for a different Chromium executable.
+For browser smoke tests, keep `npm run preview:web` running after building and install Playwright Core in the ignored tool directory with `npm install --prefix .expo/web-qa playwright-core`. Run the `test:web:education`, `test:web:career`, `test:web:health`, `test:web:library-property`, and `test:web:social` scripts. They use fresh browser contexts and Edge on Windows by default. Set `MORTAL_BROWSER_PATH` for a different Chromium executable.
 
 - [Game design](docs/GAME_DESIGN.md)
 - [Architecture](docs/ARCHITECTURE.md)

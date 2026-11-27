@@ -17,7 +17,17 @@ The browser entry point uses the same engine and Zustand store with IndexedDB. U
 
 The SQLite database uses `PRAGMA user_version` for storage migrations. Each life separately carries a payload version. Conditional updates use the slot revision to prevent stale writes. A malformed or unsupported save surfaces an error when opened and remains in the list until explicitly deleted. Haptics preferences are stored separately.
 
-The shared codec upgrades version 1–5 life payloads to version 6 on load for both SQLite and IndexedDB. It preserves the character, calendar, bank and ledger, journal, contact identities and friendships, RNG position, pending decision, delayed outcomes, and existing academic and career data. Version 1 initializes the old school stage and restores a diploma for a completed school stage, with earlier grades and attendance unavailable. Version 1 and 2 acquire stable portraits. Versions 1–3 start with a neutral career and finance state. Versions 1–4 start with empty active illnesses and unread notices. Versions 1–5 start at the family residence with empty ownership and library friendships. Both storage schemas remain at version 1 because the change is confined to the payload.
+## NPC identity and social state
+
+The shared lookup resolves NPC IDs across the original parent, education, employer, and library collections plus the new social roster. Only newly generated acquaintances and relatives enter the social roster. Profiles, romances, ancestry, and childcare reference those identities by ID. School and workplace roles stay attached to their original records.
+
+Version 7 initializes missing personality and financial snapshots deterministically. Versions 1–6 retain the previous migration paths and existing journal, assets, illness references, and decisions. New timelines and family links are recorded only when gameplay creates them. The codec validates unique IDs, parent age gaps and references, active relationship consistency, and the participant for an unresolved contextual decision.
+
+The annual loop ages each collection once and advances up to 18 selected NPC careers with relatives, partners, and co-parents prioritized. New social identities are capped at 36. Memories keep the last 12 entries per NPC and romance histories keep the last 30, with the journal retaining event history.
+
+Contextual NPC events use the existing pending event ID and a saved participant ID. Scheduled and ordinary life events resolve first. At most one NPC invitation enters the decision slot once it is free. Informational notices keep their journal order and wait behind any decision.
+
+The shared codec upgrades version 1–6 life payloads to version 7 on load for both SQLite and IndexedDB. It preserves the character, calendar, bank and ledger, journal, contact identities and friendships, RNG position, pending decision, delayed outcomes, and existing academic and career data. Version 1 initializes the old school stage and restores a diploma for a completed school stage, with earlier grades and attendance unavailable. Versions 1 and 2 acquire stable portraits. Versions 1–3 start with a neutral career and finance state. Versions 1–4 start with empty active illnesses and unread notices. Versions 1–5 start at the family residence with empty ownership and library friendships. Both storage schemas remain at version 1 because the change is confined to the payload.
 
 Version 5 stores active illnesses by patient ID and unread notices by journal entry index. Acknowledging the oldest unread notice leaves the entry in the journal. Mandatory choices take precedence over those notices, and both clients save each response before opening the next pop-up.
 

@@ -4,11 +4,12 @@ import { StyleSheet, Text, View } from 'react-native';
 import { DetailMeter, DetailModal } from '../../src/components/detailModal';
 import { Portrait } from '../../src/components/portrait';
 import { ActionButton, DataRow, Heading, Page, Section, shared } from '../../src/components/ui';
-import { contactBondRows, contactInteractions, contactProfileRows, contactRole } from '../../src/contactView';
+import { contactBondRows, contactHistory, contactInteractions, contactProfileRows, contactRole } from '../../src/contactView';
 import { genderLabels } from '../../src/data/veyra';
 import { educationStatus } from '../../src/engine/academics';
 import { findContact } from '../../src/engine/school';
 import { profileHealthRows } from '../../src/healthView';
+import { relationshipControls } from '../../src/socialView';
 import { useGame } from '../../src/stores/game';
 import { space } from '../../src/theme/tokens';
 
@@ -34,9 +35,11 @@ export default function Person() {
     </Section>
   </Page>;
   const person = findContact(life, id);
+  const controls = person ? relationshipControls(life, person) : [];
+  const memories = person ? contactHistory(life, person) : [];
   return (
     <Page inGame>
-      <Heading title={person ? contactRole(person) : 'Character'}
+      <Heading title={person ? contactRole(person, life) : 'Character'}
         back={() => source && router.canGoBack() ? router.back() : router.dismissTo('/game/relationships')} />
       {person ? <>
         <ActionButton icon="person" label={person.name} onPress={() => setProfileId(person.id)}
@@ -48,13 +51,20 @@ export default function Person() {
               disabled={busy || !!item.issue} onPress={() => void dispatch(item.action)} />
           ))}
         </Section>
+        {controls.length > 0 && <Section title={person.role === 'Child' ? 'Parenting' : 'Love Life'}>
+          {controls.map((item) => <ActionButton key={item.label} icon={item.icon} label={item.label}
+            detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onPress={() => void dispatch(item.action)} />)}
+        </Section>}
         <DetailModal title="Character Profile" open={profileId === person.id} onDismiss={() => setProfileId(null)}>
           <View style={styles.identity}>
             <Portrait appearance={person.appearance} age={person.age} size={52} label={`Portrait of ${person.name}`} />
-            <View style={styles.name}><Text style={shared.strong}>{person.name}</Text><Text style={shared.small}>{contactRole(person)}</Text></View>
+            <View style={styles.name}><Text style={shared.strong}>{person.name}</Text><Text style={shared.small}>{contactRole(person, life)}</Text></View>
           </View>
           {contactProfileRows(life, person).map((row) => <DataRow key={row.label} {...row} />)}
           <Section title="Your bond">{contactBondRows(person).map((row) => <DetailMeter key={row.label} {...row} />)}</Section>
+          {memories.length > 0 && <Section title="Shared history">
+            {memories.map(({ year, text }, index) => <DataRow key={index} label={String(year)} value={text} />)}
+          </Section>}
         </DetailModal>
       </> : <Text style={shared.body}>This person couldn’t be found.</Text>}
     </Page>

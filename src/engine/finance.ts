@@ -1,13 +1,15 @@
 import { employerById } from '../data/employers.ts';
 import { jobById } from '../data/jobs.ts';
 import { postTransaction, record } from './journal.ts';
+import { annualChildcare } from './familyLife.ts';
 import { livingCategories } from './financeTypes.ts';
 import type { FinanceState, LivingCategory, Transaction, TransactionCategory } from './financeTypes.ts';
 import type { Life } from './types.ts';
 
 export const financeLabels: Record<TransactionCategory, string> = {
   salary: 'Salary', tax: 'Income Tax', housing: 'Housing', 'food-utilities': 'Food & Utilities',
-  transport: 'Transportation', personal: 'Personal Expenses', tuition: 'Tuition', scholarship: 'Scholarships', medical: 'Doctor Visits', shopping: 'Asset Purchases', other: 'Other',
+  transport: 'Transportation', personal: 'Personal Expenses', tuition: 'Tuition', scholarship: 'Scholarships', medical: 'Doctor Visits', shopping: 'Asset Purchases',
+  relationships: 'Relationships', other: 'Other',
 };
 
 const housingCosts = { 'Alder Bay': 16400, Bellmere: 14500, Northwick: 12900 };
@@ -54,6 +56,8 @@ export function annualFinance(life: Life, elapsedAge: number) {
     const paid = -postTransaction(life, financeLabels[category], -bills[category], category);
     life.finance.arrears[category] += bills[category] - paid;
   }
+  const childcare = annualChildcare(life);
+  if (childcare) life.finance.arrears.personal += childcare + postTransaction(life, 'Childcare', -childcare, 'personal');
   if (outstanding(life)) record(life, 'finance', 'I could not cover all my living costs. The unpaid bills carried forward.', { stress: 3 });
   else record(life, 'finance', 'I covered my living costs for the year.');
 }

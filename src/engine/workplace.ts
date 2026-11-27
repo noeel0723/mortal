@@ -11,7 +11,8 @@ export function isWorkContact(person: Contact): person is WorkContact {
 }
 
 export function canMakeFriend(person: Contact) {
-  return isWorkContact(person) || ('stage' in person && (person.role === 'Classmate' || person.role === 'Student'));
+  return isWorkContact(person) || person.role === 'Acquaintance' || person.role === 'Friend' ||
+    ('stage' in person && (person.role === 'Classmate' || person.role === 'Student'));
 }
 
 export function activeCoworkers(life: Life) {

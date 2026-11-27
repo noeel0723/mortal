@@ -6,6 +6,7 @@ import type { FinanceState, Transaction } from './financeTypes.ts';
 import type { HealthVisit, IllnessCase, IllnessId } from './healthTypes.ts';
 import type { libraryHobbies } from '../data/libraryEvents.ts';
 import type { PropertyAction, PropertyState } from './property.ts';
+import type { SocialAction, SocialPerson, SocialState } from './socialTypes.ts';
 
 export const stats = ['health', 'happiness', 'smarts', 'looks', 'charisma', 'discipline', 'athleticism', 'creativity', 'stress', 'energy', 'reputation'] as const;
 export type Stat = typeof stats[number];
@@ -57,7 +58,7 @@ export type SchoolContact = Person<'Teacher' | 'Classmate' | 'Professor' | 'Stud
   stage: AcademicLevel; friend: boolean; cohortId?: string; graduationAge?: number;
 };
 export type CommunityFriend = Person<'Friend'> & { friend: true; hobby: typeof libraryHobbies[number] };
-export type Contact = Person | SchoolContact | WorkContact | CommunityFriend;
+export type Contact = Person | SchoolContact | WorkContact | CommunityFriend | SocialPerson;
 
 export type Effect = Partial<Record<Stat | 'bank', number>>;
 export type JournalEntry = {
@@ -93,7 +94,7 @@ export type LifeEvent = {
 };
 
 export type Life = {
-  version: 6;
+  version: 7;
   seed: number;
   random: number;
   character: Character;
@@ -101,6 +102,7 @@ export type Life = {
   family: Person[];
   schoolContacts: SchoolContact[];
   communityFriends: CommunityFriend[];
+  social: SocialState;
   property: PropertyState;
   academic: AcademicState;
   career: CareerState;
@@ -128,4 +130,5 @@ export type Action =
   | { type: 'change-hair'; choices: HairChoice }
   | AcademicAction
   | PropertyAction
+  | SocialAction
   | CareerAction;

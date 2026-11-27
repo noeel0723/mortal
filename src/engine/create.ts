@@ -4,6 +4,7 @@ import { academicStateAtBirth } from './academics.ts';
 import { initialCareer } from './career.ts';
 import { initialFinance } from './finance.ts';
 import { initialProperty } from './property.ts';
+import { newSocial, syncNpcs } from './npcs.ts';
 import { contactIdentity, creationAppearance, generateAppearance, mergeAppearance, validFace } from './appearance.ts';
 import type { Life, Person, ProfileInput, Stat } from './types.ts';
 
@@ -85,8 +86,8 @@ export function createLife(seed: number, profile?: ProfileInput): Life {
   const bank = birthSavings[input.background];
   const personality = random.pick(['curious', 'steady', 'outgoing', 'thoughtful'] as const);
   const appearance = input.appearance ? mergeAppearance(creationAppearance, input.appearance) : generateAppearance(seed, 'player');
-  return {
-    version: 6,
+  const life: Life = {
+    version: 7,
     seed: seed >>> 0,
     random: random.state,
     character: { ...input, appearance, firstName, lastName, age: 0, attributes, bank, personality, education: 'early', causeOfDeath: null },
@@ -94,6 +95,7 @@ export function createLife(seed: number, profile?: ProfileInput): Life {
     family,
     schoolContacts: [],
     communityFriends: [],
+    social: newSocial({ family }),
     property: initialProperty(),
     academic: academicStateAtBirth(),
     career: initialCareer(),
@@ -107,4 +109,6 @@ export function createLife(seed: number, profile?: ProfileInput): Life {
     usedActions: [],
     transactions: bank ? [{ year: input.birthYear, label: 'Birth savings', amount: bank }] : [],
   };
+  syncNpcs(life);
+  return life;
 }

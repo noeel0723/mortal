@@ -12,9 +12,15 @@ Validation covered 29 engine and SQLite tests, 2,000 seeded lives across all fou
 
 ## Phase 2.2 · Career and employment
 
-Version 0.2.2 adds the job market, qualification-based hiring, part-time work during study, performance reviews, promotions, retirement, workplace relationships, and categorized finances with arrears. Schools and campus still run through the existing progression. Autonomous NPC careers, pensions, borrowing, and a broader labor market are later work.
+Version 0.2.2 adds the job market, qualification-based hiring, part-time work during study, performance reviews, promotions, retirement, workplace relationships, and categorized finances with arrears. Schools and campus still run through the existing progression.
 
 Validation passed with 44 automated tests, 2,000 seeded lives, and both education and career browser scenarios. The simulation reconciled 92,540 salaried years and exercised promotions, dismissals, and retirement. Android and iOS production bundles exported successfully. Physical-device testing remains pending.
+
+## Phase 2.3 · Love, family, and independent NPC life
+
+Version 0.2.3 adds adult dating, friendship tiers, engagement, marriage, divorce, adoption, child development, expanded family records, and NPC-led decisions. Save format 7 preserves existing lives. NPC careers and finances use a limited annual model. The family currently generates up to one sibling and one grandparent, and family planning resolves in one turn. Detailed legal settlements, wider economic simulation, and playable descendants belong to later phases.
+
+Validation passed with 68 automated tests and five browser scenarios, including the social flow from a V6 save at 320 and 390 pixels. The 2,000-life simulation exercised 973 weddings, 1,853 children including 1,031 adoptions, and 47 divorces. Web, Android, and iOS production bundles built successfully. Expo dependency checking ran in offline mode.
 
 ## Phase 3 · World simulation and assets
 

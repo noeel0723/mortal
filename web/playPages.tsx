@@ -4,7 +4,7 @@ import { personalActivities } from '../src/activityView';
 import { assetById, assetKinds } from '../src/data/shops';
 import type { AssetListing } from '../src/data/shops';
 import { backgroundLabels, cities, cityDescriptions, genderLabels, talentLabels } from '../src/data/veyra';
-import { contactBondRows, contactInteractions, contactProfileRows, contactRole } from '../src/contactView';
+import { contactBondRows, contactHistory, contactInteractions, contactProfileRows, contactRole } from '../src/contactView';
 import {
   canShowRetirement, careerCard, careerControl, careerRows, careerSummary, careerTimeline, defaultJobFilters, employmentLabels,
   financeEntries, financeOverview, financeYears, jobIcon, jobListings, jobRatings, lifetimeEarnings, vacancyActions, vacancyRows,
@@ -15,7 +15,9 @@ import { jobById } from '../src/data/jobs';
 import { educationStatus } from '../src/engine/academics';
 import { workAge, workHours } from '../src/engine/career';
 import { industries } from '../src/engine/careerTypes';
-import { currentClass, isPeer, isSchoolStage } from '../src/engine/school';
+import { currentClass, findContact, isPeer, isSchoolStage } from '../src/engine/school';
+import { romanceLabels } from '../src/engine/love';
+import { childParents, datingCandidates, datingSummary, familyTreeGroups, meetingControls, relationshipControls, relationshipGroups } from '../src/socialView';
 import { canEditFace } from '../src/engine/appearance';
 import { activityIssue } from '../src/engine/simulation';
 import { propertyIssue } from '../src/engine/property';
@@ -61,6 +63,9 @@ export const pageTitles = {
   'class-person': 'Class Member',
   'class-person-info': 'Character Profile',
   relationships: 'Relationships',
+  'love-life': 'Love Life',
+  'dating-profiles': 'Dating Profiles',
+  'relationship-history': 'Relationship History',
   person: 'Family Member',
   'person-info': 'Character Profile',
   'player-profile': 'My Profile',
@@ -112,6 +117,9 @@ const parentPages: Partial<Record<DetailPage, GamePage>> = {
   class: 'education',
   'class-person': 'class',
   person: 'relationships',
+  'love-life': 'relationships',
+  'dating-profiles': 'love-life',
+  'relationship-history': 'love-life',
   'family-tree': 'relationships',
   finances: 'assets',
   shopping: 'assets',
@@ -246,10 +254,12 @@ function DoctorsPage({ life }: { life: Life }) {
   </>;
 }
 
-function PersonRow({ person, onClick, opensDialog }: { person: Contact; onClick?: () => void; opensDialog?: boolean }) {
-  const role = contactRole(person);
+function PersonRow({ person, life, detail, onClick, opensDialog }: {
+  person: Contact; life?: Life; detail?: string; onClick?: () => void; opensDialog?: boolean;
+}) {
+  const role = contactRole(person, life);
   return <MenuRow title={person.name} avatar={<Portrait appearance={person.appearance} age={person.age} />} onClick={onClick} opensDialog={opensDialog}
-    detail={`${role} · ${person.alive ? en.age(person.age) : 'Deceased'}`}>
+    detail={detail ?? `${role} · ${person.alive ? en.age(person.age) : 'Deceased'}`}>
     <PageMeter label="Affection" value={person.bond.affection} />
   </MenuRow>;
 }
@@ -316,7 +326,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
   life: Life; page: DetailPage; person?: Contact; detail?: string; go: Navigate; home: () => void; newLife: () => void;
 }) {
   const { busy, dispatch, save } = useGame();
-  const { character, family } = life;
+  const { character } = life;
   const blocked = life.pending ? 'Resolve the pending decision first.' : character.causeOfDeath ? 'This life has ended.' : null;
   const job = life.career.current;
   const canFindJob = character.age >= workAge && !character.causeOfDeath && life.career.retiredYear === null;
@@ -483,22 +493,68 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
         </PageGroup>
       </>;
     }
-    case 'relationships':
-    case 'family-tree': {
-      const friends = [...life.communityFriends, ...life.schoolContacts, ...life.career.contacts].filter((contact) => contact.friend);
+    case 'relationships': {
+      const groups = relationshipGroups(life);
       return <>
-        <PageGroup title="Parents">
-          {family.map((relative) => <PersonRow key={relative.id} person={relative} onClick={() => go('person', relative.id)} />)}
+        <PageGroup title="Family">
+          {groups.family.map((relative) => <PersonRow key={relative.id} life={life} person={relative} onClick={() => go('person', relative.id)} />)}
+          <MenuRow icon="tree" title="Family Tree" onClick={() => go('family-tree')} />
         </PageGroup>
-        {page === 'relationships' && friends.length > 0 && <PageGroup title="Friends">
-          {friends.map((friend) => <PersonRow key={friend.id} person={friend} onClick={() => go('person', friend.id)} />)}
+        <PageGroup title="Love Life">
+          <MenuRow icon="rose" title="Open Love Life" detail={groups.partner?.name ?? 'Dating, partners, and relationship history.'}
+            onClick={() => go('love-life')} />
+        </PageGroup>
+        {groups.friends.length > 0 && <PageGroup title="Friends">
+          {groups.friends.map((friend) => <PersonRow key={friend.id} life={life} person={friend} onClick={() => go('person', friend.id)} />)}
         </PageGroup>}
-        {page === 'relationships'
-          ? <PageGroup title="Family records"><MenuRow icon="tree" title="Family Tree" detail="See your place in the family." onClick={() => go('family-tree')} /></PageGroup>
-          : <PageGroup title="You"><MenuRow avatar={<Portrait appearance={character.appearance} age={character.age} />}
-            title={`${character.firstName} ${character.lastName}`} detail={`Born ${character.birthYear}`} onClick={() => go('player-profile')} /></PageGroup>}
+        <PageGroup title="Acquaintances">
+          {meetingControls(life, false).map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label}
+            detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onClick={() => void dispatch(item.action)} />)}
+          {groups.acquaintances.map((person) => <PersonRow key={person.id} life={life} person={person} onClick={() => go('person', person.id)} />)}
+        </PageGroup>
+        {groups.former.length > 0 && <PageGroup title="Former Relationships">
+          {groups.former.map((person) => <PersonRow key={person.id} life={life} person={person} onClick={() => go('person', person.id)} />)}
+        </PageGroup>}
       </>;
     }
+    case 'family-tree':
+      return <>
+        <PageGroup title="You"><MenuRow avatar={<Portrait appearance={character.appearance} age={character.age} />}
+          title={`${character.firstName} ${character.lastName}`} detail={`Born ${character.birthYear}`} onClick={() => go('player-profile')} /></PageGroup>
+        {familyTreeGroups(life).map(({ label, people }) => <PageGroup key={label} title={label}>
+          {people.map((person) => <PersonRow key={person.id} life={life} person={person} detail={childParents(life, person)}
+            onClick={() => go('person', person.id)} />)}
+        </PageGroup>)}
+      </>;
+    case 'love-life': {
+      const partner = relationshipGroups(life).partner;
+      return <>
+        {partner && <PageGroup title="Current Partner"><PersonRow life={life} person={partner} onClick={() => go('person', partner.id)} /></PageGroup>}
+        <PageGroup title="Dating">
+          {meetingControls(life, true).map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label}
+            detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onClick={() => void dispatch(item.action)} />)}
+          <MenuRow icon="support" title="Ask Someone Out" detail={character.age < 18 ? 'Dating opens at age 18.' : undefined}
+            disabled={character.age < 18} onClick={() => go('dating-profiles')} />
+          <MenuRow icon="history" title="Relationship History" onClick={() => go('relationship-history')} />
+        </PageGroup>
+      </>;
+    }
+    case 'dating-profiles': {
+      const people = datingCandidates(life);
+      return <PageGroup title="People you know">
+        {people.length ? people.map((person) => <PersonRow key={person.id} life={life} person={person} detail={datingSummary(life, person)}
+          onClick={() => go('person', person.id)} />) : <p className="play-empty">There are no available matches yet.</p>}
+      </PageGroup>;
+    }
+    case 'relationship-history':
+      return life.social.romances.length ? life.social.romances.map((entry) => {
+        const person = findContact(life, entry.person)!;
+        return <PageGroup key={person.id} title={person.name}>
+          <PersonRow life={life} person={person} detail={`${romanceLabels[entry.status]} · Since ${entry.started}`}
+            onClick={() => go('person', person.id)} />
+          {entry.history.map(({ year, text }, index) => <MenuRow key={index} title={String(year)} detail={text} />)}
+        </PageGroup>;
+      }) : <p className="play-empty">Your relationship history is empty.</p>;
     case 'player-profile':
       return <PageGroup title={`${character.firstName} ${character.lastName}`}>
         <div className="profile-art"><Portrait appearance={character.appearance} age={character.age} label="Your portrait" large /></div>
@@ -517,25 +573,34 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
     case 'class-person-info': {
       if (!person) return <p className="play-empty">This character is unavailable.</p>;
       const contact = person;
+      const social = relationshipControls(life, contact);
+      const memories = contactHistory(life, contact);
       const showingProfile = page === 'person-info' || page === 'class-person-info' || page === 'work-person-info';
       const base = page === 'work-person' || page === 'work-person-info' ? 'work-person' :
         page === 'class-person' || page === 'class-person-info' ? 'class-person' : 'person';
       return <>
         <PageGroup title="Character">
-          <PersonRow person={contact} opensDialog onClick={() => go(`${base}-info`, contact.id)} />
+          <PersonRow person={contact} life={life} opensDialog onClick={() => go(`${base}-info`, contact.id)} />
         </PageGroup>
+        {social.length > 0 && <PageGroup title={contact.role === 'Child' ? 'Parenting' : 'Love Life'}>
+          {social.map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label}
+            detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onClick={() => void dispatch(item.action)} />)}
+        </PageGroup>}
         <PageGroup title="Interactions">
           {contactInteractions(life, contact).map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label}
             detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onClick={() => void dispatch(item.action)} />)}
         </PageGroup>
         {showingProfile && <DetailDialog title="Character Profile" onDismiss={() => go(base, contact.id, true)}>
           <div className="detail-identity"><Portrait appearance={contact.appearance} age={contact.age} label={`Portrait of ${contact.name}`} />
-            <div><strong>{contact.name}</strong><p>{contactRole(contact)}</p></div>
+            <div><strong>{contact.name}</strong><p>{contactRole(contact, life)}</p></div>
           </div>
           <Rows items={contactProfileRows(life, contact)} />
           <section className="detail-bond"><h3>Your bond</h3>
             {contactBondRows(contact).map((row) => <PageMeter key={row.label} {...row} />)}
           </section>
+          {memories.length > 0 && <section className="detail-bond"><h3>Shared history</h3>
+            <Rows items={memories.map(({ year, text }, index) => ({ key: String(index), label: String(year), value: text }))} />
+          </section>}
         </DetailDialog>}
       </>;
     }
@@ -649,7 +714,8 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           <Rows items={[
             { label: 'Age at death', value: character.age }, { label: 'Cause of death', value: character.causeOfDeath },
             { label: 'Education', value: educationStatus(life) }, { label: 'Final bank balance', value: money(character.bank) },
-            ...family.map((relative) => ({ label: relative.role, value: relative.name })),
+            ...familyTreeGroups(life).flatMap(({ people }) => people)
+              .map((relative) => ({ key: relative.id, label: contactRole(relative, life), value: relative.name })),
           ]} />
         </PageGroup>
         {employment.length > 0 && <PageGroup title="Career"><Rows items={employment} /></PageGroup>}

@@ -69,8 +69,8 @@ export function conversationStory(life: Life, person: Contact) {
     `I asked ${person.name} what they had been reading since we last met.`,
     `I swapped library recommendations with ${person.name}.`,
   ];
-  else if (!('stage' in person)) stories = parentConversation(life, person);
-  else if (person.role === 'Teacher' || person.role === 'Professor') stories = teacherConversation(person);
+  else if (!('friend' in person)) stories = parentConversation(life, person);
+  else if ('stage' in person && (person.role === 'Teacher' || person.role === 'Professor')) stories = teacherConversation(person);
   else {
     const topics = life.character.age < 12 ? [
       'what aliens might eat for breakfast',
@@ -105,7 +105,7 @@ function timeTogetherStory(life: Life, person: Contact) {
       `I went for a walk with ${name} and we caught up on life since our days as co-workers.`,
       `I shared a picnic with ${name} and talked about the things we do outside work now.`,
     ];
-  } else if (!('stage' in person) && !('hobby' in person)) {
+  } else if (!('friend' in person)) {
     const parent = `my ${person.role.toLowerCase()}, ${name},`;
     stories = age < 6 ? [
       `I built a blanket fort with ${parent} and we read a story inside it.`,

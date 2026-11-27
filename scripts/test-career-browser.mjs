@@ -46,7 +46,7 @@ try {
   await page.locator('dialog[data-life-event="decision-graduation-plan"]').waitFor({ state: 'hidden' });
   await acknowledgeEvents(page);
   const migrated = await read();
-  assert.equal(migrated.version, 6);
+  assert.equal(migrated.version, 7);
   assert.deepEqual(migrated.character.appearance, appearance);
   assert.ok(migrated.academic.qualifications.some(({ level }) => level === 'high-school'));
   await click('Career');

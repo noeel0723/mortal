@@ -177,10 +177,10 @@ test('choice popups precede queued notices after reload and dismissing a notice 
   assert.match(advance(acknowledged, notice.actions[0]!.action).error ?? '', /no longer available/);
 });
 
-test('legacy V4 games preserve existing decisions and journal, and V6 rejects invalid references', () => {
+test('legacy V4 games preserve existing decisions and journal, and V7 rejects invalid references', () => {
   const life = apply(atAge(5), { type: 'age' });
   const restored = decodeLife(JSON.stringify({ ...life, version: 4, illnesses: undefined, notices: undefined }));
-  assert.deepEqual(restored, { ...life, notices: [], illnesses: [] });
+  assert.deepEqual({ ...restored, social: undefined }, { ...life, notices: [], illnesses: [], social: undefined });
   assert.equal(eventPopup(restored)?.title, 'First Classroom');
   assert.throws(() => decodeLife(JSON.stringify({ ...restored, notices: [{ entry: -1, title: 'Invalid' }] })), /invalid health or event/);
   assert.throws(() => decodeLife(JSON.stringify({ ...restored, illnesses: [{ patient: 'unknown', illness: 'cold', level: 'mild', started: life.year }] })), /invalid health or event/);

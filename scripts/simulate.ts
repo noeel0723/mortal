@@ -8,6 +8,9 @@ import { academicActionIssue, isTuitionDue, latestApplication } from '../src/eng
 import { careerActionIssue, jobRequirementsIssue, vacancies } from '../src/engine/career.ts';
 import { createLife } from '../src/engine/create.ts';
 import { incomeTax, outstanding } from '../src/engine/finance.ts';
+import { familyIssue } from '../src/engine/familyLife.ts';
+import { activeRomance, datingCompatibility, loveIssue } from '../src/engine/love.ts';
+import { allContacts, newPeopleLimit } from '../src/engine/npcs.ts';
 import { doctors } from '../src/data/doctors.ts';
 import { healthcareQuote } from '../src/engine/health.ts';
 import { relationshipIssue } from '../src/engine/interactions.ts';
@@ -18,6 +21,7 @@ import { activeCoworkers } from '../src/engine/workplace.ts';
 import type { AcademicAction, ProgramLevel } from '../src/engine/academicTypes.ts';
 import type { CareerAction } from '../src/engine/careerTypes.ts';
 import type { Action, Life } from '../src/engine/types.ts';
+import { datingCandidates } from '../src/socialView.ts';
 
 const count = Number(process.argv[2] ?? 1000);
 assert.ok(Number.isInteger(count) && count >= 1 && count <= 100000, 'Choose between 1 and 100000 lives.');
@@ -42,6 +46,10 @@ let promotions = 0;
 let dismissals = 0;
 let treatedCases = 0;
 let noticesReviewed = 0;
+let weddings = 0;
+let children = 0;
+let adoptions = 0;
+let divorces = 0;
 const plans: Record<string, number> = {};
 const qualifications: Record<string, number> = {};
 const schoolwork = ['study', 'exams', 'socialize'] as const;
@@ -137,6 +145,59 @@ function educationChoice(life: Life, seed: number) {
   return life;
 }
 
+function socialChoice(life: Life, seed: number) {
+  const { age, causeOfDeath } = life.character;
+  if (age < 18 || age > 52 || causeOfDeath || seed % 3 === 2) return life;
+  const romance = activeRomance(life);
+  if (!romance) {
+    const candidates = datingCandidates(life).sort((a, b) => datingCompatibility(life, b) - datingCompatibility(life, a));
+    const candidate = candidates.find((person) => (seed + life.year) % 4 !== 0 &&
+      !loveIssue(life, { type: 'romance', person: person.id, action: 'ask' }));
+    if (candidate) {
+      if (candidate.bond.trust < 65) {
+        const result = advance(life, { type: 'talk', person: candidate.id });
+        if (result.life) life = result.life;
+      }
+      const ask = { type: 'romance', person: candidate.id, action: 'ask' } as const;
+      if (!loveIssue(life, ask)) life = apply(life, ask);
+    } else {
+      const meet = { type: 'meet', source: seed % 2 ? 'date' : 'app' } as const;
+      if (!loveIssue(life, meet)) life = apply(life, meet);
+    }
+  } else if (romance.status === 'dating') {
+    const support = { type: 'romance', person: romance.person, action: 'support' } as const;
+    if (!loveIssue(life, support)) life = apply(life, support);
+    const proposal = { type: 'romance', person: romance.person, action: 'propose' } as const;
+    if (life.year > romance.started && !loveIssue(life, proposal)) life = apply(life, proposal);
+  } else if (romance.status === 'engaged') {
+    const wedding = { type: 'wedding', person: romance.person, plan: 'civil' } as const;
+    if (!loveIssue(life, wedding)) {
+      life = apply(life, wedding);
+      weddings++;
+    }
+  } else if (romance.status === 'married') {
+    const divorce = { type: 'romance', person: romance.person, action: 'divorce' } as const;
+    if (seed % 19 === 0 && age === 40 && !loveIssue(life, divorce)) {
+      life = apply(life, divorce);
+      divorces++;
+      return life;
+    }
+    const family = { type: 'plan-child', person: romance.person, method: seed % 2 ? 'adoption' : 'family' } as const;
+    if (age <= 43 && Object.keys(life.social.children).length < 2 && !familyIssue(life, family)) {
+      const prior = Object.keys(life.social.children).length;
+      life = apply(life, family);
+      if (Object.keys(life.social.children).length > prior) {
+        children++;
+        if (family.method === 'adoption') adoptions++;
+      }
+    }
+    const child = life.social.people.find((person) => person.alive && person.role === 'Child' && person.age < 18);
+    const care = child && { type: 'parent-child', person: child.id, action: 'care' } as const;
+    if (care && !familyIssue(life, care)) life = apply(life, care);
+  }
+  return life;
+}
+
 for (let seed = 1; seed <= count; seed++) {
   let life = createLife(seed);
   let turns = 0;
@@ -153,6 +214,7 @@ for (let seed = 1; seed <= count; seed++) {
       decisions++;
     }
     if (!life.character.causeOfDeath) life = employmentChoice(educationChoice(life, seed), seed);
+    life = socialChoice(life, seed);
     if (!life.character.causeOfDeath && life.character.age >= 5 && life.character.age <= 25 && (seed + life.year) % 6 === 0) {
       life = apply(life, { type: 'activity', activity: 'go-to-library' });
       if (life.pending) {
@@ -184,7 +246,16 @@ for (let seed = 1; seed <= count; seed++) {
     }
     assert.equal(life.year, life.character.birthYear + life.character.age);
     assert.ok(Object.values(life.character.attributes).every((value) => Number.isInteger(value) && value >= 0 && value <= 100));
-    assert.ok(life.family.every((person) => person.age <= maxAge && Object.values(person.bond).every((value) => value >= 0 && value <= 100)));
+    const contacts = allContacts(life);
+    assert.equal(new Set(contacts.map(({ id }) => id)).size, contacts.length);
+    assert.ok(life.social.people.length <= newPeopleLimit);
+    assert.ok(contacts.every((person) => person.age >= 0 && person.age <= maxAge &&
+      Object.values(person.bond).every((value) => value >= 0 && value <= 100)));
+    for (const [child, parents] of Object.entries(life.social.parents)) {
+      const born = child === 'self' ? life.character.birthYear : life.social.profiles[child]!.born;
+      assert.equal(new Set(parents).size, parents.length);
+      assert.ok(parents.every((parent) => born - (parent === 'self' ? life.character.birthYear : life.social.profiles[parent]!.born) >= 18));
+    }
     assert.equal(life.character.bank, life.transactions.reduce((balance, item) => balance + item.amount, 0));
     assert.ok(life.character.bank >= 0);
     const current = life.career.current;
@@ -198,7 +269,8 @@ for (let seed = 1; seed <= count; seed++) {
     if (seed % 47 === 0 && life.character.age === 17) {
       const legacy = { ...life, version: 3, career: undefined, finance: undefined, illnesses: undefined, notices: undefined,
         property: undefined, communityFriends: undefined };
-      assert.deepEqual(decodeLife(JSON.stringify(legacy)), { ...life, illnesses: [], notices: [], communityFriends: [] });
+      assert.deepEqual({ ...decodeLife(JSON.stringify(legacy)), social: undefined },
+        { ...life, illnesses: [], notices: [], communityFriends: [], social: undefined });
     }
     const enrollment = life.academic.enrollment;
     if (enrollment) {
@@ -284,4 +356,8 @@ console.log(JSON.stringify({
   dismissals,
   treatedCases,
   noticesReviewed,
+  weddings,
+  children,
+  adoptions,
+  divorces,
 }, null, 2));

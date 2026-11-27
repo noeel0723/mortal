@@ -3,6 +3,7 @@ import { applyCareerEffect } from './career.ts';
 import { eventTitle, recordNotice, resultMeter } from './eventNotices.ts';
 import { clamp } from './journal.ts';
 import { interactionStory } from './relationshipStories.ts';
+import { ensureNpc, isParent, npcProfile, npcRandom, remember } from './npcs.ts';
 import { findContact, isCurrentClassContact, isPeer } from './school.ts';
 import { isWorkContact } from './workplace.ts';
 import type { Contact, Effect, Life } from './types.ts';
@@ -44,7 +45,7 @@ export type RelationshipActivity = keyof typeof relationshipActivities;
 export function contactGroup(person: Contact): ContactGroup {
   if (isWorkContact(person)) return 'worker';
   if ('hobby' in person) return 'peer';
-  if (!('stage' in person)) return 'parent';
+  if (!('stage' in person)) return 'friend' in person ? 'peer' : 'parent';
   return isPeer(person) ? 'peer' : 'educator';
 }
 
@@ -73,8 +74,10 @@ export function relationshipIssue(life: Life, person: Contact, activity: Relatio
   if (!rule.groups.includes(contactGroup(person))) return 'This interaction is unavailable for this relationship.';
   if (life.character.age < rule.age) return `Available from age ${rule.age}.`;
   if (activity === 'ask-allowance') {
+    if (!isParent(life, person.id)) return 'Only a parent can give an allowance.';
     if (life.character.age >= 18) return 'Pocket money is available before age 18.';
     if (person.bond.trust < 45) return 'Build more trust before asking for pocket money.';
+    if (npcProfile(life, person).savings < allowance[life.character.background]) return 'They cannot afford pocket money right now.';
   }
   if (activity === 'gift' && life.character.bank < giftCost) return 'You cannot afford this gift.';
   if (activity === 'discuss-work' && (!isWorkContact(person) || person.employerId !== life.career.current?.employerId)) return 'Available with your current workplace.';
@@ -98,8 +101,11 @@ export function performRelationshipActivity(life: Life, id: string, activity: Re
   const stats = Object.keys(rule.bond) as (keyof Contact['bond'])[];
   const tracked = stats[0]!;
   const previous = person.bond[tracked];
+  const profile = ensureNpc(life, person);
+  const strained = (activity === 'compliment' || activity === 'family-time' || activity === 'hang-out' || activity === 'work-break') &&
+    person.bond.resentment >= 25 && npcRandom(life, `interaction:${id}:${activity}`, life.year).next() > (profile.traits.empathy + person.bond.trust) / 210;
   for (const stat of stats) {
-    person.bond[stat] = clamp(person.bond[stat] + (rule.bond[stat] ?? 0));
+    person.bond[stat] = clamp(person.bond[stat] + Math.round((rule.bond[stat] ?? 0) * (strained ? .45 : 1)));
   }
   const enrollment = life.academic.enrollment;
   if (enrollment && rule.academic) {
@@ -109,12 +115,16 @@ export function performRelationshipActivity(life: Life, id: string, activity: Re
     enrollment.stress = clamp(enrollment.stress + rule.academic.stress);
   }
   const group = contactGroup(person);
+  const conflict = activity === 'insult' || activity === 'mess-with';
+  if (activity === 'ask-allowance') profile.savings -= allowance[life.character.background];
   if (activity === 'discuss-work') applyCareerEffect(life, { performance: 4, stress: -2 });
-  if (isWorkContact(person) && person.employerId === life.career.current?.employerId && (activity === 'insult' || activity === 'mess-with')) {
+  if (isWorkContact(person) && person.employerId === life.career.current?.employerId && conflict) {
     applyCareerEffect(life, { security: activity === 'insult' ? -9 : -5, reputation: -3 });
   }
+  const story = interactionStory(life, person, activity) + (strained ? ' The tension between us was still there.' : '');
+  remember(life, person, story, conflict);
   const notice = recordNotice(life, rule.academic ? 'school' : group === 'parent' ? 'family' : group === 'worker' ? 'career' : 'community',
-    rule.title, interactionStory(life, person, activity), {
+    rule.title, story, {
     energy: -rule.energy, ...rule.effects,
     ...(activity === 'ask-allowance' ? { bank: allowance[life.character.background] } : {}),
   });

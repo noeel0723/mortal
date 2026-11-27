@@ -25,5 +25,6 @@ export const emoji = {
   ambulance: '🚑', eye: '👁️', thoughts: '🧠', blood: '🩸', syringe: '💉',
   court: '⚖️', restaurant: '🍽️', cooking: '🍳', cart: '🛒', camera: '🎥',
   car: '🚗', motorcycle: '🏍️',
+  rose: '🌹', loveLetter: '💌', ring: '💍', brokenHeart: '💔', bottle: '🍼',
 } as const;
 export type Emoji = keyof typeof emoji;

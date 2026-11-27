@@ -7,6 +7,9 @@ import { canMakeFriend, isWorkContact } from './engine/workplace.ts';
 import type { Action, Contact, Life } from './engine/types.ts';
 import { money } from './i18n/en.ts';
 import { profileHealthRows } from './healthView.ts';
+import { npcProfile } from './engine/npcs.ts';
+import { romanceFor } from './engine/love.ts';
+import { childParents, personalityLabels, socialRole } from './socialView.ts';
 import type { Emoji } from './theme/tokens.ts';
 
 const presentation: Record<RelationshipActivity, { label: string; icon: Emoji; detail: string }> = {
@@ -27,22 +30,43 @@ const presentation: Record<RelationshipActivity, { label: string; icon: Emoji; d
   'mess-with': { label: 'Mess With', icon: 'prank', detail: 'Play a prank that may strain the relationship.' },
 };
 
-export function contactRole(person: Contact) {
+export function contactRole(person: Contact, life?: Life) {
+  if (life) return socialRole(life, person);
   return 'friend' in person && person.friend ? 'Friend' : person.role;
 }
 
 export function contactProfileRows(life: Life, person: Contact) {
+  const profile = npcProfile(life, person);
+  const parents = childParents(life, person);
+  const child = life.social.children[person.id];
   return [
-    { label: 'Relationship', value: contactRole(person) },
+    { label: 'Relationship', value: contactRole(person, life) },
     { label: person.alive ? 'Age' : 'Age at death', value: person.age },
     { label: 'Gender identity', value: genderLabels[person.gender] },
     { label: 'City', value: person.city },
     { label: 'Occupation', value: person.occupation },
+    { label: 'Education', value: profile.education },
+    { label: 'Personality', value: personalityLabels(life, person) },
+    { label: 'Interests', value: profile.interests.join(', ') },
+    { label: 'Years known', value: life.year - profile.met },
+    ...(profile.friendsSince !== null ? [{ label: 'Friends since', value: profile.friendsSince }] : []),
+    ...(parents ? [{ label: 'Parents', value: parents }] : []),
+    ...(child ? [{ label: child.adopted ? 'Adopted' : 'Born', value: child.year }] : []),
+    ...(child ? [{ label: 'Learning', value: `${child.learning}%` }, { label: 'Wellbeing', value: `${child.wellbeing}%` },
+      { label: 'Confidence', value: `${child.confidence}%` }] : []),
     ...(isWorkContact(person) ? [{ label: 'Employer', value: employerById.get(person.employerId)?.name ?? person.employerId }] : []),
     ...('hobby' in person ? [{ label: 'Shared hobby', value: person.hobby }] : []),
     { label: 'Health', value: `${person.health}%` },
     ...profileHealthRows(life, person.id),
   ];
+}
+
+export function contactHistory(life: Life, person: Contact) {
+  const profile = npcProfile(life, person);
+  const romance = romanceFor(life, person.id);
+  return [...profile.memories, ...(romance?.history ?? [])]
+    .filter((item, index, all) => all.findIndex((other) => other.year === item.year && other.text === item.text) === index)
+    .sort((a, b) => a.year - b.year).slice(-8).reverse();
 }
 
 export function contactBondRows(person: Contact) {
@@ -56,14 +80,17 @@ export function contactInteractions(life: Life, person: Contact) {
   const blocked = life.character.causeOfDeath ? 'This life has already ended.' :
     life.pending ? 'Resolve the pending decision first.' : null;
   const rows: InteractionRow[] = [];
-  if ('friend' in person && canMakeFriend(person) && !person.friend) {
-    rows.push({ label: 'Become Friends', icon: 'relationships', detail: `Uses ${friendshipEnergyCost} energy. Adds them to Relationships.`,
+  const reconnect = npcProfile(life, person).formerFriend;
+  if ('friend' in person && canMakeFriend(person) && (!person.friend || reconnect)) {
+    rows.push({ label: reconnect ? 'Reconnect' : 'Become Friends', icon: 'relationships', detail: `Uses ${friendshipEnergyCost} energy. Adds them to Relationships.`,
       issue: blocked ?? befriendIssue(life, person.id), action: { type: 'befriend', person: person.id } });
   }
-  rows.push({ label: 'Have a Conversation', icon: 'talk', detail: 'Uses 8 energy. Strengthens affection and trust.',
+  if (person.age >= 3) rows.push({ label: 'Have a Conversation', icon: 'talk', detail: 'Uses 8 energy. Strengthens affection and trust.',
     issue: blocked ?? talkIssue(life, person.id), action: { type: 'talk', person: person.id } });
 
   for (const activity of Object.keys(relationshipActivities) as RelationshipActivity[]) {
+    if (life.social.children[person.id]) continue;
+    if (activity === 'gift' && ['dating', 'engaged', 'married'].includes(romanceFor(life, person.id)?.status ?? '')) continue;
     const rule = relationshipActivities[activity];
     if (!rule.groups.some((allowed) => allowed === group)) continue;
     if (activity === 'study-together' && !canStudyWith(life, person)) continue;

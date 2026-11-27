@@ -6,14 +6,18 @@ import { appearanceChanged, appearanceIssue, mergeAppearance, validFace, validHa
 import { advanceCareer, applyCareerEffect, closeCareerYear, endEmployment, performCareerAction, studyWorkload } from './career.ts';
 import { annualFinance } from './finance.ts';
 import { enqueueNotice, eventTitle, recordNotice, resultMeter } from './eventNotices.ts';
+import { ageFamilyOpportunities, applyFamily } from './familyLife.ts';
 import { advanceIllnesses, startIllness, visitHealthcare } from './health.ts';
 import { playerPatient } from './healthTypes.ts';
 import { contactIssue, performRelationshipActivity } from './interactions.ts';
 import { clamp, record } from './journal.ts';
 import { befriendLibraryGuest, visitLibrary } from './library.ts';
+import { applyLove } from './love.ts';
+import { advanceNpcLives, ageNewPeople, cloneSocial, ensureNpc, remember, syncNpcs } from './npcs.ts';
 import { applyPropertyAction, movingAge } from './property.ts';
 import { seededRandom } from './random.ts';
 import { conversationStory, friendshipStory } from './relationshipStories.ts';
+import { answerSocialEvent, isSocialEvent, offerSocialEvent } from './socialEvents.ts';
 import { advanceContactOccupation, currentClass, findContact, isPeer, isSchoolStage } from './school.ts';
 import { ageWorkplace, canMakeFriend, isWorkContact } from './workplace.ts';
 import { stats } from './types.ts';
@@ -77,7 +81,7 @@ function ageUp(life: Life) {
     person.age += 1;
     if (person.age > 60) person.health = clamp(person.health - 2);
     if (person.age >= maxAge || person.health === 0) person.alive = false;
-    if (person.alive) advanceContactOccupation(person);
+    if (person.alive && !life.social.profiles[person.id]?.job && life.social.profiles[person.id]?.status !== 'retired') advanceContactOccupation(person);
   }
   for (const person of life.communityFriends) {
     if (!person.alive) continue;
@@ -90,9 +94,11 @@ function ageUp(life: Life) {
     }
   }
   ageWorkplace(life, maxAge);
+  ageNewPeople(life, maxAge);
   annualFinance(life, elapsedAge);
   closeCareerYear(life);
   advanceIllnesses(life);
+  advanceNpcLives(life);
   const dies = character.attributes.health === 0 || age >= maxAge ||
     (age >= 72 && random.next() < (age - 69) / 650 + (100 - character.attributes.health) / 1800);
   if (dies) {
@@ -106,6 +112,7 @@ function ageUp(life: Life) {
     return;
   }
   studyWorkload(life);
+  ageFamilyOpportunities(life);
   const graduated = advanceAcademics(life, random);
   advanceCareer(life, random);
   if (age === movingAge) recordNotice(life, 'life', 'Moving Out',
@@ -135,6 +142,7 @@ function ageUp(life: Life) {
     } else recordNotice(life, triggered.category, eventTitle(triggered.id), triggered.text, triggered.effects);
     if (triggered.careerEffects) applyCareerEffect(life, triggered.careerEffects);
   }
+  offerSocialEvent(life);
   life.random = random.state;
 }
 
@@ -160,6 +168,7 @@ export function talkIssue(life: Life, id: string) {
   const issue = contactIssue(life, person);
   if (issue) return issue;
   if (life.character.age < 3) return 'Available from age 3.';
+  if (person.age < 3) return 'They are too young for a conversation.';
   if (life.usedActions.includes(`talk:${id}`)) return 'Already done this year.';
   if (life.character.attributes.energy < 8) return 'You need more energy.';
   return null;
@@ -168,7 +177,7 @@ export function talkIssue(life: Life, id: string) {
 export function befriendIssue(life: Life, id: string) {
   const person = findContact(life, id);
   if (!person || !('friend' in person) || !canMakeFriend(person)) return 'You can only befriend a classmate or co-worker.';
-  if (person.friend) return 'You are already friends.';
+  if (person.friend && !life.social.profiles[person.id]?.formerFriend) return 'You are already friends.';
   const issue = contactIssue(life, person);
   if (issue) return issue;
   if (life.character.attributes.energy < friendshipEnergyCost) return 'You need more energy.';
@@ -197,10 +206,24 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       if (issue) return { error: issue };
       break;
     }
+    case 'meet': case 'romance': case 'wedding': {
+      const issue = applyLove(life, action);
+      if (issue) return { error: issue };
+      break;
+    }
+    case 'plan-child': case 'parent-child': {
+      const issue = applyFamily(life, action);
+      if (issue) return { error: issue };
+      break;
+    }
     case 'choose': {
       const choice = eventById.get(action.event)?.choices?.find(({ id }) => id === action.choice);
       if (life.pending !== action.event || !choice) return { error: 'This decision is no longer available.' };
       life.pending = null;
+      if (isSocialEvent(action.event)) {
+        answerSocialEvent(life, action.event, action.choice);
+        break;
+      }
       if (choice.academicPath) chooseEducationPath(life, choice.academicPath);
       if (choice.academicPath === 'workforce' && !life.career.current && life.career.retiredYear === null) life.career.seeking = true;
       if (choice.careerEffects) applyCareerEffect(life, choice.careerEffects);
@@ -235,8 +258,14 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       const adviser = action.activity === 'academic-talk' ?
         currentClass(life).find((person) => person.alive && (person.role === 'Teacher' || person.role === 'Professor')) : undefined;
       const before = life.character.attributes[item.meter];
+      const repeatable = activity === 'walk' || activity === 'go-to-library';
+      const repeatKey = `repeat:${activity}`;
+      const count = repeatable ? life.usedActions.filter((key) => key === repeatKey).length : 0;
+      if (repeatable && count < 6) life.usedActions.push(repeatKey);
+      const effects = activity === 'walk' ? { health: Math.max(0, 3 - Math.floor(count / 2)), stress: -Math.max(0, 3 - Math.floor(count / 2)) } :
+        activity === 'go-to-library' ? { smarts: Math.max(0, 2 - Math.floor(count / 2)), happiness: count < 4 ? 1 : 0 } : item.effects;
       record(life, academic ? 'school' : 'life', activityStory(life, activity, adviser?.name),
-        academic ? { energy: -activities[activity].energy, ...item.effects } : item.effects);
+        academic ? { energy: -activities[activity].energy, ...effects } : effects);
       if (activity !== 'go-to-library' || !visitLibrary(life)) {
         enqueueNotice(life, item.title, resultMeter(eventTitle(item.meter), before, life.character.attributes[item.meter]));
       }
@@ -251,8 +280,10 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       person.bond.affection = clamp(person.bond.affection + 3);
       person.bond.trust = clamp(person.bond.trust + 2);
       person.bond.familiarity = clamp(person.bond.familiarity + 4);
+      const story = conversationStory(life, person);
+      remember(life, person, story);
       const notice = recordNotice(life, isWorkContact(person) ? 'career' : 'friend' in person ? 'community' : 'family',
-        'A Conversation', conversationStory(life, person), { energy: -8, happiness: 3 });
+        'A Conversation', story, { energy: -8, happiness: 3 });
       notice.meter = resultMeter('Affection', previousAffection, person.bond.affection);
       break;
     }
@@ -262,12 +293,17 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       const person = findContact(life, action.person)!;
       if (!('friend' in person)) return { error: 'This contact cannot become a friend.' };
       const previousAffection = person.bond.affection;
+      const relationship = ensureNpc(life, person);
+      relationship.formerFriend = false;
+      relationship.friendsSince ??= life.year;
       person.friend = true;
       person.bond.affection = clamp(person.bond.affection + 8);
       person.bond.trust = clamp(person.bond.trust + 5);
       person.bond.familiarity = clamp(person.bond.familiarity + 6);
       const work = isWorkContact(person);
-      const notice = recordNotice(life, work ? 'career' : 'school', 'A New Friend', friendshipStory(life, person),
+      const story = friendshipStory(life, person);
+      remember(life, person, story);
+      const notice = recordNotice(life, work ? 'career' : 'stage' in person ? 'school' : 'community', 'A New Friend', story,
         { energy: -friendshipEnergyCost, happiness: 5 });
       notice.meter = resultMeter('Affection', previousAffection, person.bond.affection);
       break;
@@ -302,6 +338,7 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       if (issue) return { error: issue };
     }
   }
+  syncNpcs(life);
   return { life };
 }
 
@@ -312,6 +349,7 @@ function structuredCloneLife(life: Life): Life {
     family: life.family.map((person) => ({ ...person, bond: { ...person.bond } })),
     schoolContacts: life.schoolContacts.map((person) => ({ ...person, bond: { ...person.bond } })),
     communityFriends: life.communityFriends.map((person) => ({ ...person, bond: { ...person.bond } })),
+    social: cloneSocial(life.social),
     property: { ...life.property, owned: [...life.property.owned] },
     career: {
       ...life.career,

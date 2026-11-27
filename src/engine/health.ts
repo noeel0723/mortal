@@ -6,6 +6,7 @@ import { recordNotice } from './eventNotices.ts';
 import { illnessLevels, illnesses, playerPatient } from './healthTypes.ts';
 import type { HealthVisit, IllnessCase, IllnessId, IllnessLevel, PatientService } from './healthTypes.ts';
 import type { Contact, Life } from './types.ts';
+import { allContacts, isFamily } from './npcs.ts';
 
 const effects: Record<IllnessLevel, { health: number; energy: number; cost: number; recovery: number }> = {
   mild: { health: 2, energy: 5, cost: 250, recovery: .88 },
@@ -26,7 +27,8 @@ export function activeIllness(life: Life, patient = playerPatient) {
 }
 
 export function canAccompany(life: Life, person: Contact) {
-  return life.family.some(({ id }) => id === person.id) || ('friend' in person && person.friend);
+  return isFamily(life, person.id) || ('friend' in person && person.friend) ||
+    life.social.romances.some(({ person: id, status, ended }) => id === person.id && status !== 'interest' && ended === null);
 }
 
 function hasIncome(life: Life) {
@@ -110,8 +112,10 @@ export function visitHealthcare(life: Life, visit: HealthVisit) {
     treat(life, activeIllness(life, visit.patient)!, npc, { fee, success, title,
       text: npc ? `I took ${npc.name} to ${destination}.` : `I went to ${destination}.` });
   } else if (visit.service === 'psychiatrist') {
+    const visits = life.usedActions.filter((key) => key === 'psychiatry').length;
+    if (visits < 4) life.usedActions.push('psychiatry');
     recordNotice(life, 'health', 'Psychiatry Session', 'I talked through some of my stress during a psychiatry session.',
-      { stress: -18, happiness: 4, bank: -fee }, 'medical');
+      { stress: -Math.max(4, 18 - visits * 4), happiness: Math.max(0, 4 - visits), bank: -fee }, 'medical');
   } else {
     const { title, text, happiness } = donations[visit.service];
     const reward = donationReward(life, visit.service);
@@ -187,7 +191,7 @@ function chooseIllness(age: number, health: number, random: ReturnType<typeof se
 
 export function advanceIllnesses(life: Life) {
   const random = seededRandom(life.seed ^ Math.imul(life.year, 0xb5297a4d));
-  const contacts = [...life.family, ...life.schoolContacts, ...life.career.contacts, ...life.communityFriends];
+  const contacts = allContacts(life);
   const previouslyIll = new Set(life.illnesses.map(({ patient }) => patient));
   for (const condition of life.illnesses) progressIllness(life, condition, random);
   const { age, attributes } = life.character;
