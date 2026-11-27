@@ -1,10 +1,13 @@
 import { eventById } from '../data/events.ts';
+import { academicStateAtBirth, migrateAcademics } from '../engine/academics.ts';
+import { academicLevels } from '../engine/academicTypes.ts';
 import { validateProfile } from '../engine/create.ts';
-import { createSchoolClass, isSchoolStage } from '../engine/school.ts';
+import { advanceContactOccupation, createSchoolClass, isSchoolStage } from '../engine/school.ts';
 import { maxAge } from '../engine/simulation.ts';
 import { stats } from '../engine/types.ts';
 import type { Life, ProfileInput } from '../engine/types.ts';
 import { cities } from '../data/veyra.ts';
+import { validAcademicState } from './academicCodec.ts';
 
 const record = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -34,7 +37,7 @@ export function decodeLife(json: string): Life {
     throw new Error('This saved life is damaged.');
   }
   if (!record(value)) throw new Error('This saved life is damaged.');
-  if (value.version !== 1) throw new Error('This saved life uses an unsupported version.');
+  if (value.version !== 1 && value.version !== 2) throw new Error('This saved life uses an unsupported version.');
   const { character, family, schoolContacts, journal, pending, scheduled, seen, usedActions, transactions, year } = value;
   if (!record(character) || typeof character.firstName !== 'string' || typeof character.lastName !== 'string' ||
     validateProfile(character as ProfileInput) || !integer(character.age, 0, maxAge) ||
@@ -51,10 +54,13 @@ export function decodeLife(json: string): Life {
   if (!record(attributes) || !stats.every((stat) => bounded(attributes[stat])) ||
     !Array.isArray(family) || !family.every((person: unknown) =>
       savedPerson(person) && (person.role === 'Mother' || person.role === 'Father')) ||
-    (schoolContacts !== undefined && (!Array.isArray(schoolContacts) || schoolContacts.length > 21 ||
-      !schoolContacts.every((person: unknown) => savedPerson(person) && isSchoolStage(person.stage) &&
-        (person.role === 'Teacher' || person.role === 'Classmate') && typeof person.friend === 'boolean' &&
-        (person.role === 'Classmate' || !person.friend)) ||
+    ((value.version === 2 || schoolContacts !== undefined) && (!Array.isArray(schoolContacts) ||
+      !schoolContacts.every((person: unknown) => savedPerson(person) && academicLevels.some((level) => level === person.stage) &&
+        typeof person.friend === 'boolean' && (isSchoolStage(person.stage) ?
+          (person.role === 'Teacher' || person.role === 'Classmate') && (person.role === 'Classmate' || !person.friend) &&
+            person.cohortId === undefined :
+          value.version === 2 && typeof person.cohortId === 'string' && (person.role === 'Professor' || person.role === 'Student') &&
+            (person.role === 'Student' ? integer(person.graduationAge, 18, maxAge) : !person.friend))) ||
       new Set([...family, ...schoolContacts].map((person) => person.id)).size !== family.length + schoolContacts.length)) ||
     !Array.isArray(journal) || !journal.length || !journal.every((entry: unknown) => record(entry) &&
       integer(entry.age, 0, age) && typeof entry.text === 'string' && categories.some((category) => category === entry.category) && effects(entry.changes)) ||
@@ -68,10 +74,18 @@ export function decodeLife(json: string): Life {
     throw new Error('This saved life has invalid simulation data.');
   }
   const life = value as Life;
-  if (schoolContacts === undefined) {
-    life.schoolContacts = [];
-    const stage = life.character.education;
-    if (isSchoolStage(stage)) life.schoolContacts = createSchoolClass(life, stage);
+  if (value.version === 1) {
+    life.version = 2;
+    life.academic = academicStateAtBirth();
+    migrateAcademics(life);
+    if (schoolContacts === undefined) {
+      life.schoolContacts = [];
+      const stage = life.character.education;
+      if (isSchoolStage(stage)) life.schoolContacts = createSchoolClass(life, stage);
+    }
+    for (const person of life.schoolContacts) if (person.alive) advanceContactOccupation(person);
+  } else if (!validAcademicState(value.academic, Number(character.birthYear), year)) {
+    throw new Error('This saved life has invalid academic data.');
   }
   return life;
 }

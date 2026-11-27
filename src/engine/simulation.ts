@@ -1,12 +1,11 @@
 import { eventById, events } from '../data/events.ts';
-import { educationLabels } from '../data/veyra.ts';
+import { advanceAcademics, chooseEducationPath, isTuitionDue, performAcademicAction } from './academics.ts';
+import { clamp, record } from './journal.ts';
 import { seededRandom } from './random.ts';
-import { createSchoolClass, educationAt, findContact, isSchoolStage } from './school.ts';
-import { stats } from './types.ts';
-import type { Action, Category, Contact, Effect, Life } from './types.ts';
+import { advanceContactOccupation, currentClass, findContact, isCurrentClassContact, isPeer, isSchoolStage } from './school.ts';
+import type { Action, Contact, Life } from './types.ts';
 
 export const maxAge = 115;
-export const clamp = (value: number) => Math.max(0, Math.min(100, value));
 export const friendshipEnergyCost = 6;
 
 export const activities = {
@@ -14,24 +13,26 @@ export const activities = {
   rest: { age: 4, energy: 0, effects: { energy: 20, stress: -8 }, text: 'I cleared my schedule and gave myself time to rest.' },
   walk: { age: 4, energy: 9, effects: { health: 3, stress: -3 }, text: 'I went for a long walk around my neighborhood.' },
   study: { age: 6, energy: 16, effects: { smarts: 4, discipline: 3, stress: 3 }, text: 'I spent extra time reviewing my schoolwork.' },
+  library: { age: 6, energy: 8, effects: { smarts: 1 }, text: 'I reviewed material at the school library.' },
+  socialize: { age: 6, energy: 8, effects: { happiness: 3 }, text: 'I got to know my classmates outside lessons.' },
+  extracurricular: { age: 6, energy: 12, effects: { discipline: 2, happiness: 2 }, text: 'I joined a school club and took part in its activities.' },
+  'academic-talk': { age: 6, energy: 7, effects: { stress: -2 }, text: 'I asked for academic feedback.' },
+  exams: { age: 6, energy: 14, effects: { discipline: 1, stress: 4 }, text: 'I prepared for my exams with a practice schedule.' },
 } as const;
 type Activity = keyof typeof activities;
 
-function record(life: Life, category: Category, text: string, effects: Effect = {}) {
-  const changes: Effect = {};
-  const character = life.character;
-  for (const stat of stats) {
-    const previous = character.attributes[stat];
-    character.attributes[stat] = clamp(previous + (effects[stat] ?? 0));
-    if (character.attributes[stat] !== previous) changes[stat] = character.attributes[stat] - previous;
-  }
-  const delta = Math.max(-character.bank, effects.bank ?? 0);
-  if (delta !== 0) {
-    character.bank += delta;
-    changes.bank = delta;
-    life.transactions.push({ year: life.year, label: text, amount: delta });
-  }
-  life.journal.push({ age: character.age, category, text, changes });
+const academicEffects = {
+  study: { performance: 6, attendance: 2, stress: 5 },
+  library: { performance: 3, attendance: 0, stress: -2 },
+  socialize: { performance: 0, attendance: 2, stress: -6 },
+  extracurricular: { performance: 2, attendance: 3, stress: 4 },
+  'academic-talk': { performance: 3, attendance: 2, stress: -4 },
+  exams: { performance: 7, attendance: 0, stress: 7 },
+} as const;
+type AcademicActivity = keyof typeof academicEffects;
+
+export function isAcademicActivity(activity: Activity): activity is AcademicActivity {
+  return Object.hasOwn(academicEffects, activity);
 }
 
 function ageUp(life: Life) {
@@ -61,30 +62,33 @@ function ageUp(life: Life) {
     person.age += 1;
     if (person.age > 60) person.health = clamp(person.health - 2);
     if (person.age >= maxAge || person.health === 0) person.alive = false;
-  }
-  const education = educationAt(age);
-  if (education !== character.education) {
-    character.education = education;
-    if (isSchoolStage(education)) life.schoolContacts.push(...createSchoolClass(life, education));
-    const text = education === 'completed' ? 'I graduated from high school.' : `I started ${educationLabels[education].toLowerCase()}.`;
-    record(life, 'school', text, { smarts: 2, discipline: 1 });
+    if (person.alive) advanceContactOccupation(person);
   }
   const dies = character.attributes.health === 0 || age >= maxAge ||
     (age >= 72 && random.next() < (age - 69) / 650 + (100 - character.attributes.health) / 1800);
   if (dies) {
     character.causeOfDeath = character.attributes.health === 0 ? 'Declining health' : 'Natural causes';
+    life.academic.gapUntil = null;
     life.scheduled = [];
     record(life, 'life', `My life ended at age ${age}.`);
     life.random = random.state;
     return;
   }
+  const graduated = advanceAcademics(life, random);
   for (const consequence of life.scheduled) {
     if (consequence.year === life.year) record(life, 'decision', consequence.text, consequence.effects);
   }
   life.scheduled = life.scheduled.filter(({ year }) => year > life.year);
+  if (graduated && age === 18) {
+    const photo = eventById.get('graduation-photo')!;
+    life.seen.push(photo.id);
+    record(life, photo.category, photo.text, photo.effects);
+  }
   const eligible = events.filter((event) => age >= event.ages[0] && age <= event.ages[1] &&
-    !life.seen.includes(event.id) && (event.eligible?.(life) ?? true));
-  const triggered = eligible.find((event) => event.probability === 1) ??
+    !life.seen.includes(event.id) && !(life.academic.leftSchool && age < 18 && event.category === 'school') &&
+    (event.eligible?.(life) ?? true));
+  const graduationDecision = graduated && !life.seen.includes('graduation-plan') ? eventById.get('graduation-plan') : undefined;
+  const triggered = graduationDecision ?? eligible.find((event) => event.probability === 1) ??
     eligible.filter((event) => random.next() < event.probability * (event.modifier?.(life) ?? 1))
       .map((event) => ({ event, order: random.next() })).sort((a, b) => a.order - b.order)[0]?.event;
   if (triggered) {
@@ -98,7 +102,14 @@ function ageUp(life: Life) {
 export function activityIssue(life: Life, activity: Activity) {
   const entry = activities[activity];
   if (life.character.age < entry.age) return `Available from age ${entry.age}.`;
-  if (activity === 'study' && life.character.education === 'completed') return 'Only available while attending school.';
+  if (isAcademicActivity(activity)) {
+    const enrollment = life.academic.enrollment;
+    if (!enrollment) return 'Only available while attending school or a program.';
+    if (isTuitionDue(enrollment)) return 'Pay this year’s tuition to attend.';
+    if (!isSchoolStage(enrollment.level) && (activity === 'library' || activity === 'extracurricular')) return 'Only offered in school.';
+    if (activity === 'academic-talk' && !currentClass(life).some((person) => person.alive && !isPeer(person))) return 'Your adviser is unavailable.';
+    if (activity === 'socialize' && !currentClass(life).some((person) => person.alive && isPeer(person))) return 'No classmates are available.';
+  }
   if (life.usedActions.includes(activity)) return 'Already done this year.';
   if (life.character.attributes.energy < entry.energy) return 'You need more energy.';
   return null;
@@ -106,7 +117,7 @@ export function activityIssue(life: Life, activity: Activity) {
 
 function contactIssue(life: Life, person: Contact) {
   if (!person.alive) return 'This person is no longer available.';
-  if ('stage' in person && !person.friend && person.stage !== life.character.education) {
+  if ('stage' in person && !person.friend && !isCurrentClassContact(life, person)) {
     return 'This contact is from a previous class.';
   }
   return null;
@@ -125,7 +136,7 @@ export function talkIssue(life: Life, id: string) {
 
 export function befriendIssue(life: Life, id: string) {
   const person = life.schoolContacts.find((contact) => contact.id === id);
-  if (!person || person.role !== 'Classmate') return 'You can only befriend a classmate.';
+  if (!person || !isPeer(person)) return 'You can only befriend a classmate.';
   if (person.friend) return 'You are already friends.';
   const issue = contactIssue(life, person);
   if (issue) return issue;
@@ -145,6 +156,7 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       const choice = eventById.get(action.event)?.choices?.find(({ id }) => id === action.choice);
       if (life.pending !== action.event || !choice) return { error: 'This decision is no longer available.' };
       life.pending = null;
+      if (choice.academicPath) chooseEducationPath(life, choice.academicPath);
       record(life, 'decision', choice.outcome, choice.effects);
       if (choice.delayed) {
         life.scheduled.push({ year: life.year + choice.delayed.years, text: choice.delayed.text, effects: choice.delayed.effects });
@@ -154,9 +166,22 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
     case 'activity': {
       const issue = activityIssue(life, action.activity);
       if (issue) return { error: issue };
-      const item = activities[action.activity];
-      life.usedActions.push(action.activity);
-      record(life, action.activity === 'study' ? 'school' : 'life', item.text, { energy: -item.energy, ...item.effects });
+      const { activity } = action;
+      const item = activities[activity];
+      life.usedActions.push(activity);
+      const academic = isAcademicActivity(activity);
+      if (academic && life.academic.enrollment) {
+        const effect = academicEffects[activity];
+        const enrollment = life.academic.enrollment;
+        enrollment.performance = clamp(enrollment.performance + effect.performance);
+        if (effect.performance) enrollment.performanceRecorded = true;
+        enrollment.attendance = clamp(enrollment.attendance + effect.attendance);
+        enrollment.stress = clamp(enrollment.stress + effect.stress);
+      }
+      const adviser = action.activity === 'academic-talk' ?
+        currentClass(life).find((person) => person.alive && (person.role === 'Teacher' || person.role === 'Professor')) : undefined;
+      record(life, academic ? 'school' : 'life', adviser ? `I asked ${adviser.name} for academic feedback.` : item.text,
+        { energy: -item.energy, ...item.effects });
       break;
     }
     case 'talk': {
@@ -182,6 +207,10 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       record(life, 'school', `I became friends with ${person.name} from my class.`, { energy: -friendshipEnergyCost, happiness: 5 });
       break;
     }
+    default: {
+      const issue = performAcademicAction(life, action);
+      if (issue) return { error: issue };
+    }
   }
   return { life };
 }
@@ -192,6 +221,14 @@ function structuredCloneLife(life: Life): Life {
     character: { ...life.character, attributes: { ...life.character.attributes } },
     family: life.family.map((person) => ({ ...person, bond: { ...person.bond } })),
     schoolContacts: life.schoolContacts.map((person) => ({ ...person, bond: { ...person.bond } })),
+    academic: {
+      ...life.academic,
+      enrollment: life.academic.enrollment ? { ...life.academic.enrollment } : null,
+      history: [...life.academic.history],
+      qualifications: [...life.academic.qualifications],
+      applications: life.academic.applications.map((item) => ({ ...item })),
+      scholarships: life.academic.scholarships.map((item) => ({ ...item })),
+    },
     journal: [...life.journal],
     seen: [...life.seen],
     scheduled: [...life.scheduled],

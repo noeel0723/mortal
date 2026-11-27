@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { ReduceMotion, useAnimatedStyle, withTiming } from 'react-native-reanimated';
-import { educationLabels } from '../data/veyra';
-import type { Character, Stat } from '../engine/types';
+import { educationStatus } from '../engine/academics';
+import type { Life, Stat } from '../engine/types';
 import { en, money, statLabels } from '../i18n/en';
 import { colors, radius, space } from '../theme/tokens';
 import { shared } from './ui';
@@ -24,8 +24,8 @@ function Meter({ stat, value, fill }: { stat: Stat; value: number; fill: string 
   );
 }
 
-export function CharacterCard({ character, year }: { character: Character; year: number }) {
-  const { firstName, lastName, age, city, education, bank, attributes } = character;
+export function CharacterCard({ life }: { life: Life }) {
+  const { firstName, lastName, age, city, bank, attributes } = life.character;
   const initials = [firstName, lastName].map((name) => Array.from(name)[0]).join('').toUpperCase();
   return (
     <View style={styles.card}>
@@ -36,11 +36,11 @@ export function CharacterCard({ character, year }: { character: Character; year:
         <View style={styles.identity}>
           <Text accessibilityRole="header" style={styles.name}>{firstName} {lastName}</Text>
           <Text style={shared.small}>{en.age(age)} · {city}, Veyra</Text>
-          <Text style={shared.small}>{educationLabels[education]}</Text>
+          <Text style={shared.small}>{educationStatus(life)}</Text>
         </View>
       </View>
       <View style={styles.details}>
-        <Text style={styles.year}>Year {year}</Text>
+        <Text style={styles.year}>Year {life.year}</Text>
         <Text style={styles.balance}>Bank <Text style={styles.money}>{money(bank)}</Text></Text>
       </View>
       <View style={styles.meters}>

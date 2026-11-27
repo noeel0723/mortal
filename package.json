@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "node --test tests/*.test.ts",
+    "test:web:education": "node scripts/test-education-browser.mjs",
     "simulate": "node scripts/simulate.ts"
   },
   "dependencies": {

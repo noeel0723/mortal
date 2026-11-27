@@ -77,6 +77,40 @@ test('revision checks reject concurrent writes, and corrupt slots remain listed'
   }
 });
 
+test('SQLite opens a version 1 slot and saves the migrated payload on the next action', async () => {
+  const database = new DatabaseSync(':memory:');
+  try {
+    const adapter = adapt(database);
+    await migrate(adapter);
+    const repository = createRepository(adapter);
+    const slot = await repository.insert('legacy', createLife(988));
+    let life = slot.life;
+    while (life.character.age < 6) {
+      const next = advance(life, { type: 'age' });
+      assert.ok(next.life, next.error);
+      life = next.life;
+    }
+    const legacy = { ...life, version: 1, academic: undefined };
+    database.prepare('UPDATE lives SET payload = ? WHERE id = ?').run(JSON.stringify(legacy), slot.id);
+    const restored = await repository.load(slot.id);
+    assert.equal(restored.life.version, 2);
+    assert.equal(restored.life.pending, 'first-classroom');
+    assert.deepEqual(restored.life.schoolContacts, legacy.schoolContacts);
+    assert.deepEqual(restored.life.journal, legacy.journal);
+    assert.deepEqual(restored.life.transactions, legacy.transactions);
+    assert.deepEqual(restored.life.scheduled, legacy.scheduled);
+    assert.equal(restored.life.random, legacy.random);
+    const next = advance(restored.life, { type: 'choose', event: 'first-classroom', choice: 'join' });
+    assert.ok(next.life, next.error);
+    const saved = await repository.save(restored, next.life);
+    assert.deepEqual(await repository.load(slot.id), saved);
+    const persisted = database.prepare('SELECT payload FROM lives WHERE id = ?').get(slot.id);
+    assert.equal(JSON.parse(String(persisted?.payload)).version, 2);
+  } finally {
+    database.close();
+  }
+});
+
 test('unsupported database versions are rejected without clearing saves', async () => {
   const database = new DatabaseSync(':memory:');
   try {

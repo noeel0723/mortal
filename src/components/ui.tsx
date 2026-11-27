@@ -45,10 +45,10 @@ export function Page({ children, inGame = false, scroll = true }: PropsWithChild
     <SafeAreaView style={styles.page} edges={['top', 'bottom', 'left', 'right']}>{body}</SafeAreaView>;
 }
 
-export function Section({ title, detail, children }: PropsWithChildren<{ title: string; detail?: string }>) {
+export function Section({ title, detail, children }: PropsWithChildren<{ title?: string; detail?: string }>) {
   return (
     <View style={styles.section}>
-      <Text accessibilityRole="header" style={styles.sectionTitle}>{title}</Text>
+      {title && <Text accessibilityRole="header" style={styles.sectionTitle}>{title}</Text>}
       {detail && <Text style={styles.body}>{detail}</Text>}
       {children}
     </View>

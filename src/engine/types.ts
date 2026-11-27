@@ -1,3 +1,5 @@
+import type { AcademicAction, AcademicLevel, AcademicState, GraduationPath } from './academicTypes.ts';
+
 export const stats = ['health', 'happiness', 'smarts', 'looks', 'charisma', 'discipline', 'athleticism', 'creativity', 'stress', 'energy', 'reputation'] as const;
 export type Stat = typeof stats[number];
 export type Gender = 'woman' | 'man' | 'nonbinary';
@@ -40,7 +42,9 @@ export type Person<Role = 'Mother' | 'Father'> = {
   bond: { affection: number; trust: number; respect: number; compatibility: number; resentment: number; familiarity: number };
 };
 
-export type SchoolContact = Person<'Teacher' | 'Classmate'> & { stage: SchoolStage; friend: boolean };
+export type SchoolContact = Person<'Teacher' | 'Classmate' | 'Professor' | 'Student'> & {
+  stage: AcademicLevel; friend: boolean; cohortId?: string; graduationAge?: number;
+};
 export type Contact = Person | SchoolContact;
 
 export type Effect = Partial<Record<Stat | 'bank', number>>;
@@ -53,9 +57,10 @@ export type JournalEntry = {
 export type EventChoice = {
   id: string;
   label: string;
-  emoji: 'accept' | 'decline' | 'study' | 'support' | 'art';
+  emoji: 'accept' | 'decline' | 'study' | 'support' | 'art' | 'university' | 'vocational' | 'career';
   outcome: string;
   effects: Effect;
+  academicPath?: GraduationPath;
   delayed?: { years: number; text: string; effects: Effect };
 };
 export type LifeEvent = {
@@ -71,13 +76,14 @@ export type LifeEvent = {
 };
 
 export type Life = {
-  version: 1;
+  version: 2;
   seed: number;
   random: number;
   character: Character;
   year: number;
   family: Person[];
   schoolContacts: SchoolContact[];
+  academic: AcademicState;
   journal: JournalEntry[];
   seen: string[];
   pending: string | null;
@@ -89,6 +95,7 @@ export type Life = {
 export type Action =
   | { type: 'age' }
   | { type: 'choose'; event: string; choice: string }
-  | { type: 'activity'; activity: 'read' | 'rest' | 'walk' | 'study' }
+  | { type: 'activity'; activity: 'read' | 'rest' | 'walk' | 'study' | 'library' | 'socialize' | 'extracurricular' | 'academic-talk' | 'exams' }
   | { type: 'talk'; person: string }
-  | { type: 'befriend'; person: string };
+  | { type: 'befriend'; person: string }
+  | AcademicAction;

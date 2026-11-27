@@ -4,7 +4,7 @@ import { decodeLife } from '../src/database/codec.ts';
 import { createLife } from '../src/engine/create.ts';
 import { seededRandom } from '../src/engine/random.ts';
 import { currentClass, findContact } from '../src/engine/school.ts';
-import { advance, friendshipEnergyCost, maxAge, talkIssue } from '../src/engine/simulation.ts';
+import { activityIssue, advance, friendshipEnergyCost, maxAge, talkIssue } from '../src/engine/simulation.ts';
 import { events, eventById } from '../src/data/events.ts';
 import type { Action, Life, ProfileInput } from '../src/engine/types.ts';
 
@@ -82,7 +82,7 @@ test('school progresses in order, and age limits govern activities', () => {
   assert.equal(ageTo(15).character.education, 'high');
   const graduate = ageTo(18);
   assert.equal(graduate.character.education, 'completed');
-  assert.match(advance(graduate, { type: 'activity', activity: 'study' }).error ?? '', /attending school/);
+  assert.match(activityIssue(graduate, 'study') ?? '', /attending school/);
 });
 
 test('each school stage generates a stable roster with a teacher and six classmates', () => {
@@ -125,10 +125,17 @@ test('friends keep their identity and can still talk after graduation', () => {
 
 test('opening a legacy student save generates the current roster without losing progress', () => {
   const life = ageTo(7);
-  const legacy = JSON.stringify({ ...life, schoolContacts: undefined });
+  const legacy = JSON.stringify({ ...life, version: 1, academic: undefined, schoolContacts: undefined });
   const restored = decodeLife(legacy);
-  assert.deepEqual(restored, life);
-  assert.deepEqual(decodeLife(JSON.stringify({ ...createLife(10), schoolContacts: undefined })).schoolContacts, []);
+  assert.equal(restored.version, 2);
+  assert.deepEqual(restored.schoolContacts, life.schoolContacts);
+  assert.deepEqual(restored.character, life.character);
+  assert.deepEqual(restored.journal, life.journal);
+  assert.equal(restored.random, life.random);
+  assert.equal(restored.academic.enrollment?.level, 'primary');
+  assert.equal(restored.academic.enrollment?.performanceRecorded, false);
+  assert.deepEqual(restored.academic.history, []);
+  assert.deepEqual(decodeLife(JSON.stringify({ ...createLife(10), version: 1, academic: undefined, schoolContacts: undefined })).schoolContacts, []);
 });
 
 test('pending events are mandatory and grant actual, bounded changes', () => {

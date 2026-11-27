@@ -30,7 +30,7 @@ npm start
 
 Open the project's QR code in an [Expo Go build compatible with SDK 58](https://expo.dev/go). Metro serves the development bundle. A packaged app runs its gameplay and saves locally without a server. Expo Go availability varies by platform. Follow the official [SDK 58 instructions](https://expo.dev/changelog/sdk-58) if your installed Expo Go version differs.
 
-Use `npm run android` with a connected Android device or emulator. Use `npm run ios` for a simulator on macOS with Xcode. To check the two production JavaScript bundles from any supported development host, use `npx expo export --platform android --platform ios`.
+Use `npm run android` with a connected Android device or emulator. Use `npm run ios` for a simulator on macOS with Xcode. To export both native production bundles, use `npx expo export --platform android --platform ios --output-dir dist/native`.
 
 ## Play
 
@@ -41,6 +41,14 @@ Use `npm run android` with a connected Android device or emulator. Use `npm run 
 
 Mortal saves successful turns and decisions before showing them. **Save Life** in the Life Menu also writes the current state manually.
 
+### Advanced education
+
+- Open **School** to see grades, attendance, academic stress, and your class. Study and prepare for exams to improve grades. Talk to your teacher or socialize to manage academic stress.
+- At high school graduation, choose university, vocational training, the workforce, or a gap year. Open **Career → View Education → Browse Programs** to compare courses, apply, and enroll after receiving an offer. Adult High School Equivalency is available to adults without a diploma.
+- Check tuition and scholarships before you enroll. If your balance falls short for the next year, education pauses until you pay, use a scholarship, or decide to withdraw. Open **Academic Records** to see outcomes, qualifications and money received in scholarships. Former school and university friends stay in **Relationships**.
+
+Existing version 1 lives open in version 2 with their progress preserved. Earlier grades are unavailable, and the upgraded payload is written on the next save. Workforce intent and qualification tags are available in this milestone. Jobs, wages, and student loans are planned separately.
+
 ## Verify
 
 ```sh
@@ -48,10 +56,13 @@ npm run typecheck
 npm run lint
 npm test
 npm run simulate -- 2000
+npm run build:web
 npx expo install --check
 ```
 
 For a native smoke test, begin a random life, age to six, and exit with the first-day-of-school decision open. Force close and reopen the app, choose **Continue Life**, and verify the character, year, journal, and pending choice. Resolve the decision and confirm that Age Up becomes available. Repeat with a packaged build in airplane mode to verify offline use independently of Metro.
+
+For the education smoke test, keep `npm run preview:web` running after building and install Playwright Core in the ignored tool directory with `npm install --prefix .expo/web-qa playwright-core`. Run `npm run test:web:education` in another terminal. It uses Edge on Windows by default. Set `MORTAL_BROWSER_PATH` for a different Chromium executable. The test uses a fresh browser context to verify IndexedDB migration, graduation decisions, university admission, scholarships, tuition, and persistent friends.
 
 - [Game design](docs/GAME_DESIGN.md)
 - [Architecture](docs/ARCHITECTURE.md)

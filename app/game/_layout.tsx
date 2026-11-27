@@ -3,6 +3,7 @@ import { Redirect, Slot, router, usePathname } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActionButton, Feedback, Loading } from '../../src/components/ui';
+import { educationTab } from '../../src/educationView';
 import { useGame } from '../../src/stores/game';
 import { colors, emoji, radius, space } from '../../src/theme/tokens';
 
@@ -29,7 +30,7 @@ export default function GameLayout() {
     }
   }
 
-  function go(path: NonNullable<typeof tabs[number]['path']>) {
+  function go(path: NonNullable<typeof tabs[number]['path']> | '/game/education') {
     clearMessage();
     if (pathname === path) router.dismissTo('/game');
     else router.navigate(path);
@@ -45,7 +46,11 @@ export default function GameLayout() {
             <View style={styles.pending}><ActionButton icon="life" label="Resolve decision in journal" onPress={() => router.dismissTo('/game')} /></View>
           )}
           <View accessibilityRole="tablist" style={styles.navigation}>
-            {tabs.map(({ icon, label, path }) => {
+            {tabs.map((tab) => {
+              const student = tab.path === '/game/career' && !!slot.life.academic.enrollment;
+              const path = student ? '/game/education' : tab.path;
+              const icon = student ? 'school' : tab.icon;
+              const label = student ? educationTab(slot.life) : tab.label;
               const active = path !== null && pathname.startsWith(path);
               const disabled = path === null && (busy || !!pending);
               return (

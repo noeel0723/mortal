@@ -1,7 +1,7 @@
 import { Redirect, router } from 'expo-router';
 import { Text } from 'react-native';
 import { ActionButton, DataRow, Heading, Page, Section, shared } from '../../src/components/ui';
-import { educationLabels } from '../../src/data/veyra';
+import { educationStatus } from '../../src/engine/academics';
 import { money } from '../../src/i18n/en';
 import { useGame } from '../../src/stores/game';
 
@@ -17,7 +17,7 @@ export default function Summary() {
       <Section title="A life in Veyra">
         <DataRow label="Age at death" value={character.age} />
         <DataRow label="Cause of death" value={character.causeOfDeath} />
-        <DataRow label="Education" value={educationLabels[character.education]} />
+        <DataRow label="Education" value={educationStatus(life)} />
         <DataRow label="Final bank balance" value={money(character.bank)} />
       </Section>
       <Section title="Family">

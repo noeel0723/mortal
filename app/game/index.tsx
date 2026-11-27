@@ -48,7 +48,7 @@ export default function Journal() {
   const pending = life.pending ? eventById.get(life.pending) : undefined;
   const header = (
     <>
-      <CharacterCard character={life.character} year={life.year} />
+      <CharacterCard life={life} />
       <View style={styles.journalHeading}>
         <Text accessibilityRole="header" style={styles.title}>{en.lifeJournal}</Text>
         <ActionButton icon="world" label="World" onPress={() => router.push('/game/world')} variant="plain" />

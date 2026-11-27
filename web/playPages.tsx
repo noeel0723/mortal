@@ -1,8 +1,15 @@
 import { useEffect, useId, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { backgroundLabels, cities, cityDescriptions, educationLabels, talentLabels } from '../src/data/veyra';
-import { currentClass, isSchoolStage } from '../src/engine/school';
+import { backgroundLabels, cities, cityDescriptions, talentLabels } from '../src/data/veyra';
+import { programById } from '../src/data/academics';
+import { academicProgramName, educationStatus } from '../src/engine/academics';
+import { currentClass, isPeer, isSchoolStage } from '../src/engine/school';
 import { activities, activityIssue, befriendIssue, friendshipEnergyCost, talkIssue } from '../src/engine/simulation';
+import {
+  academicActivities, academicControl, academicRecordGroups, availableProgramGroups, educationOverview, enrollmentControls,
+  enrollmentRows, gradeLabel, programControls, programRows,
+} from '../src/educationView';
+import type { EducationControl } from '../src/educationView';
 import { stats } from '../src/engine/types';
 import type { Contact, Life } from '../src/engine/types';
 import { en, money, statLabels } from '../src/i18n/en';
@@ -15,6 +22,10 @@ export const pageTitles = {
   journal: en.lifeJournal,
   career: 'Career',
   education: 'Education',
+  programs: 'Programs',
+  program: 'Program Details',
+  records: 'Academic Records',
+  withdraw: 'Leave Education',
   class: 'Class',
   'class-person': 'Class Member',
   'class-person-info': 'Character Profile',
@@ -39,6 +50,10 @@ type DetailPage = Exclude<GamePage, 'journal'>;
 
 const parentPages: Partial<Record<DetailPage, GamePage>> = {
   education: 'career',
+  programs: 'education',
+  program: 'programs',
+  records: 'education',
+  withdraw: 'education',
   class: 'education',
   'class-person': 'class',
   'class-person-info': 'class-person',
@@ -50,13 +65,13 @@ const parentPages: Partial<Record<DetailPage, GamePage>> = {
   achievements: 'menu',
 };
 
-export function PlayPageHeader({ page, person, enrolled, go }: { page: DetailPage; person?: Contact; enrolled: boolean; go: Navigate }) {
+export function PlayPageHeader({ page, person, schoolTitle, go }: { page: DetailPage; person?: Contact; schoolTitle?: string; go: Navigate }) {
   let parent = parentPages[page] ?? 'journal';
-  if (page === 'education' && enrolled) parent = 'journal';
+  if (page === 'education' && schoolTitle) parent = 'journal';
   if (!person && page === 'person-info') parent = 'relationships';
   if (!person && page === 'class-person-info') parent = 'class';
   const titleFor = (target: GamePage) => {
-    if (target === 'education' && enrolled) return 'School';
+    if (target === 'education' && schoolTitle) return schoolTitle;
     if ((target === 'person' || target === 'class-person') && person) {
       return target === 'person' && 'stage' in person && person.friend ? 'Friend' : person.role;
     }
@@ -129,14 +144,24 @@ function PersonRow({ person, onClick }: { person: Contact; onClick?: () => void 
 
 const schoolNames = { primary: 'Primary School', secondary: 'Secondary School', high: 'High School' } as const;
 
+function ControlRows({ controls, go }: { controls: EducationControl[]; go: Navigate }) {
+  const { busy, dispatch } = useGame();
+  return controls.map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label}
+    detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onClick={() => {
+      void dispatch(item.action).then((success) => {
+        if (success && (item.action.type === 'enroll-program' || item.action.type === 'drop-out')) go('education');
+      });
+    }} />);
+}
+
 const activityOptions = [
   { id: 'walk', icon: 'walk', label: 'Take a Walk', description: 'Improves health and reduces stress.' },
   { id: 'rest', icon: 'rest', label: 'Rest', description: 'Restores energy and reduces stress.' },
   { id: 'read', icon: 'study', label: 'Read a Book', description: 'Improves smarts and happiness.' },
 ] as const;
 
-export function PlayPage({ life, page, person, go, home, newLife }: {
-  life: Life; page: DetailPage; person?: Contact; go: Navigate; home: () => void; newLife: () => void;
+export function PlayPage({ life, page, person, detail, go, home, newLife }: {
+  life: Life; page: DetailPage; person?: Contact; detail?: string; go: Navigate; home: () => void; newLife: () => void;
 }) {
   const { busy, dispatch, save } = useGame();
   const { character, family } = life;
@@ -145,53 +170,82 @@ export function PlayPage({ life, page, person, go, home, newLife }: {
 
   switch (page) {
     case 'career':
-      return <PageGroup title="Education">
-        <MenuRow icon="school" title="View Education" detail={educationLabels[character.education]} onClick={() => go('education')} />
-      </PageGroup>;
+      return <>
+        <PageGroup title="Education"><Rows items={educationOverview(life)} /></PageGroup>
+        <PageGroup title="Education actions">
+          <MenuRow icon="school" title="View Education" onClick={() => go('education')} />
+        </PageGroup>
+      </>;
     case 'education': {
-      const issue = blocked ?? activityIssue(life, 'study');
-      const schoolAge = [6, 12, 15, 18].find((age) => age > character.age);
-      const stage = character.education;
-      const study = <MenuRow icon="study" title="Study Harder"
-        detail={issue ?? 'Uses 16 energy. Improves smarts and discipline.'} disabled={busy || !!issue}
-        onClick={() => void dispatch({ type: 'activity', activity: 'study' })} />;
-      if (isSchoolStage(stage)) {
-        const classmates = currentClass(life).filter((contact) => contact.role === 'Classmate');
-        const popularity = Math.round(classmates.reduce((total, contact) => total + contact.bond.affection, 0) / (classmates.length || 1));
-        const grades = Math.round((character.attributes.smarts * 2 + character.attributes.discipline) / 3);
-        return <>
+      const enrollment = life.academic.enrollment;
+      const school = enrollment && isSchoolStage(enrollment.level);
+      const classmates = currentClass(life).filter(isPeer);
+      const popularity = Math.round(classmates.reduce((total, contact) => total + contact.bond.affection, 0) / (classmates.length || 1));
+      const fees = enrollmentControls(life);
+      return <>
+        {enrollment ? <>
           <PageGroup title="Enrollment">
-            <MenuRow icon="school" title={`${character.city} ${schoolNames[stage]}`}>
-              <PageMeter label="Grades" value={grades} />
+            <MenuRow icon={school ? 'school' : 'university'} title={isSchoolStage(enrollment.level) ?
+              `${character.city} ${schoolNames[enrollment.level]}` : academicProgramName(enrollment.programId)}>
+              {enrollment.performanceRecorded ? <PageMeter label="Grades" value={enrollment.performance} /> : gradeLabel(enrollment)}
             </MenuRow>
+            <Rows items={enrollmentRows(life)} />
           </PageGroup>
-          <PageGroup title="School activities">
-            <MenuRow icon="classroom" title="Class" detail="Meet your teacher and classmates." onClick={() => go('class')}>
+          <PageGroup title={school ? 'School activities' : 'Program activities'}>
+            <MenuRow icon="classroom" title="Class" detail={school ? 'Meet your teacher and classmates.' : 'Meet your professor and fellow students.'} onClick={() => go('class')}>
               <PageMeter label="Popularity" value={popularity} />
             </MenuRow>
-            {study}
+            <ControlRows controls={academicActivities(life)} go={go} />
           </PageGroup>
-        </>;
-      }
-      return <>
-        <PageGroup title="School progress"><Rows items={[
-          { label: 'Education', value: educationLabels[character.education] },
-          ...(schoolAge ? [{ label: 'Next milestone', value: en.age(schoolAge) }] : []),
-          { label: 'Energy', value: energy },
-        ]} /></PageGroup>
-        <PageGroup title="School activities">{study}</PageGroup>
+          {fees.length > 0 && <PageGroup title="Funding"><ControlRows controls={fees} go={go} /></PageGroup>}
+        </> : <PageGroup title="Education status"><Rows items={educationOverview(life)} /></PageGroup>}
+        <PageGroup title="Academic options">
+          {!enrollment && character.age >= 18 && <MenuRow icon="university" title="Browse Programs" onClick={() => go('programs')} />}
+          <MenuRow icon="history" title="Academic Records" onClick={() => go('records')} />
+          {enrollment && <MenuRow icon="decline" title="Drop Out" onClick={() => go('withdraw')} />}
+        </PageGroup>
       </>;
     }
+    case 'withdraw':
+      return <PageGroup title="Confirm withdrawal">
+        <p className="play-empty">Leaving ends this enrollment. Tuition already paid stays in your transaction history.</p>
+        <ControlRows controls={[academicControl(life, { type: 'drop-out' }, 'Confirm Dropout', 'decline')]} go={go} />
+      </PageGroup>;
+    case 'programs': {
+      const groups = availableProgramGroups(life);
+      if (!groups.length) return <p className="play-empty">Programs open at age 18.</p>;
+      return groups.map(({ level, title, programs }) => (
+        <PageGroup key={level} title={title}>{programs.map((item) => (
+          <MenuRow key={item.id} icon={level === 'vocational' ? 'vocational' : 'university'} title={item.title}
+            detail={`${item.duration} yr · ${money(item.tuition)}/year`} onClick={() => go('program', item.id)} />
+        ))}</PageGroup>
+      ));
+    }
+    case 'program': {
+      const program = programById.get(detail ?? '');
+      if (!program) return <p className="play-empty">This program is unavailable.</p>;
+      return <>
+        <PageGroup title={program.title}><Rows items={programRows(life, program)} /></PageGroup>
+        <PageGroup title="Application"><ControlRows controls={programControls(life, program)} go={go} /></PageGroup>
+      </>;
+    }
+    case 'records':
+      return academicRecordGroups(life).map(({ title, rows }) => (
+        <PageGroup key={title} title={title}>
+          {rows.length ? <Rows items={rows} /> : <p className="play-empty">No records yet.</p>}
+        </PageGroup>
+      ));
     case 'class': {
       const contacts = currentClass(life);
       if (!contacts.length) return <p className="play-empty">You are not enrolled in a class.</p>;
+      const school = life.academic.enrollment && isSchoolStage(life.academic.enrollment.level);
       return <>
-        <PageGroup title="Teacher">
-          {contacts.filter((contact) => contact.role === 'Teacher').map((contact) =>
+        <PageGroup title={school ? 'Teacher' : 'Professor'}>
+          {contacts.filter((contact) => !isPeer(contact)).map((contact) =>
             <PersonRow key={contact.id} person={contact} onClick={() => go('class-person', contact.id)} />)}
         </PageGroup>
-        <PageGroup title="Classmates">
-          {contacts.filter((contact) => contact.role === 'Classmate').map((contact) =>
+        <PageGroup title={school ? 'Classmates' : 'Students'}>
+          {contacts.filter(isPeer).map((contact) =>
             <PersonRow key={contact.id} person={contact} onClick={() => go('class-person', contact.id)} />)}
         </PageGroup>
       </>;
@@ -232,7 +286,7 @@ export function PlayPage({ life, page, person, go, home, newLife }: {
         </PageGroup>
       </>;
       const issue = blocked ?? talkIssue(life, contact.id);
-      const canBefriend = 'stage' in contact && contact.role === 'Classmate' && !contact.friend;
+      const canBefriend = 'stage' in contact && isPeer(contact) && !contact.friend;
       const friendshipIssue = canBefriend ? blocked ?? befriendIssue(life, contact.id) : null;
       return <>
         <PageGroup title="Character">
@@ -313,7 +367,7 @@ export function PlayPage({ life, page, person, go, home, newLife }: {
           <MenuRow icon="person" title={`${character.firstName} ${character.lastName}`} detail={`${character.birthYear}–${life.year}`} />
           <Rows items={[
             { label: 'Age at death', value: character.age }, { label: 'Cause of death', value: character.causeOfDeath },
-            { label: 'Education', value: educationLabels[character.education] }, { label: 'Final bank balance', value: money(character.bank) },
+            { label: 'Education', value: educationStatus(life) }, { label: 'Final bank balance', value: money(character.bank) },
             ...family.map((relative) => ({ label: relative.role, value: relative.name })),
           ]} />
         </PageGroup>

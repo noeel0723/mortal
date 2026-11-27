@@ -1,8 +1,9 @@
 import { useLayoutEffect, useRef } from 'react';
 import { eventById } from '../src/data/events';
-import { educationLabels } from '../src/data/veyra';
+import { educationStatus } from '../src/engine/academics';
 import { findContact, isSchoolStage } from '../src/engine/school';
 import type { Character, JournalEntry, Life, Stat } from '../src/engine/types';
+import { educationTab } from '../src/educationView';
 import { en, money, statLabels } from '../src/i18n/en';
 import type { Emoji } from '../src/theme/tokens';
 import { useGame } from './browserStore';
@@ -12,11 +13,12 @@ import { Button, Feedback } from './ui';
 
 const primaryStats = ['happiness', 'health', 'smarts', 'looks'] as const;
 
-function Profile({ character }: { character: Character }) {
+function Profile({ life }: { life: Life }) {
+  const { character } = life;
   const name = `${character.firstName} ${character.lastName}`;
   const initials = [character.firstName, character.lastName].map((value) => Array.from(value)[0]).join('').toUpperCase();
-  const education = educationLabels[character.education];
-  const status = isSchoolStage(character.education) ? `${education} student` : education;
+  const education = educationStatus(life);
+  const status = isSchoolStage(life.academic.enrollment?.level) ? `${education} student` : education;
   return (
     <section className="character" aria-label="Life overview">
       <div className="profile-identity">
@@ -124,16 +126,16 @@ export function Play({ life, page, personId, go, home, newLife }: {
     }
   }
   const isJournal = page === 'journal';
-  const enrolled = isSchoolStage(life.character.education);
+  const schoolTitle = life.academic.enrollment ? educationTab(life) : undefined;
   const person = findContact(life, personId);
   return (
     <main className="game" id="main">
-      <Profile character={life.character} />
-      {!isJournal && <PlayPageHeader page={page} person={person} enrolled={enrolled} go={go} />}
+      <Profile life={life} />
+      {!isJournal && <PlayPageHeader page={page} person={person} schoolTitle={schoolTitle} go={go} />}
       <div className={`game-content${isJournal ? '' : ' game-content--page'}`} ref={viewport} tabIndex={0} role="region"
         aria-label={isJournal ? 'Journal entries' : undefined} aria-labelledby={isJournal ? undefined : 'play-page-title'}>
         {isJournal ? <Journal life={life} go={go} /> :
-          <PlayPage life={life} page={page} person={person} go={go} home={home} newLife={newLife} />}
+          <PlayPage life={life} page={page} person={person} detail={personId} go={go} home={home} newLife={newLife} />}
         {life.pending && !isJournal && <Button className="game-message" icon="life" onClick={() => go('journal')}>Resolve decision in journal</Button>}
         {page !== 'settings' && <Feedback error={problem} notice={notice} />}
       </div>
@@ -141,10 +143,10 @@ export function Play({ life, page, personId, go, home, newLife }: {
         {navigation.map((item) => {
           if (item.page === 'age') return <Button key={item.page} icon={item.icon} kind="primary" className="age-button"
             disabled={busy || !!life.pending} onClick={() => void age()}>{item.label}</Button>;
-          const isSchool = item.page === 'career' && enrolled;
+          const isSchool = item.page === 'career' && !!schoolTitle;
           const destination = isSchool ? 'education' : item.page;
           return <Button key={item.page} icon={isSchool ? 'school' : item.icon} kind="quiet"
-            onClick={() => go(destination)}>{isSchool ? 'School' : item.label}</Button>;
+            onClick={() => go(destination)}>{isSchool ? schoolTitle : item.label}</Button>;
         })}
       </nav>}
       {isJournal && <LifeStats character={life.character} go={go} />}

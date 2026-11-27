@@ -43,7 +43,17 @@ export const events: readonly LifeEvent[] = [
     ],
   },
   { id: 'finals', ages: [16, 17], category: 'school', probability: .7, text: 'My final exams landed in the same week. I made a schedule and stuck to it.', effects: { smarts: 3, discipline: 3, stress: 6 } },
-  { id: 'graduation-photo', ages: [18, 18], category: 'school', probability: 1, text: 'We took a class photo after graduation. I kept a copy to remember the day.', effects: { happiness: 5 } },
+  { id: 'graduation-photo', ages: [18, 18], category: 'school', probability: 1, eligible: () => false, text: 'We took a class photo after graduation. I kept a copy to remember the day.', effects: { happiness: 5 } },
+  {
+    id: 'graduation-plan', ages: [18, 115], category: 'school', probability: 1, eligible: () => false,
+    text: 'With a high school qualification in hand, I had to decide what to do next.',
+    choices: [
+      { id: 'university', label: 'Apply to University', emoji: 'university', academicPath: 'university', outcome: 'I decided to explore university programs.', effects: {} },
+      { id: 'vocational', label: 'Pursue Vocational Education', emoji: 'vocational', academicPath: 'vocational', outcome: 'I decided to explore vocational training.', effects: {} },
+      { id: 'workforce', label: 'Enter the Workforce', emoji: 'career', academicPath: 'workforce', outcome: 'I set my sights on joining the workforce.', effects: {} },
+      { id: 'gap-year', label: 'Take a Gap Year', emoji: 'study', academicPath: 'gap-year', outcome: 'I planned to take a year away from formal education.', effects: { stress: -4 } },
+    ],
+  },
   {
     id: 'neighborhood-grant', ages: [19, 28], category: 'community', probability: .46, eligible: (life) => life.character.attributes.discipline >= 48, text: 'The neighborhood council asked for volunteers to restore a neglected courtyard.',
     choices: [

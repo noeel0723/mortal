@@ -1,5 +1,6 @@
 import { backgrounds, cities, country, defaultBirthYear, firstBirthYear, genders, givenNames, lastBirthYear, surnames, talents } from '../data/veyra.ts';
 import { seededRandom } from './random.ts';
+import { academicStateAtBirth } from './academics.ts';
 import type { Life, Person, ProfileInput, Stat } from './types.ts';
 
 const occupations = {
@@ -77,13 +78,14 @@ export function createLife(seed: number, profile?: ProfileInput): Life {
   const bank = birthSavings[input.background];
   const personality = random.pick(['curious', 'steady', 'outgoing', 'thoughtful'] as const);
   return {
-    version: 1,
+    version: 2,
     seed: seed >>> 0,
     random: random.state,
     character: { ...input, firstName, lastName, age: 0, attributes, bank, personality, education: 'early', causeOfDeath: null },
     year: input.birthYear,
     family,
     schoolContacts: [],
+    academic: academicStateAtBirth(),
     journal: [{ age: 0, category: 'life', text: `I was born in ${input.city}, Veyra.`, changes: {} }],
     seen: [],
     pending: null,
