@@ -3,8 +3,9 @@ import type { ProfileInput } from '../src/engine/types';
 import { en } from '../src/i18n/en';
 import { useGame } from './browserStore';
 import { Achievements, CustomLife, NewLife, SavedLives, Settings, Welcome } from './menu';
-import { gamePages, Play } from './play';
-import type { GamePage } from './play';
+import { Play } from './play';
+import { pageTitles } from './playPages';
+import type { GamePage } from './playPages';
 import { Button, Feedback, Heading, Mark } from './ui';
 
 const readHash = () => window.location.hash;
@@ -28,7 +29,7 @@ export function App() {
   const [section, routeId, routePage, detail] = hash.slice(1).split('/');
   const playId = section === 'play' && routeId && /^[a-z0-9-]+$/.test(routeId) ? routeId : undefined;
   const activeLife = playId && slot?.id === playId ? slot.life : undefined;
-  const page = gamePages.find((item) => item === routePage) ?? 'journal';
+  const page: GamePage = routePage && Object.hasOwn(pageTitles, routePage) ? routePage as GamePage : 'journal';
   const loadedId = slot?.id;
   const attemptedId = useRef<string | null>(null);
 
@@ -57,7 +58,7 @@ export function App() {
   if (section === 'play') {
     content = activeLife && playId ? <Play key={playId} life={activeLife} page={page} personId={detail}
       go={(next, person) => navigate(playUrl(playId, next, person))} home={() => navigate()} newLife={() => navigate('new')} /> :
-      <main className="inner inner--narrow" id="main">
+      <main className="inner" id="main">
         <Heading title={problem || !playId ? 'Life unavailable' : 'Opening your life…'} />
         <Feedback error={problem} />
         <Button icon="load" disabled={busy} onClick={() => navigate('saves')}>Saved Lives</Button>
@@ -69,7 +70,7 @@ export function App() {
   } else if (section === 'saves') {
     content = <SavedLives open={enter} />;
   } else if (section === 'achievements' || section === 'settings') {
-    content = <main className="inner inner--narrow" id="main">
+    content = <main className="inner" id="main">
       <Heading title={section === 'achievements' ? 'Achievements' : 'Settings'} />
       <section className="surface panel">{section === 'achievements' ? <Achievements /> : <Settings />}</section>
     </main>;
@@ -77,17 +78,16 @@ export function App() {
     content = <Welcome onOpen={enter} navigate={navigate} />;
   }
 
-  return <>
-    <header className="masthead">
+  return <div className="mortal-frame">
+    {(!activeLife || page === 'journal') && <header className="masthead">
       <div className="masthead-inner">
         <button type="button" className="brand" aria-label="Mortal Main Menu" disabled={busy} onClick={() => navigate()}>
           <Mark /><span>{en.title}</span>
         </button>
-        {activeLife && playId ? <Button icon="settings" kind="quiet" onClick={() => navigate(playUrl(playId, page === 'menu' ? 'journal' : 'menu'))}>
-          {page === 'menu' ? 'Journal' : 'Life Menu'}
-        </Button> : section ? <Button icon="home" kind="quiet" onClick={() => navigate()}>Main Menu</Button> : null}
+        {activeLife && playId ? <Button icon="settings" kind="quiet" onClick={() => navigate(playUrl(playId, 'menu'))}>Life Menu</Button> :
+          section ? <Button icon="home" kind="quiet" onClick={() => navigate()}>Main Menu</Button> : null}
       </div>
-    </header>
-    {content}
-  </>;
+    </header>}
+    {activeLife ? content : <div className="frame-scroll" key={hash}>{content}</div>}
+  </div>;
 }

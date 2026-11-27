@@ -85,7 +85,7 @@ export function CustomLife({ start, cancel }: { start: (profile: ProfileInput) =
     start(profile);
   }
   return (
-    <main className="inner inner--narrow" id="main">
+    <main className="inner" id="main">
       <Heading title="Custom Life" action={<Button icon="close" kind="quiet" onClick={cancel}>Cancel</Button>} />
       <form onSubmit={submit} className="surface profile-form">
         <div className="field-grid">
@@ -121,7 +121,7 @@ export function SavedLives({ open }: { open: (id: string) => void }) {
     if (await remove(id)) setDeleting(null);
   }
   return (
-    <main className="inner inner--narrow" id="main">
+    <main className="inner" id="main">
       <Heading title="Saved Lives" detail="Stored in this browser." />
       <Feedback error={problem} notice={notice} />
       <section className="surface saves-list" aria-label="Saved lives">
