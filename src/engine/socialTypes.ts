@@ -17,7 +17,7 @@ export const romanceStatuses = ['interest', 'dating', 'engaged', 'married', 'bro
 export type Romance = { person: string; status: typeof romanceStatuses[number]; started: number; engagement: number | null;
   wedding: number | null; ended: number | null; history: { year: number; text: string }[] };
 export const socialEvents = ['social-dinner', 'social-time', 'social-proposal', 'social-support', 'social-school', 'social-finances',
-  'social-dating-match', 'social-casual-match', 'social-affair'] as const;
+  'social-dating-match', 'social-casual-match', 'social-affair', 'social-make-love', 'social-hookup', 'social-threesome'] as const;
 export type SocialEventId = typeof socialEvents[number];
 export const datingSources = ['spotlight', 'date', 'app', 'lgbtq', 'casual', 'matchmaking'] as const;
 export type DatingSource = typeof datingSources[number];
@@ -25,11 +25,16 @@ export type ChildRecord = { year: number; adopted: boolean; wellbeing: number; l
 export type SocialState = {
   people: SocialPerson[]; profiles: Record<string, NpcProfile>;
   parents: Record<string, string[]>; children: Record<string, ChildRecord>;
-  romances: Romance[]; pendingPerson: string | null;
+  romances: Romance[]; pendingPerson: string | null; pendingGuest?: string;
 };
 export const romanticActivities = ['date', 'gift', 'dinner', 'movie', 'support', 'future', 'apologize'] as const;
 export const parentingActivities = ['care', 'read', 'school', 'hobby', 'lesson', 'gift', 'support', 'future'] as const;
+export type IntimacyAction =
+  | { type: 'intimacy'; encounter: 'make-love'; person: string }
+  | { type: 'intimacy'; encounter: 'hookup' }
+  | { type: 'intimacy'; encounter: 'threesome'; first: string; second: string };
 export type SocialAction =
+  | IntimacyAction
   | { type: 'meet'; source: 'neighborhood' | 'hobbies' | 'date' | 'app' }
   | { type: 'dating-match'; source: DatingSource }
   | { type: 'romance'; person: string; action: 'interest' | 'ask' | 'propose' | 'breakup' | 'divorce' | typeof romanticActivities[number] }

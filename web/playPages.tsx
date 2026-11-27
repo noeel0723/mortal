@@ -18,6 +18,7 @@ import { workAge, workHours } from '../src/engine/career';
 import { industries } from '../src/engine/careerTypes';
 import { currentClass, findContact, isPeer, isSchoolStage } from '../src/engine/school';
 import { romanceLabels } from '../src/engine/love';
+import { intimacyGuests, intimacyIssue } from '../src/engine/intimacy';
 import { childParents, datingCandidates, datingControls, datingSummary, familyTreeGroups, meetingControls, relationshipControls, relationshipGroups } from '../src/socialView';
 import { canEditFace } from '../src/engine/appearance';
 import { propertyIssue, propertyQuote } from '../src/engine/property';
@@ -95,6 +96,7 @@ export const pageTitles = {
   transactions: 'Transaction History',
   activities: 'Activities',
   love: 'Love',
+  threesome: 'Threesome',
   'mind-body': 'Mind & Body',
   doctor: 'Doctors',
   appearance: 'Appearance',
@@ -166,6 +168,7 @@ const parentPages: Partial<Record<DetailPage, GamePage>> = {
   appearance: 'activities',
   doctor: 'activities',
   love: 'activities',
+  threesome: 'love',
   'mind-body': 'activities',
   skills: 'statistics',
   'skill-training': 'activities',
@@ -313,14 +316,33 @@ function DoctorsPage({ life }: { life: Life }) {
   </>;
 }
 
-function PersonRow({ person, life, detail, onClick, opensDialog }: {
-  person: Contact; life?: Life; detail?: string; onClick?: () => void; opensDialog?: boolean;
+function PersonRow({ person, life, detail, onClick, opensDialog, disabled }: {
+  person: Contact; life?: Life; detail?: string; onClick?: () => void; opensDialog?: boolean; disabled?: boolean;
 }) {
   const role = contactRole(person, life);
-  return <MenuRow title={person.name} avatar={<Portrait appearance={person.appearance} age={person.age} />} onClick={onClick} opensDialog={opensDialog}
+  return <MenuRow title={person.name} avatar={<Portrait appearance={person.appearance} age={person.age} />} onClick={onClick}
+    opensDialog={opensDialog} disabled={disabled}
     detail={detail ?? `${role} · ${person.alive ? en.age(person.age) : 'Deceased'}`}>
     <PageMeter label="Affection" value={person.bond.affection} />
   </MenuRow>;
+}
+
+function GroupEncounter({ life }: { life: Life }) {
+  const { busy, dispatch } = useGame();
+  const [selected, select] = useState<string>();
+  const candidates = intimacyGuests(life);
+  const first = candidates.find(({ id }) => id === selected);
+  const issue = intimacyIssue(life, { encounter: 'threesome' });
+  return <PageGroup title={first ? 'Choose Second Guest' : 'Choose First Guest'}>
+    {issue && !life.pending && <p className="play-empty">{issue}</p>}
+    {first && <MenuRow icon="person" title="Change First Guest" detail={first.name} disabled={busy} onClick={() => select(undefined)} />}
+    {(first ? intimacyGuests(life, first) : candidates).map((person) =>
+      <PersonRow key={person.id} life={life} person={person} opensDialog={!!first} disabled={busy || !!issue} onClick={() => {
+        if (!first) select(person.id);
+        else void dispatch({ type: 'intimacy', encounter: 'threesome', first: first.id, second: person.id })
+          .then((success) => { if (success) select(undefined); });
+      }} />)}
+  </PageGroup>;
 }
 
 function ControlRows({ controls, go }: { controls: EducationControl[]; go: Navigate }) {
@@ -499,7 +521,8 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
   const job = life.career.current;
   const canFindJob = character.age >= workAge && !character.causeOfDeath && life.career.retiredYear === null;
   const activityRow = (item: ActivityControl) => <MenuRow key={item.label} icon={item.icon} title={item.label}
-    detail={item.issue ?? item.detail} disabled={busy || !!item.issue} opensDialog={item.action.type === 'dating-match'}
+    detail={item.issue ?? item.detail} disabled={busy || !!item.issue}
+    opensDialog={item.action.type === 'dating-match' || item.action.type === 'intimacy'}
     onClick={() => void dispatch(item.action)} />;
 
   switch (page) {
@@ -757,7 +780,8 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
         </PageGroup>
         {social.length > 0 && <PageGroup title={contact.role === 'Child' ? 'Parenting' : 'Love Life'}>
           {social.map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label}
-            detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onClick={() => void dispatch(item.action)} />)}
+            detail={item.issue ?? item.detail} disabled={busy || !!item.issue} opensDialog={item.action.type === 'intimacy'}
+            onClick={() => void dispatch(item.action)} />)}
         </PageGroup>}
         <PageGroup title="Interactions">
           {contactInteractions(life, contact).map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label}
@@ -866,8 +890,15 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
         </PageGroup>
         <PageGroup title="Travel">{lifestyleActivities(life, 'Travel').map(activityRow)}</PageGroup>
       </>;
-    case 'love':
-      return <PageGroup title="Dating">{datingControls(life).map(activityRow)}</PageGroup>;
+    case 'love': {
+      const issue = intimacyIssue(life, { encounter: 'threesome' });
+      return <PageGroup title="Dating">{datingControls(life).map(activityRow)}
+        <MenuRow icon="classroom" title="Threesome" detail={issue ?? 'Choose two adults to invite.'}
+          disabled={busy || !!issue} onClick={() => go('threesome')} />
+      </PageGroup>;
+    }
+    case 'threesome':
+      return <GroupEncounter life={life} />;
     case 'mind-body':
       return <PageGroup title="Wellbeing Activities">{mindAndBodyActivities(life).map(activityRow)}</PageGroup>;
     case 'doctor':

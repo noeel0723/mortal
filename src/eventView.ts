@@ -25,7 +25,8 @@ type EventPopup = {
 export function eventPopup(life: Life): EventPopup | undefined {
   const event = life.pending ? eventById.get(life.pending) : undefined;
   if (event?.choices?.length) return {
-    key: `decision-${event.id}`, title: event.id === 'social-affair' ? 'Caught Dating' : eventTitle(event.id.replace(/^social-/, '')),
+    key: `decision-${event.id}`, title: event.id === 'social-affair' ? 'Caught Dating' :
+      event.id === 'social-hookup' ? 'Hook Up' : eventTitle(event.id.replace(/^social-/, '')),
     text: isSocialEvent(event.id) ? socialEventText(life, event) : eventStory(life, event), category: categories[event.category],
     actions: event.choices.map((choice) => ({ label: choice.label, icon: choice.emoji,
       action: { type: 'choose', event: event.id, choice: choice.id } })),

@@ -2,11 +2,12 @@ import { jobById } from '../data/jobs.ts';
 import { skills } from '../data/skills.ts';
 import { socialEventCatalog } from '../data/socialEvents.ts';
 import { recordNotice } from './eventNotices.ts';
+import { answerIntimacy, isIntimacyEvent, prepareIntimacy } from './intimacy.ts';
 import { clamp, record } from './journal.ts';
 import { activeRomances, changeRomance, committedRomance, endRomance, loveIssue, romanceFor, romanceHistory } from './love.ts';
 import { allContacts, ensureNpc, makeNpc, npcRandom, remember } from './npcs.ts';
 import { findContact } from './school.ts';
-import type { DatingSource, SocialAction, SocialEventId } from './socialTypes.ts';
+import type { DatingSource, IntimacyAction, SocialAction, SocialEventId } from './socialTypes.ts';
 import type { Life, LifeEvent } from './types.ts';
 
 const matchIntroductions: Record<DatingSource, string> = {
@@ -26,9 +27,22 @@ export function socialEventText(life: Life, event: LifeEvent) {
     if (other) return `${person.name} found out I was also dating ${other.name}. ${person.name} told me our relationship was over. How will I respond?`;
   }
   if (!person) return event.text;
-  const identity = event.id === 'social-dating-match' || event.id === 'social-casual-match' ?
+  if (event.id === 'social-make-love') return `I want to ask ${person.name} to spend the night together. ${event.text}`;
+  if (event.id === 'social-threesome') {
+    const guest = findContact(life, life.social.pendingGuest);
+    return guest ? `I'm thinking about inviting ${person.name} and ${guest.name}. I’ll only go ahead if both of them agree.` : event.text;
+  }
+  const identity = event.id === 'social-dating-match' || event.id === 'social-casual-match' || event.id === 'social-hookup' ?
     `${person.name} (age ${person.age})` : person.name;
   return `${identity} ${event.text}`;
+}
+
+export function applyIntimacy(life: Life, action: IntimacyAction) {
+  const invitation = prepareIntimacy(life, action);
+  if (typeof invitation === 'string') return invitation;
+  if (invitation.guest) life.social.pendingGuest = invitation.guest;
+  queueSocialEvent(life, invitation.event, invitation.person);
+  return null;
 }
 
 function queueSocialEvent(life: Life, id: SocialEventId, person: string) {
@@ -109,9 +123,15 @@ export function offerSocialEvent(life: Life) {
 
 export function answerSocialEvent(life: Life, id: string, choice: string) {
   const person = findContact(life, life.social.pendingPerson ?? undefined);
+  const guest = findContact(life, life.social.pendingGuest);
   life.social.pendingPerson = null;
+  delete life.social.pendingGuest;
   if (!person?.alive) return;
   const accepted = choice === 'accept';
+  if (isIntimacyEvent(id)) {
+    answerIntimacy(life, id, person, guest, accepted);
+    return;
+  }
   if (id === 'social-dating-match' || id === 'social-casual-match') {
     const dating = id === 'social-dating-match';
     const text = !accepted ? `I thanked ${person.name} for the invitation and decided to pass.` : dating ?

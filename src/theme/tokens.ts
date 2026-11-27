@@ -26,7 +26,7 @@ export const emoji = {
   court: '⚖️', restaurant: '🍽️', cooking: '🍳', cart: '🛒', camera: '🎥',
   car: '🚗', motorcycle: '🏍️',
   rose: '🌹', loveLetter: '💌', ring: '💍', brokenHeart: '💔', bottle: '🍼',
-  star: '🌟', datingPhone: '📱', pride: '🏳️‍🌈',
+  star: '🌟', datingPhone: '📱', pride: '🏳️‍🌈', night: '🌙',
   football: '⚽', basketball: '🏀', tennis: '🎾', swimming: '🏊', running: '👟', martialArts: '🥋',
   guitar: '🎸', piano: '🎹', violin: '🎻', drums: '🥁', singing: '🎤', drawing: '✏️',
   photography: '📷', acting: '🎭', math: '📐', leadership: '🧑‍💼', chess: '♟️', languages: '💬',

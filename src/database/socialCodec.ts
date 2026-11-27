@@ -2,6 +2,7 @@ import { jobById } from '../data/jobs.ts';
 import { cities, genders } from '../data/veyra.ts';
 import { allContacts, newPeopleLimit } from '../engine/npcs.ts';
 import { isActiveRomance } from '../engine/love.ts';
+import { canShareInvitation, isIntimacyContact, isIntimacyEvent } from '../engine/intimacy.ts';
 import { employment, npcEducation, romanceStatuses, socialEvents, traits } from '../engine/socialTypes.ts';
 import type { Life } from '../engine/types.ts';
 
@@ -75,9 +76,21 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
     seen.add(entry.person);
     if ((entry.status === 'engaged' || entry.status === 'married') && ++commitments > 1) return false;
   }
+  if (life.pending !== 'social-threesome' && social.pendingGuest !== undefined) return false;
   if (!socialEvents.some((event) => event === life.pending)) return social.pendingPerson === null;
   const participant = contacts.find(({ id, alive }) => id === social.pendingPerson && alive);
   if (!participant) return false;
+  if (isIntimacyEvent(life.pending)) {
+    if (character.age < 18 || participant.age < 18 || participant.city !== character.city) return false;
+    if (life.pending === 'social-hookup') {
+      return participant.id === `npc-hookup-${year}` && participant.role === 'Acquaintance' && !seen.has(participant.id) &&
+        social.profiles[participant.id]!.preferences.includes(character.gender);
+    }
+    if (!isIntimacyContact(life, participant)) return false;
+    if (life.pending === 'social-make-love') return true;
+    const guest = contacts.find(({ id }) => id === social.pendingGuest);
+    return !!guest && guest.city === character.city && isIntimacyContact(life, guest) && canShareInvitation(life, participant, guest);
+  }
   if (life.pending === 'social-affair') {
     const partners = social.romances.filter(isActiveRomance);
     return partners.some(({ person }) => person === participant.id) &&

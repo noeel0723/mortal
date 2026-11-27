@@ -113,6 +113,12 @@ try {
   assert.deepEqual(saved.social.parents[child.id], ['self', friend.id]);
   assert.equal(saved.communityFriends.filter(({ id }) => id === friend.id).length, 1);
   assert.equal(saved.character.bank, saved.transactions.reduce((sum, { amount }) => sum + amount, 0));
+  await click(friend.name);
+  await click('Make Love');
+  await dialog('Make Love').waitFor();
+  await click('Not Now');
+  await dialog('Make Love').waitFor({ state: 'hidden' });
+  await click('Back to Relationships');
 
   await click('Close Relationships');
   await page.setViewportSize({ width: 320, height: 740 });
@@ -126,7 +132,9 @@ try {
   await click('Back to Activities');
   await click('Love');
   await heading('Love').waitFor();
-  for (const label of ['Spotlight Dating', 'Find a Date', 'Dating App', 'LGBTQ+ Dating', 'Casual Date', 'Matchmaking']) await button(label).waitFor();
+  for (const label of ['Spotlight Dating', 'Find a Date', 'Dating App', 'LGBTQ+ Dating', 'Casual Date', 'Matchmaking', 'Hook Up', 'Threesome']) {
+    await button(label).waitFor();
+  }
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await click('Find a Date');
   await dialog('Dating Match').waitFor();
@@ -161,10 +169,38 @@ try {
   await click('Family');
   await click('Open Love Life');
   await heading('Current Partners').waitFor();
-  const partners = (await read()).social.romances.filter(({ status }) => status === 'dating');
+  const { social } = await read();
+  const partners = social.romances.filter(({ status }) => status === 'dating').map(({ person }) => social.people.find(({ id }) => id === person));
   assert.equal(partners.length, 2);
+  await click(partners[0].name);
+  await click('Make Love');
+  await dialog('Make Love').waitFor();
+  await click('Not Now');
+  await dialog('Make Love').waitFor({ state: 'hidden' });
   await click('Back to Relationships');
   await click('Close Relationships');
+  await click('Activities');
+  await click('Love');
+  await click('Threesome');
+  await heading('Choose First Guest').waitFor();
+  await click(partners[0].name);
+  await heading('Choose Second Guest').waitFor();
+  await click(partners[1].name);
+  const group = dialog('Threesome');
+  await group.waitFor();
+  await page.reload();
+  const invitation = group.locator('.event-story');
+  await invitation.waitFor();
+  const groupStory = await invitation.textContent();
+  for (const person of partners) assert.ok(groupStory.includes(person.name));
+  assert.equal((await read()).social.pendingGuest, partners[1].id);
+  await click('Ask Both');
+  await dialog('Just the Three of Us').or(dialog('Invitation Declined')).waitFor();
+  await acknowledgeEvents(page);
+  assert.equal((await read()).social.pendingGuest, undefined);
+  await click('Back to Love');
+  await click('Back to Activities');
+  await click('Close Activities');
 
   let discoverer;
   for (let turn = 0; turn < 20; turn++) {
@@ -197,9 +233,19 @@ try {
   const afterDiscovery = (await read()).social.romances;
   assert.equal(afterDiscovery.find(({ person }) => person === discoverer).status, 'broken-up');
   assert.equal(afterDiscovery.filter(({ ended, status }) => ended === null && ['dating', 'engaged'].includes(status)).length, 1);
+  await click('Activities');
+  await click('Love');
+  await click('Hook Up');
+  await dialog('Hook Up').waitFor();
+  const matchId = (await read()).social.pendingPerson;
+  await click('Spend the Night');
+  await dialog('A Night Together').waitFor();
+  await acknowledgeEvents(page);
+  assert.ok((await read()).social.people.some(({ id }) => id === matchId));
+  assert.deepEqual((await read()).social.romances, afterDiscovery);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   assert.deepEqual(errors, []);
-  console.log('Social smoke passed at 320px and 390px: migration, family progression, Activities navigation, multiple partners and discovery after reload.');
+  console.log('Social smoke passed at 320px and 390px: family progression, concurrent dating, adult encounters and pending popups after reload.');
 } finally {
   await browser.close();
 }

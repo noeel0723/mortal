@@ -1,14 +1,18 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
+import { Portrait } from '../../src/components/portrait';
 import { ActionButton, Heading, Page, Section } from '../../src/components/ui';
 import { lifestyleActivities, mindAndBodyActivities, socialActivities, type ActivityControl } from '../../src/activityView';
 import { canEditFace } from '../../src/engine/appearance';
+import { intimacyGuests, intimacyIssue } from '../../src/engine/intimacy';
 import { activitySkillCategories } from '../../src/skillView';
-import { datingControls } from '../../src/socialView';
+import { datingControls, socialRole } from '../../src/socialView';
 import { useGame } from '../../src/stores/game';
 
 export default function Activities() {
   const { screen } = useLocalSearchParams<{ screen?: string }>();
   const { slot, busy, dispatch } = useGame();
+  const [selected, select] = useState<string>();
   if (!slot) return null;
   const life = slot.life;
 
@@ -19,14 +23,39 @@ export default function Activities() {
     );
   }
 
+  if (screen === 'threesome') {
+    const candidates = intimacyGuests(life);
+    const first = candidates.find(({ id }) => id === selected);
+    const issue = intimacyIssue(life, { encounter: 'threesome' });
+    return <Page inGame>
+      <Heading title="Threesome" back={() => router.canGoBack() ? router.back() :
+        router.replace({ pathname: '/game/activities', params: { screen: 'love' } })} />
+      <Section title={first ? 'Choose Second Guest' : 'Choose First Guest'} detail={life.pending ? undefined : issue ?? undefined}>
+        {first && <ActionButton icon="person" label="Change First Guest" detail={first.name} disabled={busy} onPress={() => select(undefined)} />}
+        {(first ? intimacyGuests(life, first) : candidates).map((person) =>
+          <ActionButton key={person.id} icon="person" label={person.name} detail={socialRole(life, person)}
+            leading={<Portrait appearance={person.appearance} age={person.age} size={36} />}
+            disabled={busy || !!issue} onPress={() => {
+              if (!first) select(person.id);
+              else void dispatch({ type: 'intimacy', encounter: 'threesome', first: first.id, second: person.id })
+                .then((success) => { if (success) select(undefined); });
+            }} />)}
+      </Section>
+    </Page>;
+  }
+
   if (screen === 'love' || screen === 'mind-body') {
     const love = screen === 'love';
+    const groupIssue = love ? intimacyIssue(life, { encounter: 'threesome' }) : null;
     return (
       <Page inGame>
         <Heading title={love ? 'Love' : 'Mind & Body'}
           back={() => router.canGoBack() ? router.back() : router.replace('/game/activities')} />
         <Section title={love ? 'Dating' : 'Wellbeing Activities'}>
           {(love ? datingControls(life) : mindAndBodyActivities(life)).map(action)}
+          {love && <ActionButton icon="classroom" label="Threesome" detail={groupIssue ?? 'Choose two adults to invite.'}
+            disabled={busy || !!groupIssue}
+            onPress={() => router.push({ pathname: '/game/activities', params: { screen: 'threesome' } })} />}
         </Section>
       </Page>
     );

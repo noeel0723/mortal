@@ -1,10 +1,11 @@
 import { adoptionCost, familyIssue, parenting } from './engine/familyLife.ts';
 import { activeRomances, dateActivities, datingCompatibility, isActiveRomance, loveIssue, romanceFor, romanceLabels, weddingPlans } from './engine/love.ts';
 import { allContacts, isFamily, npcProfile } from './engine/npcs.ts';
+import { intimacyIssue, isIntimacyContact } from './engine/intimacy.ts';
 import { findContact, isCurrentClassContact, isPeer } from './engine/school.ts';
 import { isWorkAcquaintance, isWorkContact } from './engine/workplace.ts';
 import { datingSources } from './engine/socialTypes.ts';
-import type { DatingSource, SocialAction } from './engine/socialTypes.ts';
+import type { DatingSource, IntimacyAction, SocialAction } from './engine/socialTypes.ts';
 import type { Contact, Life } from './engine/types.ts';
 import { money } from './i18n/en.ts';
 import type { Emoji } from './theme/tokens.ts';
@@ -98,6 +99,8 @@ const love = (life: Life, action: Parameters<typeof loveIssue>[1], label: string
   ({ action, label, icon, detail, issue: loveIssue(life, action) });
 const family = (life: Life, action: Parameters<typeof familyIssue>[1], label: string, icon: Emoji, detail?: string): Control =>
   ({ action, label, icon, detail, issue: familyIssue(life, action) });
+const intimacy = (life: Life, action: IntimacyAction, label: string, icon: Emoji, detail: string): Control =>
+  ({ action, label, icon, detail, issue: intimacyIssue(life, action) });
 
 const datingActivities: Record<DatingSource, { label: string; icon: Emoji; detail: string }> = {
   spotlight: { label: 'Spotlight Dating', icon: 'star', detail: 'Get matched with a local public figure.' },
@@ -109,10 +112,11 @@ const datingActivities: Record<DatingSource, { label: string; icon: Emoji; detai
 };
 
 export function datingControls(life: Life) {
-  return datingSources.map((source) => {
+  const dating = datingSources.map((source) => {
     const { label, icon, detail } = datingActivities[source];
     return love(life, { type: 'dating-match', source }, label, icon, detail);
   });
+  return [...dating, intimacy(life, { type: 'intimacy', encounter: 'hookup' }, 'Hook Up', 'night', 'Meet an adult interested in a one-night stand.')];
 }
 
 export function meetingControls(life: Life, romantic: boolean) {
@@ -136,10 +140,13 @@ export function relationshipControls(life: Life, person: Contact) {
 
   const romance = romanceFor(life, id);
   const status = romance?.status;
+  const privateEvening = isIntimacyContact(life, person) ?
+    [intimacy(life, { type: 'intimacy', encounter: 'make-love', person: id }, 'Make Love', 'loveLetter', 'Invite them to spend a private evening together.')] : [];
   if (isActiveRomance(romance)) {
-    const rows = (Object.keys(dateActivities) as (keyof typeof dateActivities)[]).map((action) =>
+    const dates = (Object.keys(dateActivities) as (keyof typeof dateActivities)[]).map((action) =>
       love(life, { type: 'romance', person: id, action }, dateActivities[action].label, romanceIcons[action],
         dateActivities[action].cost ? money(dateActivities[action].cost) : undefined));
+    const rows = [...privateEvening, ...dates];
     if (status === 'dating') rows.push(love(life, { type: 'romance', person: id, action: 'propose' }, 'Propose Marriage', 'ring'));
     if (status === 'engaged') for (const plan of Object.keys(weddingPlans) as (keyof typeof weddingPlans)[]) {
       rows.push(love(life, { type: 'wedding', person: id, plan }, weddingPlans[plan].label, 'ring', money(weddingPlans[plan].cost)));
@@ -156,6 +163,7 @@ export function relationshipControls(life: Life, person: Contact) {
   if (life.character.age < 18 || person.age < 18 || isFamily(life, id) || !person.alive ||
     !(person.role === 'Acquaintance' || ('friend' in person && person.friend))) return [];
   return [
+    ...privateEvening,
     ...(status !== 'interest' ? [love(life, { type: 'romance', person: id, action: 'interest' }, 'Show Romantic Interest', 'loveLetter')] : []),
     love(life, { type: 'romance', person: id, action: 'ask' }, 'Ask on a Date', 'rose'),
   ];

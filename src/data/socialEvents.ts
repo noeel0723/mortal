@@ -37,4 +37,22 @@ export const socialEventCatalog: readonly LifeEvent[] = [
       { id: 'apologize', label: 'Take Responsibility', emoji: 'support', outcome: '', effects: {} },
       { id: 'deny', label: 'Deny It', emoji: 'decline', outcome: '', effects: {} },
     ] },
+  { id: 'social-make-love', category: 'community', ages: [18, 115], probability: 0,
+    text: 'I’ll only go ahead if they feel the same.',
+    choices: [
+      { id: 'accept', label: 'Ask Them', emoji: 'accept', outcome: '', effects: {} },
+      { id: 'pass', label: 'Not Now', emoji: 'decline', outcome: '', effects: {} },
+    ] },
+  { id: 'social-hookup', category: 'community', ages: [18, 115], probability: 0,
+    text: 'is interested in a one-night stand. We can go our separate ways in the morning.',
+    choices: [
+      { id: 'accept', label: 'Spend the Night', emoji: 'accept', outcome: '', effects: {} },
+      { id: 'pass', label: 'Pass', emoji: 'decline', outcome: '', effects: {} },
+    ] },
+  { id: 'social-threesome', category: 'community', ages: [18, 115], probability: 0,
+    text: 'Would I like to invite both of them to spend a private evening together?',
+    choices: [
+      { id: 'accept', label: 'Ask Both', emoji: 'accept', outcome: '', effects: {} },
+      { id: 'pass', label: 'Keep Our Plans', emoji: 'decline', outcome: '', effects: {} },
+    ] },
 ];
