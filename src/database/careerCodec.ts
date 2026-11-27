@@ -3,14 +3,18 @@ import { jobById } from '../data/jobs.ts';
 import { retirementAge, workHours } from '../engine/career.ts';
 import { industries, workRoles } from '../engine/careerTypes.ts';
 import { livingCategories } from '../engine/financeTypes.ts';
+import { salaryBand, salaryFactorBounds } from '../engine/pricing.ts';
+import type { Job } from '../data/jobs.ts';
 
-const reasons = ['resigned', 'changed jobs', 'dismissed', 'retired', 'died'];
+const reasons = ['resigned', 'changed jobs', 'dismissed', 'redundant', 'retired', 'died'];
 const reviews = ['new', 'steady', 'strong', 'warning', 'promoted'];
 const outcomes = ['offered', 'rejected', 'ineligible', 'accepted', 'declined', 'expired'];
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const int = (value: unknown, min: number, max: number): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= max;
 const stat = (value: unknown) => int(value, 0, 100);
+const salaryWithin = (salary: unknown, job: Job, factor: unknown) =>
+  (factor === undefined || int(factor, ...salaryFactorBounds)) && int(salary, ...salaryBand(job, factor));
 
 export function validateCareer(value: unknown, year: number, birthYear: number, enrolled: boolean, dead: boolean, savedPerson: (person: unknown) => person is Record<string, unknown>) {
   const minYear = birthYear + 18;
@@ -28,28 +32,38 @@ export function validateCareer(value: unknown, year: number, birthYear: number, 
     const first = jobById.get(item.initialJobId);
     const employer = employerById.get(item.employerId);
     if (!job || !first || first.industry !== job.industry || !employer?.industries.includes(job.industry) ||
-      !int(item.startedYear, birthYear + first.age, year) || !int(item.startingSalary, ...first.salary) ||
-      !int(item.salary, ...job.salary) || !Array.isArray(item.promotions) || !Array.isArray(item.salaryHistory)) return false;
+      !int(item.startedYear, birthYear + first.age, year) || !salaryWithin(item.startingSalary, first, item.startingFactor) ||
+      !Array.isArray(item.promotions) || !Array.isArray(item.salaryHistory)) return false;
     const start = item.startedYear;
     const end = typeof item.endedYear === 'number' ? item.endedYear : year;
     let previousJob = first;
     let previousYear = start;
+    const changesOfRole: { year: number; job: Job }[] = [];
     for (const promotion of item.promotions) {
       if (!object(promotion) || promotion.from !== previousJob.id || typeof promotion.to !== 'string' ||
         !previousJob.promotions.includes(promotion.to) || !int(promotion.year, previousYear + 1, end)) return false;
       previousJob = jobById.get(promotion.to)!;
       previousYear = promotion.year;
+      changesOfRole.push({ year: previousYear, job: previousJob });
     }
     if (previousJob.id !== job.id) return false;
-    let lastSalary = item.startingSalary;
+    let lastSalary = Number(item.startingSalary);
     let lastYear = start;
+    let paidRole = first;
+    let promoted = 0;
     for (const change of item.salaryHistory) {
-      if (!object(change) || !int(change.year, lastYear, end) || !int(change.salary, lastSalary + 1, job.salary[1]) ||
-        (change.reason !== 'raise' && change.reason !== 'promotion')) return false;
-      lastSalary = change.salary;
+      if (!object(change) || !int(change.year, lastYear, end)) return false;
+      const promotion = changesOfRole[promoted];
+      if (change.reason === 'promotion') {
+        if (promotion?.year !== change.year) return false;
+        paidRole = promotion.job;
+        promoted++;
+      } else if (change.reason !== 'raise' || (promotion && promotion.year <= change.year)) return false;
+      if (!salaryWithin(change.salary, paidRole, change.factor) || Number(change.salary) <= lastSalary) return false;
+      lastSalary = Number(change.salary);
       lastYear = change.year;
     }
-    return lastSalary === item.salary;
+    return lastSalary === item.salary && promoted === changesOfRole.length;
   }
 
   let previousEnd = minYear;
@@ -73,7 +87,7 @@ export function validateCareer(value: unknown, year: number, birthYear: number, 
       !outcomes.some((outcome) => outcome === application.result) || (application.result === 'offered' && (application.year !== year || value.retiredYear !== null)) ||
       (application.reason !== undefined && typeof application.reason !== 'string')) return false;
     const job = jobById.get(application.jobId);
-    if (!job || !employerById.get(application.employerId)?.industries.includes(job.industry) || !int(application.salary, ...job.salary)) return false;
+    if (!job || !employerById.get(application.employerId)?.industries.includes(job.industry) || !salaryWithin(application.salary, job, application.factor)) return false;
     ids.add(application.id);
   }
   const contacts = new Set<unknown>();

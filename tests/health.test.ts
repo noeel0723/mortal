@@ -1,3 +1,4 @@
+import { newWorld } from '../src/engine/world.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { decodeLife } from '../src/database/codec.ts';
@@ -24,6 +25,7 @@ function atAge(age: number) {
   const life = createLife(4);
   life.character.age = age;
   life.year += age;
+  life.world = newWorld(life.seed, life.year, true);
   return life;
 }
 
@@ -180,7 +182,7 @@ test('choice popups precede queued notices after reload and dismissing a notice 
 test('legacy V4 games preserve existing decisions and journal, and the current codec rejects invalid references', () => {
   const life = apply(atAge(5), { type: 'age' });
   const restored = decodeLife(JSON.stringify({ ...life, version: 4, illnesses: undefined, notices: undefined }));
-  assert.deepEqual({ ...restored, social: undefined }, { ...life, notices: [], illnesses: [], social: undefined });
+  assert.deepEqual({ ...restored, social: undefined, world: undefined }, { ...life, notices: [], illnesses: [], social: undefined, world: undefined });
   assert.equal(eventPopup(restored)?.title, 'First Classroom');
   assert.throws(() => decodeLife(JSON.stringify({ ...restored, notices: [{ entry: -1, title: 'Invalid' }] })), /invalid health or event/);
   assert.throws(() => decodeLife(JSON.stringify({ ...restored, illnesses: [{ patient: 'unknown', illness: 'cold', level: 'mild', started: life.year }] })), /invalid health or event/);

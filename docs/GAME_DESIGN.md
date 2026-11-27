@@ -40,3 +40,10 @@ The native visual system uses white and soft-blue surfaces, subtle dividers, pas
 - Sports and chess offer age-appropriate amateur competitions. Musicians can perform in a local recital, and creative skills open projects and showcases. Education and work develop relevant skills over time. Preferred skills can help a job application or review alongside the existing credentials.
 - A practiced skill can become a hobby. Shared interests create conversation topics, improve compatibility, and open joint practice. Hobby groups can reintroduce known contacts. Children develop a small set of interests and can benefit from encouragement or optional paid lessons.
 - Activities group repeatable wellbeing, entertainment, and travel alongside skill training, social activities, doctors, and appearance. Leisure affects existing health, happiness, energy, and stress. Results use the existing narrative pop-up and journal.
+
+## Phase 3.0 · The Living World
+
+- Veyra moves between expansion, boom, stagnation, recession, crisis, and recovery. The ten industries respond differently. Each city has its own hiring conditions, housing market, and public-service indicators.
+- World reports show market conditions and optional fictional news. A small set of world events actively changes local or national indicators. Losing a job to redundancy produces a personal journal notice, while news about the wider economy stays in World.
+- New offers and eligible raises or promotions reflect the market. Families experience changes through everyday spending and asset quotes. Adults can move to another city after resolving commitments and see how their new location changes opportunities and costs.
+- Proficiency above 55 develops more gradually. Training variety and recent competitions or showcases reward applied practice. The effect of physical conditioning remains distinct from what the character knows about a skill.

@@ -45,4 +45,4 @@ export type AssetListing = Listing & { kind: AssetKind; design: number };
 export const assetCatalog: readonly AssetListing[] = assetKinds.flatMap((kind) =>
   shops[kind].map((listing, design) => ({ ...listing, kind, design })));
 export const assetById = new Map(assetCatalog.map((listing) => [listing.id, listing]));
-export const starterHome = shops.houses[0];
+export const starterHome = assetById.get(shops.houses[0].id)!;

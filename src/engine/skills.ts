@@ -7,6 +7,19 @@ import { skillLimits } from './skillTypes.ts';
 import type { SkillProgress, SkillState } from './skillTypes.ts';
 import type { Life } from './types.ts';
 
+const mastery = { startsAt: 55, maximumSlowdown: .98, curve: .72, routine: .43, varied: .22, applied: .18 } as const;
+
+function masteryFactor(life: Life, id: SkillId, method: TrainingMethod, progress: SkillProgress) {
+  if (progress.proficiency <= mastery.startsAt) return 1;
+  const fraction = (progress.proficiency - mastery.startsAt) / (100 - mastery.startsAt);
+  const varied = Object.keys(trainingMethods).some((other) => other !== method && life.usedActions.includes(`training:${id}:${other}`));
+  const applied = progress.lastShowcase !== null && life.year - progress.lastShowcase <= 1;
+  const aptitude = .82 + progress.aptitude * .0032;
+  const depth = mastery.routine + Number(varied) * mastery.varied + Number(applied) * mastery.applied;
+  const resistance = 1 - mastery.maximumSlowdown * fraction ** mastery.curve;
+  return resistance * (1 - fraction * (1 - depth * aptitude));
+}
+
 function newSkillYear(): SkillState['annual'] {
   return { sessions: {}, gains: {}, lifestyle: {}, showcased: false };
 }
@@ -108,9 +121,12 @@ export function trainSkill(life: Life, id: SkillId, method: TrainingMethod) {
   const readiness = .42 + average * .003 + attributes.discipline * .002 + attributes.health * .0015 - attributes.stress * .002;
   const diminishing = (1 - before.proficiency / 115) ** 1.36;
   const potential = 5 * (.7 + before.aptitude / 150) * readiness * diminishing;
-  const growth = Math.round(100 * potential * training.quality * consistency * ageFactor * variation / (definition.difficulty * (1 + sessions * .12)));
+  const growth = Math.max(1, Math.round(100 * potential * training.quality * consistency * ageFactor * variation *
+    masteryFactor(life, id, method, before) / (definition.difficulty * (1 + sessions * .12))));
   const progress = before.practiceProgress + growth;
   const after = rememberPractice(life, id, Math.floor(progress / 100), training.experience, 1, progress % 100);
+  const practiceKey = `training:${id}:${method}`;
+  if (!life.usedActions.includes(practiceKey)) life.usedActions.push(practiceKey);
   const overtrained = physicalSkill(id) && (attributes.stress >= 65 || attributes.health < 48) && sessions >= 2;
   const discovery = before.discovered === null && after.discovered !== null && after.aptitude >= 73;
   const betterTier = skillTier(before.best) !== skillTier(after.best);

@@ -1,3 +1,4 @@
+import { newWorld } from '../src/engine/world.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { skillIds, trainingMethods } from '../src/data/skills.ts';
@@ -24,6 +25,7 @@ function atAge(age: number) {
   const life = createLife(612);
   life.character.age = age;
   life.year += age;
+  life.world = newWorld(life.seed, life.year, true);
   return life;
 }
 

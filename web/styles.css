@@ -507,3 +507,12 @@ button.play-row:disabled .play-row-icon { background: #edf2f7; opacity: .65; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: .01ms !important; }
 }
+.world-article { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
+.world-article:last-child { border-bottom: 0; }
+.world-article h3, .world-article p { margin: 3px 0; }
+.world-article h3 { font-size: .94rem; }
+.world-article small { color: #54677e; }
+.world-chart { margin: 12px; }
+.world-chart-bars { display: flex; align-items: end; gap: 5px; height: 80px; border-bottom: 1px solid #e2e8f0; }
+.world-chart-bars span { flex: 1; max-width: 36px; border-radius: 4px 4px 0 0; background: #6caae8; }
+.world-chart figcaption { margin-top: 6px; color: #54677e; font-size: .82rem; }

@@ -1,3 +1,5 @@
+import { newWorld } from '../src/engine/world.ts';
+import { localExpense } from '../src/engine/pricing.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decodeLife } from '../src/database/codec.ts';
@@ -27,6 +29,7 @@ function adult() {
   const life = createLife(30);
   life.character.age = 25;
   life.year += 25;
+  life.world = newWorld(life.seed, life.year, true);
   life.family.forEach((person) => { person.age += 25; });
   postTransaction(life, 'Savings', 180000, 'other');
   return life;
@@ -83,11 +86,12 @@ test('V6 migration preserves old NPCs, illnesses, homes and decisions, with repr
   startIllness(life, 'cold', findContact(life, friend.id)!);
   const snapshot = JSON.stringify({ ...life, version: 6, social: undefined });
   const restored = decodeLife(snapshot);
-  assert.equal(restored.version, 8);
+  assert.equal(restored.version, 9);
   assert.deepEqual(findContact(restored, friend.id), findContact(life, friend.id));
-  for (const key of ['property', 'illnesses', 'transactions', 'journal', 'notices', 'random', 'character'] as const) {
+  for (const key of ['illnesses', 'transactions', 'journal', 'notices', 'random', 'character'] as const) {
     assert.deepEqual(restored[key], life[key]);
   }
+  assert.deepEqual(restored.property, { ...life.property, owned: life.property.owned.map((item) => ({ ...item, acquisition: null })) });
   assert.deepEqual(restored.social, decodeLife(snapshot).social);
   assert.equal(restored.social.romances.length, 0);
   assert.deepEqual(restored.social.children, {});
@@ -99,11 +103,12 @@ test('V7 migration preserves a married household and owned property without inve
   const purchased = act(married, { type: 'buy-asset', id: 'cedar-starter' });
   const housed = act(purchased, { type: 'move-into-home', id: 'cedar-starter' });
   const restored = decodeLife(JSON.stringify({ ...housed, version: 7, skills: undefined }));
-  assert.equal(restored.version, 8);
+  assert.equal(restored.version, 9);
   assert.deepEqual(restored.skills.entries, {});
-  for (const key of ['social', 'property', 'journal', 'notices', 'transactions', 'random', 'character'] as const) {
+  for (const key of ['social', 'journal', 'notices', 'transactions', 'random', 'character'] as const) {
     assert.deepEqual(restored[key], housed[key]);
   }
+  assert.deepEqual(restored.property, { ...housed.property, owned: housed.property.owned.map((item) => ({ ...item, acquisition: null })) });
 });
 
 test('adult NPCs get suitable jobs, build finances and age once', () => {
@@ -165,7 +170,7 @@ test('marriage, both child paths, parenting, childcare, and divorce preserve fam
   assert.deepEqual(life.social.parents[first.id], ['self', id]);
   life = act(life, { type: 'parent-child', person: first.id, action: 'read' });
   assert.ok(life.social.profiles[first.id]!.memories.some(({ text }) => /read/i.test(text)));
-  const costs = annualChildcare(life);
+  const costs = localExpense(life.world, life.character.city, annualChildcare(life));
   life = age(life);
   assert.equal(life.transactions.filter(({ year, label }) => year === life.year && label === 'Childcare').at(-1)?.amount, -costs);
   annualFinance(life, life.character.age - 1);
@@ -188,10 +193,12 @@ test('sibling and grandparent references remain valid and invalid ancestry is re
   const life = createLife(2);
   life.character.age = 2;
   life.year += 2;
+  life.world = newWorld(life.seed, life.year, true);
   life.family.forEach((person) => { person.age += 2; });
   ageFamilyOpportunities(life);
   life.character.age++;
   life.year++;
+  life.world = newWorld(life.seed, life.year, true);
   life.family.forEach((person) => { person.age++; });
   forceRoll(life, 'sibling', .18);
   ageFamilyOpportunities(life);

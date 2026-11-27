@@ -3,9 +3,12 @@ import { jobById, jobs } from '../data/jobs.ts';
 import type { Job } from '../data/jobs.ts';
 import { recordNotice } from './eventNotices.ts';
 import { clamp, record } from './journal.ts';
+import { marketSalaryFactor, salaryBand } from './pricing.ts';
 import { seededRandom } from './random.ts';
 import { developJobSkills, jobSkillStrength } from './skillIntegration.ts';
 import { ensureWorkplace } from './workplace.ts';
+import { national } from './world.ts';
+import { indexBase } from './worldTypes.ts';
 import type { QualificationLevel } from './academicTypes.ts';
 import type { CareerAction, CareerEffect, CareerState, CurrentJob, EndReason } from './careerTypes.ts';
 import type { Life } from './types.ts';
@@ -30,16 +33,37 @@ export function employmentStatus(life: Life) {
 
 export function vacancies(life: Life) {
   const random = seededRandom(life.seed ^ Math.imul(life.year, 0x9e3779b9));
-  return jobs.flatMap((job) => {
+  const world = life.world;
+  const economy = national(world);
+  const localMarket = world.cities[life.character.city];
+  const availableJobs = jobs.flatMap((job) => {
     const open = random.next();
     const pool = employers.filter((company) => company.industries.includes(job.industry));
     const local = pool.filter(({ city }) => city === life.character.city);
-    const available = local.length && random.next() < .7 ? local : pool;
+    const available = local.length && random.next() < Math.min(.92, .69 + (localMarket.jobs - 53) / 140) ? local : pool;
     const employer = available[random.integer(0, available.length - 1)]!;
-    const salary = Math.round(random.integer(job.salary[0], job.salary[0] + Math.floor((job.salary[1] - job.salary[0]) * .62)) / 100) * 100;
-    const competition = random.integer(34, 66) + Math.min(9, job.experience * 2);
-    return open < .79 || yearRound.has(job.id) ? [{ id: `${life.year}-${job.id}-${employer.id}`, job, employer, salary, competition }] : [];
+    const company = world.employers[employer.id]!;
+    const sector = world.industries[job.industry];
+    const factor = marketSalaryFactor(world, job, employer.id);
+    const [minimum, maximum] = salaryBand(job, factor);
+    const salary = random.integer(minimum, minimum + Math.floor((maximum - minimum) * .62));
+    const pressure = (economy.unemployment - 560) / 135 + (53 - sector.demand) / 14;
+    const competition = random.integer(34, 66) + Math.min(9, job.experience * 2) + Math.round(Math.max(-8, Math.min(13, pressure)));
+    const hiring = .68 + (economy.labor - 55) / 110 + (sector.demand - 54) / 140 + (company.demand - 55) / 160 +
+      (world.cities[employer.city].jobs - 53) / 180;
+    return open < Math.min(.97, Math.max(.12, hiring)) || yearRound.has(job.id) ?
+      [{ id: `${life.year}-${job.id}-${employer.id}`, job, employer, salary, factor, competition }] : [];
   });
+  const offers = new Map(availableJobs.map((vacancy) => [vacancy.id, vacancy]));
+  for (const application of life.career.applications) {
+    if (application.year !== life.year) continue;
+    const job = jobById.get(application.jobId)!;
+    const employer = employerById.get(application.employerId)!;
+    const listing = offers.get(application.id);
+    offers.set(application.id, { id: application.id, job, employer, salary: application.salary,
+      factor: application.factor ?? indexBase, competition: listing?.competition ?? 50 });
+  }
+  return [...offers.values()];
 }
 export type Vacancy = ReturnType<typeof vacancies>[number];
 
@@ -112,18 +136,18 @@ function applicationScore(life: Life, vacancy: Vacancy) {
 export function endEmployment(life: Life, reason: EndReason) {
   const job = life.career.current;
   if (!job) return;
-  const { jobId, initialJobId, employerId, startedYear, startingSalary, salary, salaryHistory, promotions } = job;
+  const { jobId, initialJobId, employerId, startedYear, startingSalary, startingFactor, salary, salaryHistory, promotions } = job;
   life.career.history.push({ jobId, initialJobId, employerId, startedYear, startingSalary, salary, salaryHistory, promotions,
-    endedYear: life.year, reason });
+    ...(startingFactor !== undefined ? { startingFactor } : {}), endedYear: life.year, reason });
   life.career.current = null;
-  life.career.seeking = reason === 'dismissed';
+  life.career.seeking = reason === 'dismissed' || reason === 'redundant';
 }
 
 function startEmployment(life: Life, vacancy: Vacancy) {
-  const { job, employer, salary } = vacancy;
+  const { job, employer, salary, factor } = vacancy;
   if (life.career.current) endEmployment(life, 'changed jobs');
   life.career.current = {
-    jobId: job.id, initialJobId: job.id, employerId: employer.id, startedYear: life.year, startingSalary: salary, salary,
+    jobId: job.id, initialJobId: job.id, employerId: employer.id, startedYear: life.year, startingSalary: salary, startingFactor: factor, salary,
     salaryHistory: [], promotions: [], hours: job.hours, performance: 50, satisfaction: employer.culture,
     security: employer.stability, stress: job.stress, warnings: 0, review: 'new',
   };
@@ -132,9 +156,9 @@ function startEmployment(life: Life, vacancy: Vacancy) {
   record(life, 'career', `I accepted a job as ${job.title} at ${employer.name}.`);
 }
 
-function salaryChange(current: CurrentJob, year: number, salary: number, reason: 'raise' | 'promotion') {
+function salaryChange(current: CurrentJob, year: number, salary: number, reason: 'raise' | 'promotion', factor: number) {
   current.salary = salary;
-  current.salaryHistory.push({ year, salary, reason });
+  current.salaryHistory.push({ year, salary, reason, factor });
 }
 
 function requestRaise(life: Life, current: CurrentJob) {
@@ -142,12 +166,16 @@ function requestRaise(life: Life, current: CurrentJob) {
   const employer = employerById.get(current.employerId)!;
   const random = seededRandom(life.random);
   const last = current.salaryHistory.at(-1);
-  const room = current.salary < job.salary[1];
-  const chance = clamp(current.performance * .65 + employer.payFlex * .21 + Math.min(14, (life.year - current.startedYear) * 4) - 23);
+  const factor = marketSalaryFactor(life.world, job, employer.id);
+  const [minimum, maximum] = salaryBand(job, factor);
+  const room = current.salary < maximum;
+  const company = life.world.employers[employer.id]!;
+  const chance = clamp(current.performance * .65 + company.flexibility * .21 + Math.min(14, (life.year - current.startedYear) * 4) - 23 +
+    (national(life.world).labor - 55) * .27);
   const approved = room && life.year > current.startedYear && (!last || last.year < life.year - 1) &&
     current.performance >= 55 && random.next() * 100 < chance;
   life.random = random.state;
-  if (approved) salaryChange(current, life.year, Math.min(job.salary[1], current.salary + Math.max(100, Math.round(current.salary * .055))), 'raise');
+  if (approved) salaryChange(current, life.year, Math.min(maximum, Math.max(minimum, current.salary + Math.max(100, Math.round(current.salary * .055)))), 'raise', factor);
   recordNotice(life, 'career', 'Raise Request', approved ? `My raise request at ${employer.name} was approved.` : `My raise request at ${employer.name} was declined.`,
     { happiness: approved ? 3 : -2 });
 }
@@ -176,7 +204,7 @@ export function performCareerAction(life: Life, action: CareerAction) {
       life.random = random.state;
       if (!career.current) career.seeking = true;
       career.applications.push({ id: vacancy.id, jobId: vacancy.job.id, employerId: vacancy.employer.id,
-        salary: vacancy.salary, year: life.year, result: reason ? 'ineligible' : accepted ? 'offered' : 'rejected', ...(reason ? { reason } : {}) });
+        salary: vacancy.salary, factor: vacancy.factor, year: life.year, result: reason ? 'ineligible' : accepted ? 'offered' : 'rejected', ...(reason ? { reason } : {}) });
       recordNotice(life, 'career', accepted ? 'Job Offer' : 'Job Application', reason ? `I was ineligible for ${vacancy.job.title}. ${reason}` :
         accepted ? `I received an offer for ${vacancy.job.title} at ${vacancy.employer.name}.` :
           `My application for ${vacancy.job.title} at ${vacancy.employer.name} was declined.`);
@@ -219,6 +247,16 @@ export function advanceCareer(life: Life, random: ReturnType<typeof seededRandom
   if (!current) return;
   const job = jobById.get(current.jobId)!;
   const employer = employerById.get(current.employerId)!;
+  const company = life.world.employers[employer.id]!;
+  const economy = national(life.world);
+  const economicPressure = economy.regime === 'recession' || economy.regime === 'crisis';
+  const redundancyRisk = economicPressure ? Math.max(0, (45 - company.demand) / 215 + (66 - company.health) / 330) : 0;
+  if (current.startedYear < life.year && redundancyRisk > 0 &&
+    seededRandom(life.seed ^ life.world.random ^ Math.imul(life.year, 0x82f27c03)).next() < Math.min(.36, redundancyRisk)) {
+    endEmployment(life, 'redundant');
+    recordNotice(life, 'career', 'Role Made Redundant', `${employer.name} cut jobs during the downturn. My role was made redundant.`, { happiness: -6, stress: 7 });
+    return;
+  }
   const attributes = life.character.attributes;
   const overtime = current.hours - job.hours;
   const capacity = (attributes[job.attributes[0]] + attributes[job.attributes[1]]) / 2;
@@ -228,7 +266,7 @@ export function advanceCareer(life: Life, random: ReturnType<typeof seededRandom
     Math.min(4, overtime / 2) - current.stress / 23 + random.integer(-3, 3) + skillStrength * .04);
   applyCareerEffect(life, {
     performance, stress: workloadStress,
-    security: current.performance >= 60 ? 3 : current.performance < 38 ? -12 : 0,
+    security: (current.performance >= 60 ? 3 : current.performance < 38 ? -12 : 0) - (economicPressure ? Math.max(0, Math.round((47 - company.demand) / 5)) : 0),
     satisfaction: Math.round((employer.culture - current.satisfaction) * .12 - overtime * .55 - current.stress / 25),
     reputation: current.performance >= 65 ? 3 : current.performance < 38 ? -2 : 0,
   });
@@ -249,13 +287,15 @@ export function advanceCareer(life: Life, random: ReturnType<typeof seededRandom
   current.warnings = 0;
   if (current.performance >= 45) developJobSkills(life, job, current.performance >= 70 ? 2 : 1);
   const promotion = job.promotions.map((id) => jobById.get(id)!).find((next) => !jobRequirementsIssue(life, next));
-  if (promotion && current.performance >= 72 && career.reputation >= 12 && current.security >= 55 &&
-    random.next() < .13 + employer.stability / 500 + (current.performance - 72) / 95 + jobSkillStrength(life, promotion) * .0015) {
+  const factor = promotion ? marketSalaryFactor(life.world, promotion, employer.id) : indexBase;
+  const [minimum, maximum] = promotion ? salaryBand(promotion, factor) : [0, 0];
+  if (promotion && maximum > current.salary && current.performance >= 72 && career.reputation >= 12 && current.security >= 55 &&
+    random.next() < .13 + company.stability / 500 + (current.performance - 72) / 95 + jobSkillStrength(life, promotion) * .0015 + (economy.labor - 55) / 210) {
     current.promotions.push({ year: life.year, from: job.id, to: promotion.id });
     current.jobId = promotion.id;
     current.hours = promotion.hours;
     current.review = 'promoted';
-    salaryChange(current, life.year, Math.min(promotion.salary[1], Math.max(promotion.salary[0], Math.round(current.salary * 1.10))), 'promotion');
+    salaryChange(current, life.year, Math.min(maximum, Math.max(minimum, Math.round(current.salary * 1.10))), 'promotion', factor);
     recordNotice(life, 'career', 'Promotion', `I was promoted to ${promotion.title} at ${employer.name}.`, { happiness: 6 });
   } else record(life, 'career', `My performance review at ${employer.name} was ${current.review === 'strong' ? 'strong' : 'steady'}.`);
 }

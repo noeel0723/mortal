@@ -29,7 +29,8 @@ export default function Person() {
     <Section title="About">
       <DataRow label={character.causeOfDeath ? 'Age at death' : 'Age'} value={character.age} />
       <DataRow label="Gender identity" value={genderLabels[character.gender]} />
-      <DataRow label="Birth city" value={character.city} />
+      <DataRow label="Birth city" value={character.birthCity} />
+      {character.city !== character.birthCity && <DataRow label="Current city" value={character.city} />}
       <DataRow label="Education" value={educationStatus(life)} />
       {profileHealthRows(life).map((row) => <DataRow key={row.label} {...row} />)}
     </Section>

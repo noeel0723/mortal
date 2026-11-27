@@ -30,5 +30,6 @@ export const emoji = {
   guitar: '🎸', piano: '🎹', violin: '🎻', drums: '🥁', singing: '🎤', drawing: '✏️',
   photography: '📷', acting: '🎭', math: '📐', leadership: '🧑‍💼', chess: '♟️', languages: '💬',
   fitness: '🏋️', meditation: '🧘', food: '🥗', cinema: '🎬', park: '🌳', train: '🚆', music: '🎵',
+  news: '📰',
 } as const;
 export type Emoji = keyof typeof emoji;

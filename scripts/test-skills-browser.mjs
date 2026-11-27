@@ -1,3 +1,4 @@
+import { newWorld } from '../src/engine/world.ts';
 import assert from 'node:assert/strict';
 import { createLife } from '../src/engine/create.ts';
 import { postTransaction } from '../src/engine/journal.ts';
@@ -20,6 +21,7 @@ try {
   const fixture = createLife(612);
   fixture.character.age = 12;
   fixture.year += 12;
+  fixture.world = newWorld(fixture.seed, fixture.year, true);
   postTransaction(fixture, 'Savings', 10000, 'other');
   const { firstName, lastName, city, age } = fixture.character;
   await page.evaluate(saveSlot, { id, entry: { id, name: `${firstName} ${lastName}`, city, age, year: fixture.year,

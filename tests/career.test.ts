@@ -13,6 +13,7 @@ import { seededRandom } from '../src/engine/random.ts';
 import { findContact } from '../src/engine/school.ts';
 import { advance, talkIssue } from '../src/engine/simulation.ts';
 import { skillAt } from '../src/engine/skills.ts';
+import { newWorld } from '../src/engine/world.ts';
 import type { Action, Life } from '../src/engine/types.ts';
 import { activeCoworkers } from '../src/engine/workplace.ts';
 import { relationshipGroups } from '../src/socialView.ts';
@@ -56,7 +57,8 @@ test('version 3 migrates an adult neutrally and preserves portraits, ledger, dip
   life.character.appearance = { ...life.character.appearance, hair: 'Bob' };
   const snapshot = { ...life, version: 3, career: undefined, finance: undefined, illnesses: undefined, notices: undefined };
   const migrated = decodeLife(JSON.stringify(snapshot));
-  assert.deepEqual({ ...migrated, social: undefined, skills: undefined }, { ...life, illnesses: [], notices: [], social: undefined, skills: undefined });
+  assert.deepEqual({ ...migrated, social: undefined, skills: undefined, world: undefined },
+    { ...life, illnesses: [], notices: [], social: undefined, skills: undefined, world: undefined });
   assert.deepEqual(migrated.skills.entries, {});
   assert.equal(employmentStatus(migrated), 'Unemployed');
   assert.equal(migrated.career.history.length, 0);
@@ -241,6 +243,7 @@ test('resignation and retirement stop future payroll, while death closes an accr
   const senior = structuredClone(hired);
   senior.character.age = 65;
   senior.year = senior.character.birthYear + 65;
+  senior.world = newWorld(senior.seed, senior.year, true);
   const retired = act(senior, { type: 'retire' });
   assert.equal(employmentStatus(retired), 'Retired');
   assert.equal(retired.career.history.at(-1)?.reason, 'retired');
@@ -248,6 +251,7 @@ test('resignation and retirement stop future payroll, while death closes an accr
   assert.equal(ageTo(retired, 66).transactions.some(({ category }) => category === 'salary'), false);
   senior.character.age = 114;
   senior.year = senior.character.birthYear + 114;
+  senior.world = newWorld(senior.seed, senior.year, true);
   const ended = act(senior, { type: 'age' });
   assert.ok(ended.character.causeOfDeath);
   assert.equal(ended.career.history.at(-1)?.reason, 'died');

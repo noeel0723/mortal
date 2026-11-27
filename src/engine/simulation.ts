@@ -20,6 +20,7 @@ import { applyLove } from './love.ts';
 import { advanceNpcLives, ageNewPeople, cloneSocial, ensureNpc, remember, syncNpcs } from './npcs.ts';
 import { applyPropertyAction, movingAge } from './property.ts';
 import { seededRandom } from './random.ts';
+import { relocate } from './relocation.ts';
 import { conversationStory, friendshipStory } from './relationshipStories.ts';
 import { answerSocialEvent, isSocialEvent, offerSocialEvent } from './socialEvents.ts';
 import { advanceContactOccupation, currentClass, findContact, isPeer, isSchoolStage } from './school.ts';
@@ -27,6 +28,7 @@ import { ageSkills, cloneSkills, incidentalPractice, setHobby, trainSkill } from
 import { developAcademicSkills } from './skillIntegration.ts';
 import { holdShowcase } from './skillShowcases.ts';
 import { ageWorkplace, canMakeFriend, coworkerAcquaintanceThreshold, coworkerFriendAffection, isWorkAcquaintance, isWorkContact } from './workplace.ts';
+import { advanceWorld } from './world.ts';
 import { stats } from './types.ts';
 import type { Action, Life } from './types.ts';
 
@@ -105,8 +107,10 @@ function ageUp(life: Life) {
   ageNewPeople(life, maxAge);
   annualFinance(life, elapsedAge);
   closeCareerYear(life);
+  const elapsedWorld = life.world;
+  life.world = advanceWorld(life.world, life.year);
   advanceIllnesses(life);
-  advanceNpcLives(life);
+  advanceNpcLives(life, elapsedWorld);
   developChildInterests(life);
   const dies = character.attributes.health === 0 || age >= maxAge ||
     (age >= 72 && random.next() < (age - 69) / 650 + (100 - character.attributes.health) / 1800);
@@ -208,6 +212,11 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
     case 'age':
       ageUp(life);
       break;
+    case 'relocate': {
+      const issue = relocate(life, action.city);
+      if (issue) return { error: issue };
+      break;
+    }
     case 'healthcare': {
       const issue = visitHealthcare(life, action.visit);
       if (issue) return { error: issue };

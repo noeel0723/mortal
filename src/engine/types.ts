@@ -8,6 +8,7 @@ import type { libraryHobbies } from '../data/libraryEvents.ts';
 import type { PropertyAction, PropertyState } from './property.ts';
 import type { SocialAction, SocialPerson, SocialState } from './socialTypes.ts';
 import type { SkillAction, SkillState } from './skillTypes.ts';
+import type { WorldState } from './worldTypes.ts';
 
 export const stats = ['health', 'happiness', 'smarts', 'looks', 'charisma', 'discipline', 'athleticism', 'creativity', 'stress', 'energy', 'reputation'] as const;
 export type Stat = typeof stats[number];
@@ -32,6 +33,7 @@ export type ProfileInput = {
 };
 
 export type Character = ProfileInput & {
+  birthCity: City;
   appearance: Appearance;
   age: number;
   attributes: Record<Stat, number>;
@@ -95,7 +97,7 @@ export type LifeEvent = {
 };
 
 export type Life = {
-  version: 8;
+  version: 9;
   seed: number;
   random: number;
   character: Character;
@@ -109,6 +111,7 @@ export type Life = {
   career: CareerState;
   finance: FinanceState;
   skills: SkillState;
+  world: WorldState;
   journal: JournalEntry[];
   notices: LifeNotice[];
   illnesses: IllnessCase[];
@@ -121,6 +124,7 @@ export type Life = {
 
 export type Action =
   | { type: 'age' }
+  | { type: 'relocate'; city: City }
   | { type: 'choose'; event: string; choice: string }
   | { type: 'acknowledge-event'; entry: number }
   | { type: 'healthcare'; visit: HealthVisit }

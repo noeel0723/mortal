@@ -1,3 +1,4 @@
+import { newWorld } from '../src/engine/world.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { decodeLife } from '../src/database/codec.ts';
@@ -5,7 +6,7 @@ import { assetById, assetCatalog, assetKinds, starterHome } from '../src/data/sh
 import { createLife } from '../src/engine/create.ts';
 import { canAccompany } from '../src/engine/health.ts';
 import { postTransaction } from '../src/engine/journal.ts';
-import { movingFee, propertyIssue } from '../src/engine/property.ts';
+import { propertyIssue, propertyQuote, rentMovingFee } from '../src/engine/property.ts';
 import { findContact } from '../src/engine/school.ts';
 import { advance } from '../src/engine/simulation.ts';
 import type { Action, Life } from '../src/engine/types.ts';
@@ -22,6 +23,7 @@ function atAge(age: number, seed = 4) {
   const life = createLife(seed);
   life.character.age = age;
   life.year += age;
+  life.world = newWorld(life.seed, life.year, true);
   return life;
 }
 
@@ -68,13 +70,15 @@ test('adult housing choices honor age, parent affordability, and willingness', (
   Object.assign(adult.family[0]!.bond, { affection: 95, trust: 99, resentment: 0 });
   const gifted = apply(adult, request);
   assert.equal(gifted.property.residence, starterHome.id);
-  assert.deepEqual(gifted.property.owned, [{ id: starterHome.id, year: adult.year, source: 'gift' }]);
+  const acquisition = propertyQuote(adult, starterHome);
+  assert.deepEqual(gifted.property.owned, [{ id: starterHome.id, year: adult.year, source: 'gift', city: adult.character.city, acquisition }]);
   assert.equal(gifted.character.bank, adult.character.bank);
-  assert.equal(gifted.social.profiles[adult.family[0]!.id]!.savings, 82000 - starterHome.price);
+  assert.equal(gifted.social.profiles[adult.family[0]!.id]!.savings, 82000 - acquisition.price);
   Object.assign(adult.family[0]!.bond, { affection: 30, trust: 12, resentment: 60 });
   const declined = apply(adult, request);
   assert.equal(declined.property.residence, 'family');
   assert.match(propertyIssue(declined, request) ?? '', /already asked/);
+  const movingFee = rentMovingFee(adult);
   postTransaction(adult, 'Savings', movingFee, 'other');
   const renter = apply(adult, { type: 'rent-home' });
   assert.equal(renter.property.residence, 'rent');
@@ -90,7 +94,7 @@ test('shopping records unique purchases and lets the player move into an owned h
   const bought = listings.reduce((current, item) => apply(current, { type: 'buy-asset', id: item.id }), life);
   assert.equal(bought.property.owned.length, 3);
   const charges = bought.transactions.filter(({ category }) => category === 'shopping');
-  assert.deepEqual(charges.map(({ amount }) => amount), listings.map(({ price }) => -price));
+  assert.deepEqual(charges.map(({ amount }) => amount), listings.map((listing) => -propertyQuote(life, listing).price));
   assert.equal(bought.character.bank, bought.transactions.reduce((sum, { amount }) => sum + amount, 0));
   assert.match(propertyIssue(bought, { type: 'buy-asset', id: starterHome.id }) ?? '', /already own/);
   assert.match(propertyIssue(bought, { type: 'move-into-home', id: 'toyota-yaris' }) ?? '', /do not own this house/);

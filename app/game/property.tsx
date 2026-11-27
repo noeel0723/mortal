@@ -4,10 +4,10 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import { ActionButton, DataRow, Heading, Page, Section, shared } from '../../src/components/ui';
 import { assetKinds } from '../../src/data/shops';
 import type { AssetKind, AssetListing } from '../../src/data/shops';
-import { propertyIssue } from '../../src/engine/property';
+import { propertyIssue, propertyQuote } from '../../src/engine/property';
 import { money } from '../../src/i18n/en';
 import { assetArt } from '../../src/portraits/assetArt';
-import { housingControls, listingsFor, ownedListings, propertyCategories, residenceLabel } from '../../src/propertyView';
+import { housingControls, listingsFor, ownedListings, ownershipDetail, propertyCategories, residenceLabel } from '../../src/propertyView';
 import { useGame } from '../../src/stores/game';
 import { radius, space } from '../../src/theme/tokens';
 
@@ -40,11 +40,11 @@ export default function Property() {
       <Heading title="Owned Assets" back={assets} />
       {owned.length ? assetKinds.map((kind) => {
         const items = owned.filter(({ listing }) => listing.kind === kind);
-        return items.length ? <Section key={kind} title={propertyCategories[kind].label}>{items.map(({ id, year, listing, source }) =>
-          <View key={id} style={styles.ownedRow}>
-            <Artwork listing={listing} />
-            <View style={styles.description}><Text style={shared.strong}>{listing.name}</Text>
-              <Text style={shared.small}>{source === 'gift' ? 'Gifted' : 'Purchased'} in {year}{life.property.residence === id ? ' · Current home' : ''}</Text>
+        return items.length ? <Section key={kind} title={propertyCategories[kind].label}>{items.map((item) =>
+          <View key={item.id} style={styles.ownedRow}>
+            <Artwork listing={item.listing} />
+            <View style={styles.description}><Text style={shared.strong}>{item.listing.name}</Text>
+              <Text style={shared.small}>{ownershipDetail(item, life.property.residence)}</Text>
             </View>
           </View>)}</Section> : null;
       }) : <Text style={shared.body}>You do not own any houses or vehicles yet.</Text>}
@@ -58,7 +58,7 @@ export default function Property() {
       <Heading title={selected.name} back={() => setSelected(undefined)} />
       <Artwork listing={selected} large />
       <Text style={shared.body}>{selected.detail}</Text>
-      <ActionButton icon="cart" label={`Buy · ${money(selected.price)}`} detail={issue ?? 'Pay from your current balance.'}
+      <ActionButton icon="cart" label={`Buy · ${money(propertyQuote(life, selected).price)}`} detail={issue ?? 'Pay from your current balance.'}
         disabled={busy || !!issue} onPress={() => void dispatch(action)} />
     </Page>;
   }
@@ -67,7 +67,7 @@ export default function Property() {
     <Heading title={propertyCategories[category].label} back={() => setCategory(undefined)} />
     <Section title={`${listingsFor(category).length} listings`}>
       {listingsFor(category).map((listing) => <ActionButton key={listing.id} icon={propertyCategories[category].icon}
-        label={listing.name} detail={money(listing.price)} leading={<Artwork listing={listing} />} onPress={() => setSelected(listing)} />)}
+        label={listing.name} detail={money(propertyQuote(life, listing).price)} leading={<Artwork listing={listing} />} onPress={() => setSelected(listing)} />)}
     </Section>
   </Page>;
 

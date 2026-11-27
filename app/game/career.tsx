@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput } from 'react-native';
 import {
   canShowRetirement, careerCard, careerControl, careerRows, careerTimeline, defaultJobFilters, employmentLabels,
-  jobIcon, jobListings, jobRatings, lifetimeEarnings, vacancyActions, vacancyRows,
+  hiringOverview, jobIcon, jobListings, jobRatings, lifetimeEarnings, vacancyActions, vacancyRows,
 } from '../../src/careerView';
 import type { CareerControl } from '../../src/careerView';
 import { DetailMeter, DetailModal } from '../../src/components/detailModal';
@@ -38,6 +38,7 @@ function JobListings({ life }: { life: Life }) {
   const listings = jobListings(life, filters);
   return <>
     <Section title={`Open positions · ${life.year}`}>
+      {hiringOverview(life).map((row) => <DataRow key={row.label} {...row} />)}
       <TextInput style={styles.search} placeholder="Search by title" placeholderTextColor={colors.muted}
         accessibilityLabel="Search by title" value={filters.query} onChangeText={(query) => setFilters({ ...filters, query })} />
       <Text style={shared.small}>Industry</Text>
@@ -77,7 +78,7 @@ export default function Career() {
     const listing = canFindJob && jobListings(life).find(({ id }) => id === detail);
     return <Page inGame><Heading title={listing ? listing.job.title : 'Job Details'} back={back} />
       {listing ? <>
-        <Section title="Vacancy">{vacancyRows(listing).map((row) => <DataRow key={row.label} {...row} />)}</Section>
+        <Section title="Vacancy">{vacancyRows(listing, life).map((row) => <DataRow key={row.label} {...row} />)}</Section>
         <Controls items={vacancyActions(life, listing)} />
       </> : <Text style={shared.body}>This vacancy is no longer available.</Text>}
     </Page>;

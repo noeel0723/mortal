@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { decodeLife } from '../src/database/codec.ts';
 import { programById, programs } from '../src/data/academics.ts';
 import { eventById } from '../src/data/events.ts';
+import { cities } from '../src/data/veyra.ts';
 import { jobById } from '../src/data/jobs.ts';
 import { starterHome } from '../src/data/shops.ts';
 import { jobCompetencies } from '../src/data/skillLinks.ts';
@@ -18,12 +19,17 @@ import { doctors } from '../src/data/doctors.ts';
 import { healthcareQuote } from '../src/engine/health.ts';
 import { relationshipIssue } from '../src/engine/interactions.ts';
 import { propertyIssue } from '../src/engine/property.ts';
+import { salaryBand } from '../src/engine/pricing.ts';
+import { relocationIssue } from '../src/engine/relocation.ts';
 import { isSchoolStage } from '../src/engine/school.ts';
 import { activityIssue, advance, maxAge } from '../src/engine/simulation.ts';
 import { hobbyIssue, skillRandom, skillTier, trainingIssue, trainingUsed } from '../src/engine/skills.ts';
 import { showcaseIssue } from '../src/engine/skillShowcases.ts';
 import { skillLimits } from '../src/engine/skillTypes.ts';
 import { activeCoworkers } from '../src/engine/workplace.ts';
+import { national } from '../src/engine/world.ts';
+import { worldBounds } from '../src/engine/worldTypes.ts';
+import type { EconomicRegime } from '../src/engine/worldTypes.ts';
 import type { AcademicAction, ProgramLevel } from '../src/engine/academicTypes.ts';
 import type { CareerAction } from '../src/engine/careerTypes.ts';
 import type { Action, Life } from '../src/engine/types.ts';
@@ -56,13 +62,49 @@ let weddings = 0;
 let children = 0;
 let adoptions = 0;
 let divorces = 0;
+let redundant = 0;
+let relocations = 0;
+const householdIncome: number[] = [];
+const finalBalances: number[] = [];
+const finalArrears: number[] = [];
+const jobChanges: number[] = [];
+const worklessSpells: number[] = [];
+const indicators = { inflation: [] as number[], unemployment: [] as number[], priceIndex: [] as number[], growth: [] as number[] };
+type EconomyOutcome = { years: number; adultYears: number; withoutWork: number; salaries: number[]; arrears: number[];
+  growth: number[]; inflation: number[]; unemployment: number[]; reviews: number[]; promotions: number; redundancies: number };
+const byRegime = new Map<EconomicRegime, EconomyOutcome>();
+
+function outcomes(regime: EconomicRegime) {
+  const result = byRegime.get(regime) ?? { years: 0, adultYears: 0, withoutWork: 0, salaries: [], arrears: [],
+    growth: [], inflation: [], unemployment: [], reviews: [], promotions: 0, redundancies: 0 };
+  byRegime.set(regime, result);
+  return result;
+}
 const plans: Record<string, number> = {};
 const qualifications: Record<string, number> = {};
 const schoolwork = ['study', 'exams', 'socialize'] as const;
 const developmentStrategies = ['incidental', 'recreational', 'sports', 'paidLearning', 'careerFocused', 'creative'] as const;
 type SkillStrategy = typeof developmentStrategies[number];
-const development = new Map<SkillStrategy, { peaks: number[]; spending: number[]; firstEliteAges: number[]; elite: number; employed: number; promoted: number;
-  professional: number; awarded: number; tiers: Record<string, number> }>();
+type Development = { peaks: number[]; spending: number[]; firstEliteAges: number[]; elite: number; employed: number; promoted: number;
+  professional: number; awarded: number; tiers: Record<string, number> };
+const development = new Map<SkillStrategy, Development>();
+const byAptitude = new Map<string, Development>();
+
+function trackDevelopment<K>(groups: Map<K, Development>, key: K, life: Life, peak: number, firstEliteAge: number | undefined) {
+  const result = groups.get(key) ?? { peaks: [], spending: [], firstEliteAges: [], elite: 0, employed: 0, promoted: 0, professional: 0, awarded: 0, tiers: {} };
+  groups.set(key, result);
+  result.peaks.push(peak);
+  result.spending.push(life.transactions.filter(({ category }) => category === 'training').reduce((total, { amount }) => total - amount, 0));
+  result.elite += Number(peak >= 90);
+  if (firstEliteAge !== undefined) result.firstEliteAges.push(firstEliteAge);
+  result.awarded += Number(Object.values(life.skills.entries).some(({ awards }) => awards > 0));
+  result.employed += Number(life.career.history.length > 0);
+  result.promoted += Number(life.career.history.some(({ promotions }) => promotions.length > 0));
+  result.professional += Number(life.career.history.some(({ initialJobId }) =>
+    ['undergraduate', 'postgraduate'].includes(jobById.get(initialJobId)?.qualification ?? '')));
+  const tier = skillTier(peak);
+  result.tiers[tier] = (result.tiers[tier] ?? 0) + 1;
+}
 
 function skillChoice(life: Life, seed: number, strategy: SkillStrategy) {
   const age = life.character.age;
@@ -240,9 +282,46 @@ for (let seed = 1; seed <= count; seed++) {
   const strategy = developmentStrategies[(seed - 1 + rotation) % developmentStrategies.length]!;
   let firstEliteAge: number | undefined;
   let turns = 0;
+  let jobless = 0;
   while (!life.character.causeOfDeath) {
     assert.ok(++turns <= maxAge, `Turn limit exceeded for seed ${seed}.`);
+    const elapsed = national(life.world);
+    const previousJob = life.career.current;
+    const previousAmount = life.character.bank;
+    const previousEmployment = outcomes(elapsed.regime);
+    if (life.character.age >= 18 && life.character.age < 65 && life.career.retiredYear === null) {
+      previousEmployment.adultYears++;
+      if (previousJob) {
+        if (jobless) worklessSpells.push(jobless);
+        jobless = 0;
+      } else {
+        previousEmployment.withoutWork++;
+        jobless++;
+      }
+    }
     life = apply(life, { type: 'age' });
+    const currentEconomy = national(life.world);
+    assert.equal(currentEconomy.year, elapsed.year + 1);
+    for (const key of ['inflation', 'unemployment', 'priceIndex', 'growth'] as const) {
+      assert.ok(currentEconomy[key] >= worldBounds[key][0] && currentEconomy[key] <= worldBounds[key][1]);
+      indicators[key].push(currentEconomy[key]);
+    }
+    const conditions = outcomes(currentEconomy.regime);
+    conditions.years++;
+    conditions.growth.push(currentEconomy.growth);
+    conditions.inflation.push(currentEconomy.inflation);
+    conditions.unemployment.push(currentEconomy.unemployment);
+    if (life.finance.lastSettledYear === life.year) previousEmployment.arrears.push(outstanding(life));
+    if (previousJob) {
+      previousEmployment.salaries.push(previousJob.salary);
+      const job = life.career.current;
+      if (job) {
+        conditions.reviews.push(job.performance);
+        conditions.promotions += Number(job.promotions.length > previousJob.promotions.length);
+      } else if (life.career.history.at(-1)?.reason === 'redundant') conditions.redundancies++;
+    }
+    assert.equal(life.character.bank, previousAmount + life.transactions.filter((entry) => entry.year === life.year)
+      .reduce((sum, entry) => sum + entry.amount, 0));
     if (life.pending) {
       const pending = life.pending;
       const choices = eventById.get(pending)?.choices;
@@ -251,6 +330,13 @@ for (let seed = 1; seed <= count; seed++) {
       life = apply(life, { type: 'choose', event: pending, choice: choice.id });
       if (pending === 'graduation-plan') plans[choice.id] = (plans[choice.id] ?? 0) + 1;
       decisions++;
+    }
+    if (seed % 7 === 0 && life.character.age >= 20 && life.character.age <= 50 && life.character.age % 7 === 0) {
+      const city = cities.filter((city) => city !== life.character.city).sort((a, b) => life.world.cities[b].jobs - life.world.cities[a].jobs)[0]!;
+      if (!relocationIssue(life, city)) {
+        life = apply(life, { type: 'relocate', city });
+        relocations++;
+      }
     }
     if (!life.character.causeOfDeath) life = employmentChoice(educationChoice(life, seed), seed);
     life = socialChoice(life, seed);
@@ -305,7 +391,9 @@ for (let seed = 1; seed <= count; seed++) {
     const current = life.career.current;
     if (current) {
       const definition = jobById.get(current.jobId)!;
-      assert.ok(current.salary >= definition.salary[0] && current.salary <= definition.salary[1]);
+      const lastChange = current.salaryHistory.at(-1);
+      const [minimum, maximum] = salaryBand(definition, lastChange?.factor ?? current.startingFactor);
+      assert.ok(current.salary >= minimum && current.salary <= maximum);
       assert.equal(jobRequirementsIssue(life, definition), null);
       assert.equal(life.career.retiredYear, null);
       assert.ok(Object.values(life.finance.arrears).every((amount) => Number.isSafeInteger(amount) && amount >= 0));
@@ -313,8 +401,8 @@ for (let seed = 1; seed <= count; seed++) {
     if (seed % 47 === 0 && life.character.age === 17) {
       const legacy = { ...life, version: 3, career: undefined, finance: undefined, illnesses: undefined, notices: undefined,
         property: undefined, communityFriends: undefined };
-      assert.deepEqual({ ...decodeLife(JSON.stringify(legacy)), social: undefined, skills: undefined },
-        { ...life, illnesses: [], notices: [], communityFriends: [], social: undefined, skills: undefined });
+      assert.deepEqual({ ...decodeLife(JSON.stringify(legacy)), social: undefined, skills: undefined, world: undefined },
+        { ...life, illnesses: [], notices: [], communityFriends: [], social: undefined, skills: undefined, world: undefined });
     }
     const enrollment = life.academic.enrollment;
     if (enrollment) {
@@ -324,24 +412,19 @@ for (let seed = 1; seed <= count; seed++) {
     }
   }
   if (seed % 47 === 0) assert.deepEqual(decodeLife(JSON.stringify(life)), life);
-  const result = development.get(strategy) ?? { peaks: [], spending: [], firstEliteAges: [], elite: 0, employed: 0, promoted: 0, professional: 0,
-    awarded: 0, tiers: {} };
-  development.set(strategy, result);
-  const progress = Object.values(life.skills.entries);
-  const peak = Math.max(0, ...progress.map(({ best }) => best));
-  result.peaks.push(peak);
-  result.spending.push(life.transactions.filter(({ category }) => category === 'training').reduce((total, { amount }) => total - amount, 0));
-  result.elite += Number(peak >= 90);
-  if (firstEliteAge !== undefined) result.firstEliteAges.push(firstEliteAge);
-  result.awarded += Number(progress.some(({ awards }) => awards > 0));
-  result.employed += Number(life.career.history.length > 0);
-  result.promoted += Number(life.career.history.some(({ promotions }) => promotions.length > 0));
-  result.professional += Number(life.career.history.some(({ initialJobId }) =>
-    ['undergraduate', 'postgraduate'].includes(jobById.get(initialJobId)?.qualification ?? '')));
-  const tier = skillTier(peak);
-  result.tiers[tier] = (result.tiers[tier] ?? 0) + 1;
+  if (jobless) worklessSpells.push(jobless);
+  finalBalances.push(life.character.bank);
+  finalArrears.push(outstanding(life));
+  jobChanges.push(life.career.history.filter(({ reason }) => reason === 'changed jobs').length);
+  const strongest = Object.entries(life.skills.entries).sort(([idA, a], [idB, b]) => b.best - a.best || b.sessions - a.sessions || idA.localeCompare(idB))[0]?.[1];
+  const peak = strongest?.best ?? 0;
+  const aptitude = strongest?.aptitude;
+  const group = aptitude === undefined ? 'untrained' : aptitude < 45 ? 'under45' : aptitude < 73 ? '45to72' : '73plus';
+  trackDevelopment(development, strategy, life, peak, firstEliteAge);
+  trackDevelopment(byAptitude, group, life, peak, firstEliteAge);
   assert.equal(life.career.current, null);
   const salaries = life.transactions.filter(({ category }) => category === 'salary');
+  householdIncome.push(salaries.reduce((sum, { amount }) => sum + amount, 0));
   const taxes = life.transactions.filter(({ category }) => category === 'tax');
   assert.equal(new Set(salaries.map(({ year }) => year)).size, salaries.length);
   assert.equal(taxes.reduce((sum, entry) => sum - entry.amount, 0), salaries.reduce((sum, entry) => sum + incomeTax(entry.amount), 0));
@@ -357,6 +440,7 @@ for (let seed = 1; seed <= count; seed++) {
     if (initial.qualification === 'undergraduate' || initial.qualification === 'postgraduate') professionalHires++;
     if (initial.qualification === 'vocational') vocationalHires++;
     if (entry.reason === 'dismissed') dismissals++;
+    if (entry.reason === 'redundant') redundant++;
     promotions += entry.promotions.length;
   }
   const academic = life.academic;
@@ -393,6 +477,11 @@ function percentiles(values: number[]) {
   return { p10: ordered[Math.floor((ordered.length - 1) * .1)], p50: ordered[Math.floor((ordered.length - 1) * .5)],
     p90: ordered[Math.floor((ordered.length - 1) * .9)] };
 }
+function developmentReport<K extends string>(groups: Map<K, Development>) {
+  return Object.fromEntries([...groups].map(([strategy, { peaks, spending, firstEliteAges, ...outcomes }]) => [strategy, {
+    lives: peaks.length, bestProficiency: percentiles(peaks), firstEliteAge: percentiles(firstEliteAges), trainingExpenseCents: percentiles(spending), ...outcomes,
+  }]));
+}
 console.log(JSON.stringify({
   lives: count,
   minimumAge: ages[0],
@@ -426,7 +515,17 @@ console.log(JSON.stringify({
   children,
   adoptions,
   divorces,
-  skillDevelopment: Object.fromEntries([...development].map(([strategy, { peaks, spending, firstEliteAges, ...outcomes }]) => [strategy, {
-    lives: peaks.length, bestProficiency: percentiles(peaks), firstEliteAge: percentiles(firstEliteAges), trainingExpenseCents: percentiles(spending), ...outcomes,
-  }])),
+  economy: {
+    indicatorBasisPoints: Object.fromEntries(Object.entries(indicators).map(([key, values]) => [key, percentiles(values)])),
+    worklessSpellsInYears: percentiles(worklessSpells), lifetimeGrossSalaryCents: percentiles(householdIncome),
+    finalBankCents: percentiles(finalBalances), finalArrearsCents: percentiles(finalArrears), jobChanges: percentiles(jobChanges), redundant, relocations,
+    regimes: Object.fromEntries([...byRegime].map(([regime, data]) => [regime, {
+      years: data.years, adultYears: data.adultYears, withoutWork: data.withoutWork, growth: percentiles(data.growth),
+      inflation: percentiles(data.inflation), unemployment: percentiles(data.unemployment),
+      annualSalaryCents: percentiles(data.salaries), yearEndArrearsCents: percentiles(data.arrears),
+      reviewedPerformance: percentiles(data.reviews), promotions: data.promotions, redundancies: data.redundancies,
+    }])),
+  },
+  skillDevelopment: developmentReport(development),
+  skillDevelopmentByPeakSkillAptitude: developmentReport(byAptitude),
 }, null, 2));

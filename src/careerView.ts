@@ -5,11 +5,15 @@ import { jobCompetencies } from './data/skillLinks.ts';
 import { skills } from './data/skills.ts';
 import { careerActionIssue, employmentStatus, jobRequirementsIssue, retirementAge, vacancies } from './engine/career.ts';
 import type { CareerAction, EmploymentType, Industry, JobApplication } from './engine/careerTypes.ts';
-import { financeLabels, outstanding, transactionCategory } from './engine/finance.ts';
+import { financeLabels, livingBudget, outstanding, transactionCategory } from './engine/finance.ts';
 import { livingCategories } from './engine/financeTypes.ts';
+import { indexedCents } from './engine/pricing.ts';
+import { national } from './engine/world.ts';
+import { indexBase } from './engine/worldTypes.ts';
 import type { Life } from './engine/types.ts';
 import { money } from './i18n/en.ts';
 import type { Emoji } from './theme/tokens.ts';
+import { ratioLabel, regimeLabels } from './worldView.ts';
 
 export const employmentLabels: Record<EmploymentType, string> = { 'part-time': 'Part-time', 'full-time': 'Full-time' };
 export const outcomeLabels: Record<JobApplication['result'], string> = {
@@ -62,6 +66,8 @@ export function careerRows(life: Life) {
       { label: 'Industry experience', value: `${life.career.industryExperience[definition.industry] ?? 0} years` },
       { label: 'Working week', value: `${job.hours} hrs` },
       { label: 'Professional reputation', value: `${life.career.reputation}%` },
+      { label: 'Employer stability', value: `${life.world.employers[job.employerId]!.stability} / 100` },
+      { label: 'Economic regime', value: regimeLabels[national(life.world).regime] },
     );
   } else if (life.career.experience > 0) rows.push({ label: 'Professional experience', value: `${life.career.experience} years` });
   if (life.career.retiredYear !== null) rows.push({ label: 'Retired in', value: life.career.retiredYear });
@@ -93,13 +99,21 @@ export function jobListings(life: Life, filters: JobFilters = defaultJobFilters)
       Number(!!a.issue) - Number(!!b.issue) || a.job.title.localeCompare(b.job.title));
 }
 
+export function hiringOverview(life: Life) {
+  const country = national(life.world);
+  const local = life.world.cities[life.character.city];
+  return [{ label: 'Local job opportunities', value: `${local.jobs} / 100` },
+    { label: 'National unemployment', value: ratioLabel(country.unemployment) }];
+}
+
 export type Listing = ReturnType<typeof jobListings>[number];
 
-export function vacancyRows(listing: Listing) {
+export function vacancyRows(listing: Listing, life: Life) {
   const { job, employer, salary, status, issue, application } = listing;
   return [
     { label: 'Employer', value: employer.name }, { label: 'City', value: employer.city },
     { label: 'Industry', value: job.industry }, { label: 'Employment type', value: employmentLabels[job.type] },
+    { label: 'Industry hiring demand', value: `${life.world.industries[job.industry].demand} / 100` },
     { label: 'Annual gross salary', value: money(salary) }, { label: 'Working week', value: `${job.hours} hrs` },
     { label: 'Minimum age', value: job.age }, { label: 'Qualification', value: job.qualification ?? 'None required' },
     ...(job.tags.length ? [{ label: 'Relevant fields', value: job.tags.join(', ') }] : []),
@@ -165,6 +179,9 @@ export function financeYears(life: Life) {
 
 export function financeOverview(life: Life, year: number) {
   const totals = new Map<string, number>();
+  const country = national(life.world);
+  const baselineBalance = indexedCents(life.character.bank, indexBase * indexBase / country.priceIndex);
+  const projection = Object.values(livingBudget(life)).reduce((sum, cost) => sum + cost, 0);
   let net = 0;
   for (const entry of life.transactions) {
     if (entry.year !== year) continue;
@@ -174,6 +191,9 @@ export function financeOverview(life: Life, year: number) {
   }
   return [
     { label: 'Balance', value: money(life.character.bank) },
+    { label: 'Balance at baseline prices', value: money(baselineBalance) },
+    { label: 'Current inflation', value: ratioLabel(country.inflation) },
+    { label: 'Current annual essentials estimate', value: money(projection) },
     { label: 'Gross salary', value: money(totals.get('salary') ?? 0) },
     { label: 'Income tax', value: money(Math.abs(totals.get('tax') ?? 0)) },
     { label: 'Living expenses paid', value: money(Math.abs(livingCategories.reduce((sum, category) => sum + (totals.get(category) ?? 0), 0))) },

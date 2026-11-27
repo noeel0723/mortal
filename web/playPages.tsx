@@ -3,11 +3,11 @@ import type { ReactNode } from 'react';
 import { lifestyleActivities, socialActivities, wellbeingActivities, type ActivityControl } from '../src/activityView';
 import { assetById, assetKinds } from '../src/data/shops';
 import type { AssetListing } from '../src/data/shops';
-import { backgroundLabels, cities, cityDescriptions, genderLabels, talentLabels } from '../src/data/veyra';
+import { backgroundLabels, genderLabels, talentLabels } from '../src/data/veyra';
 import { contactBondRows, contactHistory, contactInteractions, contactProfileRows, contactRole } from '../src/contactView';
 import {
   canShowRetirement, careerCard, careerControl, careerRows, careerSummary, careerTimeline, defaultJobFilters, employmentLabels,
-  financeEntries, financeOverview, financeYears, jobIcon, jobListings, jobRatings, lifetimeEarnings, vacancyActions, vacancyRows,
+  financeEntries, financeOverview, financeYears, hiringOverview, jobIcon, jobListings, jobRatings, lifetimeEarnings, vacancyActions, vacancyRows,
 } from '../src/careerView';
 import type { JobFilters } from '../src/careerView';
 import { programById } from '../src/data/academics';
@@ -20,9 +20,9 @@ import { currentClass, findContact, isPeer, isSchoolStage } from '../src/engine/
 import { romanceLabels } from '../src/engine/love';
 import { childParents, datingCandidates, datingSummary, familyTreeGroups, meetingControls, relationshipControls, relationshipGroups } from '../src/socialView';
 import { canEditFace } from '../src/engine/appearance';
-import { propertyIssue } from '../src/engine/property';
+import { propertyIssue, propertyQuote } from '../src/engine/property';
 import { assetArt } from '../src/portraits/assetArt';
-import { housingControls, listingsFor, ownedListings, propertyCategories, residenceLabel, shoppingCategory } from '../src/propertyView';
+import { housingControls, listingsFor, ownedListings, ownershipDetail, propertyCategories, residenceLabel, shoppingCategory } from '../src/propertyView';
 import { activeCoworkers } from '../src/engine/workplace';
 import type { HealthService } from '../src/engine/healthTypes';
 import { careSections, careSelection, careServices, profileHealthRows } from '../src/healthView';
@@ -32,11 +32,12 @@ import {
 } from '../src/educationView';
 import type { EducationControl } from '../src/educationView';
 import { stats } from '../src/engine/types';
-import type { Contact, Life } from '../src/engine/types';
+import type { City, Contact, Life } from '../src/engine/types';
 import { en, money, statLabels } from '../src/i18n/en';
 import type { Emoji } from '../src/theme/tokens';
 import { useGame } from './browserStore';
 import { activitySkillCategories, annualTrainingSummary, skillCategory, skillDetails, skillGroups } from '../src/skillView';
+import { cityFromSlug, cityReport, compareCities, currentNews, industryReport, relocationDescription, worldHistory, worldOverview, worldReports } from '../src/worldView';
 import { Achievements, Settings } from './menu';
 import { AppearancePage, Portrait } from './portraits';
 import { DetailDialog } from './detailDialog';
@@ -86,6 +87,11 @@ export const pageTitles = {
   'skill-training': 'Skill Training',
   skill: 'Skill Details',
   world: 'World',
+  'world-industries': 'Industry Report',
+  'world-cities': 'Compare Cities',
+  'world-city': 'City Details',
+  'world-news': 'World News',
+  'world-history': 'World History',
   menu: 'Life Menu',
   settings: 'Settings',
   achievements: 'Achievements',
@@ -136,6 +142,11 @@ const parentPages: Partial<Record<DetailPage, GamePage>> = {
   skills: 'statistics',
   'skill-training': 'activities',
   skill: 'skills',
+  'world-industries': 'world',
+  'world-cities': 'world',
+  'world-city': 'world-cities',
+  'world-news': 'world',
+  'world-history': 'world',
   settings: 'menu',
   achievements: 'menu',
 };
@@ -150,6 +161,7 @@ export function PlayPageHeader({ page, person, schoolTitle, detail, go }: {
   const parentDetail = page === 'shop-item' ? assetById.get(detail ?? '')?.kind : trainingCategory;
   const titleFor = (target: GamePage, value?: string) => {
     if (target === 'education' && schoolTitle) return schoolTitle;
+    if (target === 'world-city') return cityFromSlug(value) ?? pageTitles[target];
     if (target === 'shop-category') {
       const kind = shoppingCategory(value);
       return kind ? propertyCategories[kind].label : pageTitles[target];
@@ -298,6 +310,7 @@ function JobListings({ life, go }: { life: Life; go: Navigate }) {
   const listings = jobListings(life, filters);
   return <>
     <PageGroup title={`Open positions · ${life.year}`}>
+      <Rows items={hiringOverview(life)} />
       <div className="play-group-inset field-grid job-filters">
         <label>Search by title<input type="search" value={filters.query} onChange={(event) => setFilters({ ...filters, query: event.target.value })} /></label>
         <label>Industry<select value={filters.industry} onChange={(event) => setFilters({ ...filters, industry: event.target.value as JobFilters['industry'] })}>
@@ -332,6 +345,28 @@ function Finances({ life }: { life: Life }) {
       {entries.length ? entries.map((item, index) => <MenuRow key={index} title={item.label} detail={`${item.year} · ${item.group}`} value={money(item.amount)} />) :
         <p className="play-empty">No transactions yet.</p>}
     </PageGroup>
+  </>;
+}
+
+function WorldCity({ life, city }: { life: Life; city: City }) {
+  const [confirm, setConfirm] = useState(false);
+  const { busy, dispatch } = useGame();
+  const report = cityReport(life, city);
+  return <>
+    <p className="play-empty">{report.description}</p>
+    <PageGroup title="City Indicators"><Rows items={report.rows} /></PageGroup>
+    {!report.current && <PageGroup title="Relocation">
+      <MenuRow title={`Move to ${city}`} icon="train" detail={report.issue ?? `Moving cost ${report.fee}`} opensDialog
+        disabled={busy || !!report.issue} onClick={() => setConfirm(true)} />
+    </PageGroup>}
+    {confirm && <DetailDialog title="Confirm Relocation" onDismiss={() => setConfirm(false)}>
+      <p>{relocationDescription}</p>
+      <Rows items={[{ label: 'Moving cost', value: report.fee }]} />
+      <Button kind="primary" icon="accept" disabled={busy || !!report.issue} onClick={() => {
+        setConfirm(false);
+        void dispatch({ type: 'relocate', city });
+      }}>Confirm Move</Button>
+    </DetailDialog>}
   </>;
 }
 
@@ -396,7 +431,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       if (!listing) return <p className="play-empty">This vacancy is no longer available.</p>;
       const controls = vacancyActions(life, listing);
       return <>
-        <PageGroup title={listing.job.title}><Rows items={vacancyRows(listing)} /></PageGroup>
+        <PageGroup title={listing.job.title}><Rows items={vacancyRows(listing, life)} /></PageGroup>
         {controls.length > 0 && <PageGroup title="Application"><ControlRows controls={controls} go={go} /></PageGroup>}
       </>;
     }
@@ -573,7 +608,9 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
         <Rows items={[
           { label: character.causeOfDeath ? 'Age at death' : 'Age', value: character.age },
           { label: 'Gender identity', value: genderLabels[character.gender] },
-          { label: 'Birth city', value: character.city }, { label: 'Education', value: educationStatus(life) },
+          { label: 'Birth city', value: character.birthCity },
+          ...(character.city !== character.birthCity ? [{ label: 'Current city', value: character.city }] : []),
+          { label: 'Education', value: educationStatus(life) },
           ...profileHealthRows(life),
         ]} />
       </PageGroup>;
@@ -642,7 +679,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       const kind = shoppingCategory(detail);
       if (!kind) return <p className="play-empty">This catalog is unavailable.</p>;
       return <PageGroup title={`${listingsFor(kind).length} listings`}>{listingsFor(kind).map((listing) => <MenuRow key={listing.id}
-        avatar={<AssetImage listing={listing} />} title={listing.name} detail={listing.detail} value={money(listing.price)}
+        avatar={<AssetImage listing={listing} />} title={listing.name} detail={listing.detail} value={money(propertyQuote(life, listing).price)}
         onClick={() => go('shop-item', listing.id)} />)}</PageGroup>;
     }
     case 'shop-item': {
@@ -652,7 +689,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       const issue = propertyIssue(life, action);
       return <PageGroup title={listing.name}>
         <div className="asset-preview"><AssetImage listing={listing} large /><p>{listing.detail}</p></div>
-        <MenuRow icon="cart" title="Buy" detail={issue ?? 'Pay from your current balance.'} value={money(listing.price)}
+        <MenuRow icon="cart" title="Buy" detail={issue ?? 'Pay from your current balance.'} value={money(propertyQuote(life, listing).price)}
           disabled={busy || !!issue} onClick={() => void dispatch(action)} />
       </PageGroup>;
     }
@@ -660,9 +697,9 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       const owned = ownedListings(life);
       return owned.length ? assetKinds.map((kind) => {
         const entries = owned.filter(({ listing }) => listing.kind === kind);
-        return entries.length ? <PageGroup key={kind} title={propertyCategories[kind].label}>{entries.map(({ id, year, listing, source }) =>
-          <MenuRow key={id} avatar={<AssetImage listing={listing} />} title={listing.name}
-            detail={`${source === 'gift' ? 'Gifted' : 'Purchased'} in ${year}${life.property.residence === id ? ' · Current home' : ''}`} />)}</PageGroup> : null;
+        return entries.length ? <PageGroup key={kind} title={propertyCategories[kind].label}>{entries.map((item) =>
+          <MenuRow key={item.id} avatar={<AssetImage listing={item.listing} />} title={item.listing.name}
+            detail={ownershipDetail(item, life.property.residence)} />)}</PageGroup> : null;
       }) : <p className="play-empty">You do not own any houses or vehicles yet.</p>;
     }
     case 'finances':
@@ -730,15 +767,55 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
         <PageGroup title="Hobby">{activityRow(details.hobby)}</PageGroup>
       </>;
     }
-    case 'world':
+    case 'world': {
+      const overview = worldOverview(life);
       return <>
-        <PageGroup title="Veyra"><Rows items={[
-          { label: 'Simulation year', value: life.year }, { label: 'Your city', value: character.city },
-        ]} /></PageGroup>
-        <PageGroup title="Cities">
-          {cities.map((city) => <MenuRow key={city} icon="location" title={city} detail={cityDescriptions[city]} />)}
+        <PageGroup title="Veyra"><Rows items={overview.countryRows} /></PageGroup>
+        <PageGroup title="Reports">
+          {worldReports.map((item) => <MenuRow key={item.id} icon={item.icon} title={item.label} onClick={() => go(`world-${item.id}`)} />)}
         </PageGroup>
+        <PageGroup title="Economic Indicators"><Rows items={overview.economyRows} /></PageGroup>
+        <PageGroup title="Public Services"><Rows items={overview.communityRows} /></PageGroup>
       </>;
+    }
+    case 'world-cities':
+      return <PageGroup title="Veyra">{compareCities(life).map((item) => <MenuRow key={item.id} icon="location" title={item.city}
+        detail={item.detail} onClick={() => go('world-city', item.id)} />)}</PageGroup>;
+    case 'world-city': {
+      const city = cityFromSlug(detail);
+      return city ? <WorldCity key={city} life={life} city={city} /> : <p className="play-empty">This city is unavailable.</p>;
+    }
+    case 'world-industries':
+      return industryReport(life).map(({ industry, rows }) => <PageGroup key={industry} title={industry}><Rows items={rows} /></PageGroup>);
+    case 'world-news': {
+      const articles = currentNews(life);
+      return <>
+        <p className="play-empty">Fictional news from your Veyra simulation.</p>
+        {([['This Year', true], ['Earlier Headlines', false]] as const).map(([label, current]) => {
+          const items = articles.filter(({ year }) => (year === life.year) === current);
+          return items.length || current ? <PageGroup key={label} title={label}>
+            {items.length ? items.map((article) => <article key={article.key} className="world-article">
+              <h3>{article.title}</h3><small>{article.area} · {article.year}{article.active && article.year !== life.year ? ' · Ongoing' : ''}</small>
+              <p>{article.story}</p>
+            </article>) : <p className="play-empty">No major developments this year.</p>}
+          </PageGroup> : null;
+        })}
+      </>;
+    }
+    case 'world-history': {
+      const history = worldHistory(life);
+      return <>
+        <PageGroup title="Consumer prices">
+          <figure className="world-chart">
+            <div className="world-chart-bars" role="img" aria-label={`Price index from ${history.chart[0]!.value} to ${history.chart.at(-1)!.value}`}>
+              {history.chart.map(({ year, value, height }) => <span key={year} title={`${year} · ${value}`} style={{ height: `${height}%` }} />)}
+            </div>
+            <figcaption>{history.chart[0]!.year}–{history.chart.at(-1)!.year} · {history.chart[0]!.value} → {history.chart.at(-1)!.value}</figcaption>
+          </figure>
+        </PageGroup>
+        <PageGroup title="Annual Records"><Rows items={history.rows} /></PageGroup>
+      </>;
+    }
     case 'menu':
       return <PageGroup title="This life">
         <MenuRow icon="save" title="Save Life" detail="Progress also saves after every action." onClick={() => void save()} disabled={busy} />

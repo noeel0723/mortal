@@ -1,9 +1,13 @@
 import { jobs, jobById } from '../data/jobs.ts';
+import { employers } from '../data/employers.ts';
 import { cities, genders, givenNames, surnames } from '../data/veyra.ts';
 import { contactIdentity } from './appearance.ts';
 import { recordNotice } from './eventNotices.ts';
 import { clamp } from './journal.ts';
+import { indexedCents, localExpense, marketSalaryFactor } from './pricing.ts';
 import { seededRandom } from './random.ts';
+import { national } from './world.ts';
+import type { WorldState } from './worldTypes.ts';
 import { traits } from './socialTypes.ts';
 import type { NpcProfile, SocialPerson, SocialState, Traits } from './socialTypes.ts';
 import type { Contact, Life } from './types.ts';
@@ -124,7 +128,7 @@ export function ageNewPeople(life: Life, maxAge: number) {
 const levels = { 'high-school': 2, vocational: 3, undergraduate: 4, postgraduate: 5 };
 const educationLevel = { 'Early childhood': 0, School: 1, 'High school': 2, Vocational: 3, Undergraduate: 4, Postgraduate: 5 };
 
-export function advanceNpcLives(life: Life) {
+export function advanceNpcLives(life: Life, elapsedWorld: WorldState = life.world) {
   const contacts = allContacts(life);
   const byId = new Map(contacts.map((person) => [person.id, person]));
   for (const [id, child] of Object.entries(life.social.children)) {
@@ -165,25 +169,46 @@ export function advanceNpcLives(life: Life) {
     }
     if (profile.status === 'student') profile.status = 'seeking';
     if (person.age === 18 && person.role === 'Sibling') recordNotice(life, 'family', 'Sibling Graduation', `${person.name} finished high school.`);
+    const expenses = profile.status === 'retired' ? 22000 : 36000;
+    profile.savings = Math.min(20000000, Math.max(0, profile.savings + profile.income -
+      localExpense(elapsedWorld, person.city, expenses) - profile.commitments));
+    const market = life.world.cities[person.city];
+    const economy = national(life.world);
     if (person.age >= 65 && profile.status !== 'retired' && (person.age >= 70 || random.next() < .42)) {
       profile.status = 'retired';
       profile.job = null;
-      profile.income = 12000;
+      profile.income = indexedCents(12000, Math.round(10000 + (economy.priceIndex - 10000) * .45));
       person.occupation = 'Retired';
     } else if (profile.status !== 'retired' && person.age >= graduation + 2 && (!('employerId' in person) || !life.career.current || person.employerId !== life.career.current.employerId)) {
-      const current = profile.job && jobById.get(profile.job);
+      const current = profile.job ? jobById.get(profile.job) : undefined;
+      const company = 'employerId' in person ? life.world.employers[person.employerId] : undefined;
+      const demand = current ? life.world.industries[current.industry].demand : company?.demand ?? market.jobs;
+      const downturn = economy.regime === 'crisis' || economy.regime === 'recession';
+      const lostJob = profile.status === 'employed' && downturn && demand < 44 && random.next() < (45 - demand) / 210;
+      if (lostJob) {
+        profile.status = 'seeking';
+        profile.job = null;
+        profile.income = 0;
+        person.occupation = 'Job seeker';
+        if (close && updates < 2) {
+          recordNotice(life, 'community', 'A Job Lost', `${person.name} lost their job during the downturn and is looking for work.`);
+          updates++;
+        }
+      }
       const fits = (job: typeof jobs[number]) => person.age >= job.age && job.experience <= profile.experience &&
         (!job.qualification || levels[job.qualification] <= educationLevel[profile.education]) && !job.tags.length;
-      const promoted = current && random.next() < (profile.traits.ambition + profile.traits.discipline) / 900
+      const promoted = profile.status === 'employed' && current && random.next() < (profile.traits.ambition + profile.traits.discipline) / 900 * (demand / 55)
         ? current.promotions.map((id) => jobById.get(id)!).find(fits) : undefined;
-      const canChange = profile.status === 'seeking' ? random.next() < .7 :
+      const canChange = profile.status === 'seeking' ? !lostJob && random.next() < Math.max(.18, Math.min(.82, .65 + (market.jobs - 53) / 105)) :
         (!current && (person.occupation === 'Employed' || person.occupation === 'Library member')) || random.next() < profile.traits.riskTolerance / 1800;
-      const options = promoted || !canChange ? [] : jobs.filter(fits);
+      const options = promoted || !canChange ? [] : jobs.filter((job) => fits(job) && life.world.industries[job.industry].demand >= 27 &&
+        employers.some((employer) => employer.city === person.city && employer.industries.includes(job.industry)));
       const next = promoted ?? options[random.integer(0, Math.max(0, options.length - 1))];
       if (next && next.id !== profile.job) {
         profile.job = next.id;
         profile.status = 'employed';
-        profile.income = Math.round((next.salary[0] + next.salary[1]) / 2);
+        const companyId = employers.find((employer) => employer.city === person.city && employer.industries.includes(next.industry))?.id;
+        profile.income = indexedCents((next.salary[0] + next.salary[1]) / 2, marketSalaryFactor(life.world, next, companyId ?? ''));
         person.occupation = next.title;
         if (close && promoted && updates < 2) {
           recordNotice(life, 'community', 'A Promotion', `${person.name} was promoted to ${next.title}.`);
@@ -192,13 +217,12 @@ export function advanceNpcLives(life: Life) {
       } else if (profile.status === 'seeking' && person.age > graduation + 2) person.occupation = 'Job seeker';
     }
     if (profile.status === 'employed') profile.experience++;
-    profile.expenses = profile.status === 'retired' ? 22000 : 36000;
-    profile.savings = Math.min(20000000, Math.max(0, profile.savings + profile.income - profile.expenses - profile.commitments));
+    profile.expenses = localExpense(life.world, person.city, profile.status === 'retired' ? 22000 : 36000);
     const linked = profile.localPartner && byId.get(profile.localPartner);
     if (linked && !linked.alive) profile.localPartner = null;
     if (!family && !partners.has(person.id) && person.age >= 20) {
       const previous = person.city;
-      if (random.next() < .012) person.city = random.pick(cities);
+      if (!('employerId' in person) && random.next() < .012) person.city = random.pick(cities);
       if (previous !== person.city) {
         profile.movedFrom = previous;
         if (close && updates < 2) {

@@ -1,6 +1,6 @@
 import { assetById, assetCatalog, assetKinds, starterHome } from './data/shops.ts';
 import type { AssetKind } from './data/shops.ts';
-import { movingFee, propertyIssue } from './engine/property.ts';
+import { propertyIssue, propertyQuote, rentMovingFee } from './engine/property.ts';
 import type { PropertyAction } from './engine/property.ts';
 import type { Life } from './engine/types.ts';
 import { money } from './i18n/en.ts';
@@ -23,6 +23,12 @@ export function ownedListings(life: Life) {
   return life.property.owned.map((item) => ({ ...item, listing: assetById.get(item.id)! }));
 }
 
+export function ownershipDetail(item: ReturnType<typeof ownedListings>[number], residence: string) {
+  const origin = item.listing.kind === 'houses' ? item.city : `Acquired in ${item.city}`;
+  const price = item.acquisition ? money(item.acquisition.price) : 'Price unknown';
+  return `${item.source === 'gift' ? 'Gifted' : 'Purchased'} in ${item.year} · ${origin} · ${price}${residence === item.id ? ' · Current home' : ''}`;
+}
+
 export function residenceLabel(life: Life) {
   const { residence } = life.property;
   if (residence === 'family') return 'Family home';
@@ -35,9 +41,9 @@ export function housingControls(life: Life) {
     ({ action, label, icon, detail, issue: propertyIssue(life, action) });
   const homes = ownedListings(life).filter(({ listing }) => listing.kind === 'houses');
   return [
-    control({ type: 'rent-home' }, 'Rent My Own Place', 'exit', `${money(movingFee)} in moving costs. Annual rent follows.`),
+    control({ type: 'rent-home' }, 'Rent My Own Place', 'exit', `${money(rentMovingFee(life))} in moving costs. Annual rent follows.`),
     ...life.family.filter(({ alive }) => alive).map((person) => control({ type: 'ask-for-home', parent: person.id },
-      `Ask ${person.name} to Buy a Home`, 'gift', `Ask about ${starterHome.name}. Your relationship affects the decision.`)),
-    ...homes.map(({ listing }) => control({ type: 'move-into-home', id: listing.id }, `Move Into ${listing.name}`, 'home')),
+      `Ask ${person.name} to Buy a Home`, 'gift', `${starterHome.name} · ${money(propertyQuote(life, starterHome).price)}`)),
+    ...homes.map(({ listing, city }) => control({ type: 'move-into-home', id: listing.id }, `Move Into ${listing.name}`, 'home', city)),
   ];
 }

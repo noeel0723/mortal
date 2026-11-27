@@ -1,3 +1,4 @@
+import { newWorld } from '../src/engine/world.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decodeLife } from '../src/database/codec.ts';
@@ -128,7 +129,7 @@ test('opening a legacy student save generates the current roster without losing 
   const life = ageTo(7);
   const legacy = JSON.stringify({ ...life, version: 1, academic: undefined, schoolContacts: undefined });
   const restored = decodeLife(legacy);
-  assert.equal(restored.version, 8);
+  assert.equal(restored.version, 9);
   assert.deepEqual(restored.schoolContacts, life.schoolContacts);
   assert.deepEqual(restored.character, life.character);
   assert.deepEqual(restored.journal, life.journal);
@@ -301,6 +302,7 @@ test('a life records a death and cannot age or act again', () => {
   const life = ageTo(8);
   life.character.age = maxAge - 1;
   life.year = life.character.birthYear + life.character.age;
+  life.world = newWorld(life.seed, life.year, true);
   const ended = apply(life, { type: 'age' });
   assert.ok(ended.character.causeOfDeath);
   assert.equal(ended.character.age, maxAge);

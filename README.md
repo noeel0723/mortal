@@ -54,7 +54,7 @@ Earlier academic grades from version 1 saves are unavailable. Qualifications now
 
 Use **Custom Life → Appearance** to choose a hairstyle, hair color, eyes, nose, and mouth. Random lives can use **Activities → Customize Appearance** at age zero. After the first **Age Up**, use **Activities → Change Hairstyle** to edit your hair. Tap your portrait in the journal for **My Profile**. When you open a contact from **Relationships** or **Class**, tap their name or portrait to see their profile and bond. Available interactions depend on the contact’s role and your age.
 
-Version 1 and 2 saves get stable portraits when they open. Versions 1–7 upgrade to save version 8 on the next successful save. Existing contacts, assets, bank balances, and decisions retain their references. Migrated lives start with an empty skill history and deterministic aptitudes. Adults coming from versions 1–3 start with a neutral career record.
+Version 1 and 2 saves get stable portraits when they open. Versions 1–8 upgrade to save version 9 on the next successful save. Existing contacts, assets, bank balances, skills, and decisions retain their records. Older saves start recording Veyra’s economy at their current year with a consumer price index of 100. Assets bought before the update show an unknown acquisition price. Active job offers keep their original pay until they expire.
 
 ### Work and money
 
@@ -93,6 +93,13 @@ Veyra uses a fictional currency scale. Retirement living costs are funded from s
 - Enter a school or community competition, perform at an open recital, or present a creative project after developing the relevant skill. School and work can provide practical experience. Job listings show preferred skills alongside required qualifications.
 - Add a practiced skill as a hobby. You can practice shared hobbies with friends and partners, and support a child’s chosen interests through encouragement or paid lessons. Exercise, a balanced meal, meditation, entertainment, and a day trip are available from **Activities**.
 
+## Phase 3.0 · The Living World
+
+- Open **Life Journal → World** to see Veyra’s economy, all ten industries, the three cities, fictional news, and a consumer-price chart. **Age Up** advances the world and saves the new year’s conditions.
+- **Career → Find a Job** shows current local hiring conditions and quoted salaries. Rents, essentials, childcare, and asset prices respond to local conditions and inflation. Accepted salaries, outstanding debt, and past transactions retain their recorded amounts.
+- Adults can open **World → Compare Cities**, review a destination, and confirm the move after finishing or leaving their current program and job. The household starts out renting in the new city. Owned homes stay in their original city and can be occupied again after returning.
+- Advanced skills progress more gradually. Varied training and recent public events help for skills that offer them. Existing proficiency, aptitude, and achievements carry over.
+
 ## Verify
 
 ```sh
@@ -106,7 +113,7 @@ npx expo install --check
 
 For a native smoke test, begin a random life, age to six, and exit with the first-day-of-school decision open. Force close and reopen the app, choose **Continue Life**, and verify the character, year, journal, and pending choice. Resolve the decision and confirm that Age Up becomes available. Repeat with a packaged build in airplane mode to verify offline use independently of Metro.
 
-For browser smoke tests, keep `npm run preview:web` running after building and install Playwright Core in the ignored tool directory with `npm install --prefix .expo/web-qa playwright-core`. Run the `test:web:education`, `test:web:career`, `test:web:health`, `test:web:library-property`, `test:web:social`, and `test:web:skills` scripts. They use fresh browser contexts and Edge on Windows by default. Set `MORTAL_BROWSER_PATH` for a different Chromium executable.
+For browser smoke tests, keep `npm run preview:web` running after building and install Playwright Core in the ignored tool directory with `npm install --prefix .expo/web-qa playwright-core`. Run the `test:web:education`, `test:web:career`, `test:web:health`, `test:web:library-property`, `test:web:social`, `test:web:skills`, and `test:web:world` scripts. They use fresh browser contexts and Edge on Windows by default. Set `MORTAL_BROWSER_PATH` for a different Chromium executable.
 
 - [Game design](docs/GAME_DESIGN.md)
 - [Architecture](docs/ARCHITECTURE.md)
