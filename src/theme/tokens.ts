@@ -19,6 +19,6 @@ export const emoji = {
   random: '🎲', location: '📍', support: '🤝', talk: '💬', home: '🏠', delete: '🗑️',
   phone: '📳', options: '🔹', calendar: '📅', person: '👤', next: '➡️',
   university: '🎓', vocational: '🛠️', exam: '📝', library: '📖', extracurricular: '🏅',
-  hair: '✂️',
+  hair: '✂️', gift: '🎁', thanks: '💛', compliment: '✨', together: '🏞️', guidance: '🧭',
 } as const;
 export type Emoji = keyof typeof emoji;

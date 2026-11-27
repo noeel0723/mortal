@@ -5,19 +5,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, emoji, radius, space } from '../theme/tokens';
 import type { Emoji } from '../theme/tokens';
 
-export function ActionButton({ icon, label, onPress, variant = 'secondary', disabled = false, compact = false, selected, style, testID, leading }: {
+export function ActionButton({ icon, label, onPress, variant = 'secondary', disabled = false, compact = false, selected, style, testID, leading, detail }: {
   icon: Emoji; label: string; onPress: () => void; variant?: 'primary' | 'secondary' | 'plain' | 'danger';
-  disabled?: boolean; compact?: boolean; selected?: boolean; style?: StyleProp<ViewStyle>; testID?: string; leading?: ReactNode;
+  disabled?: boolean; compact?: boolean; selected?: boolean; style?: StyleProp<ViewStyle>; testID?: string; leading?: ReactNode; detail?: string;
 }) {
+  const labelStyle = [styles.buttonLabel, variant === 'primary' && styles.whiteLabel, variant === 'danger' && styles.errorLabel];
   return (
     <Pressable
-      accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled, selected }}
+      accessibilityRole="button" accessibilityLabel={label} accessibilityHint={detail} accessibilityState={{ disabled, selected }}
       disabled={disabled} onPress={onPress} testID={testID}
       style={({ pressed }) => [styles.button, styles[variant], selected && styles.selected, compact && styles.compact,
         pressed && (variant === 'primary' ? styles.primaryPressed : styles.pressed), disabled && styles.disabled, style]}
     >
       {leading ?? <Text accessibilityElementsHidden importantForAccessibility="no" style={styles.emoji}>{emoji[icon]}</Text>}
-      {!compact && <Text style={[styles.buttonLabel, variant === 'primary' && styles.whiteLabel, variant === 'danger' && styles.errorLabel]}>{label}</Text>}
+      {!compact && (detail ? <View style={styles.buttonText}>
+        <Text style={[labelStyle, styles.rowLabel]}>{label}</Text><Text style={shared.small}>{detail}</Text>
+      </View> : <Text style={labelStyle}>{label}</Text>)}
     </Pressable>
   );
 }
@@ -112,6 +115,8 @@ const styles = StyleSheet.create({
   disabled: { opacity: .5 },
   emoji: { fontSize: 17, lineHeight: 24 },
   buttonLabel: { color: colors.ink, fontSize: 14, textAlign: 'center', fontWeight: '600', flexShrink: 1 },
+  buttonText: { flex: 1, gap: 2 },
+  rowLabel: { textAlign: 'left' },
   whiteLabel: { color: colors.white },
   errorLabel: { color: colors.errorText },
   feedback: { padding: space.md, borderRadius: radius.md, fontSize: 14, lineHeight: 20 },

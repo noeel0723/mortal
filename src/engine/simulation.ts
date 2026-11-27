@@ -1,10 +1,11 @@
 import { eventById, events } from '../data/events.ts';
 import { advanceAcademics, chooseEducationPath, isTuitionDue, performAcademicAction } from './academics.ts';
 import { appearanceChanged, appearanceIssue, mergeAppearance, validFace, validHair } from './appearance.ts';
+import { contactIssue, performRelationshipActivity } from './interactions.ts';
 import { clamp, record } from './journal.ts';
 import { seededRandom } from './random.ts';
-import { advanceContactOccupation, currentClass, findContact, isCurrentClassContact, isPeer, isSchoolStage } from './school.ts';
-import type { Action, Contact, Life } from './types.ts';
+import { advanceContactOccupation, currentClass, findContact, isPeer, isSchoolStage } from './school.ts';
+import type { Action, Life } from './types.ts';
 
 export const maxAge = 115;
 export const friendshipEnergyCost = 6;
@@ -116,14 +117,6 @@ export function activityIssue(life: Life, activity: Activity) {
   return null;
 }
 
-function contactIssue(life: Life, person: Contact) {
-  if (!person.alive) return 'This person is no longer available.';
-  if ('stage' in person && !person.friend && !isCurrentClassContact(life, person)) {
-    return 'This contact is from a previous class.';
-  }
-  return null;
-}
-
 export function talkIssue(life: Life, id: string) {
   const person = findContact(life, id);
   if (!person) return 'This person is no longer available.';
@@ -206,6 +199,11 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       person.bond.trust = clamp(person.bond.trust + 5);
       person.bond.familiarity = clamp(person.bond.familiarity + 6);
       record(life, 'school', `I became friends with ${person.name} from my class.`, { energy: -friendshipEnergyCost, happiness: 5 });
+      break;
+    }
+    case 'interact': {
+      const issue = performRelationshipActivity(life, action.person, action.activity);
+      if (issue) return { error: issue };
       break;
     }
     case 'change-appearance':

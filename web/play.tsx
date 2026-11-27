@@ -7,7 +7,7 @@ import { educationTab } from '../src/educationView';
 import { en, money, statLabels } from '../src/i18n/en';
 import type { Emoji } from '../src/theme/tokens';
 import { useGame } from './browserStore';
-import { PlayPage, PlayPageHeader } from './playPages';
+import { PlayPage, PlayPageHeader, backgroundPage } from './playPages';
 import type { GamePage, Navigate } from './playPages';
 import { Button, Feedback } from './ui';
 import { Portrait } from './portraits';
@@ -113,12 +113,13 @@ export function Play({ life, page, personId, go, home, newLife }: {
 }) {
   const { busy, problem, notice, haptics, dispatch } = useGame();
   const viewport = useRef<HTMLDivElement>(null);
+  const visiblePage = backgroundPage(page);
   const journalLength = page === 'journal' ? life.journal.length : 0;
   const journalAge = page === 'journal' ? life.character.age : 0;
   useLayoutEffect(() => {
     const region = viewport.current;
-    if (region) region.scrollTop = page === 'journal' ? region.scrollHeight : 0;
-  }, [page, personId, journalLength, journalAge]);
+    if (region) region.scrollTop = visiblePage === 'journal' ? region.scrollHeight : 0;
+  }, [visiblePage, personId, journalLength, journalAge]);
 
   async function age() {
     if (await dispatch({ type: 'age' })) {
@@ -133,7 +134,7 @@ export function Play({ life, page, personId, go, home, newLife }: {
   return (
     <main className="game" id="main">
       <Profile life={life} open={() => go('player-profile')} />
-      {!isJournal && <PlayPageHeader page={page} person={person} schoolTitle={schoolTitle} go={go} />}
+      {visiblePage !== 'journal' && <PlayPageHeader page={visiblePage} person={person} schoolTitle={schoolTitle} go={go} />}
       <div className={`game-content${isJournal ? '' : ' game-content--page'}`} ref={viewport} tabIndex={0} role="region"
         aria-label={isJournal ? 'Journal entries' : undefined} aria-labelledby={isJournal ? undefined : 'play-page-title'}>
         {isJournal ? <Journal life={life} go={go} /> :

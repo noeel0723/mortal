@@ -186,6 +186,41 @@ test('available family interactions update multiple bond dimensions', () => {
   assert.match(advance(life, { type: 'talk', person: person.id }).error ?? '', /no longer available/);
 });
 
+test('parents give one allowance per year and gifts debit the full amount', () => {
+  const life = ageUntil(createLife(4, custom), 8);
+  const [parent, other] = life.family;
+  assert.ok(parent && other);
+  const ask = { type: 'interact', person: parent.id, activity: 'ask-allowance' } as const;
+  const paid = apply(life, ask);
+  assert.equal(paid.character.bank, life.character.bank + 800);
+  assert.equal(paid.transactions.at(-1)?.amount, 800);
+  assert.match(advance(paid, { ...ask, person: other.id }).error ?? '', /already done/i);
+  const gift = { type: 'interact', person: parent.id, activity: 'gift' } as const;
+  const gifted = apply(paid, gift);
+  assert.equal(gifted.character.bank, paid.character.bank - 500);
+  assert.equal(gifted.transactions.at(-1)?.amount, -500);
+  assert.equal(gifted.family[0]?.bond.affection, Math.min(100, parent.bond.affection + 5));
+  assert.match(advance({ ...life, character: { ...life.character, bank: 499 } }, gift).error ?? '', /cannot afford/);
+  assert.match(advance(life, { type: 'interact', person: parent.id, activity: 'academic-help' }).error ?? '', /unavailable for this relationship/);
+});
+
+test('peer study and teacher help affect coursework and honor yearly limits', () => {
+  const life = apply(ageTo(6), { type: 'choose', event: 'first-classroom', choice: 'join' });
+  const [teacher, first, second] = currentClass(life);
+  assert.ok(teacher && first && second);
+  const grade = life.academic.enrollment!.performance;
+  const helped = apply(life, { type: 'interact', person: teacher.id, activity: 'academic-help' });
+  assert.equal(helped.academic.enrollment?.performance, Math.min(100, grade + 3));
+  assert.match(advance(helped, { type: 'activity', activity: 'academic-talk' }).error ?? '', /already done/i);
+  const studied = apply(helped, { type: 'interact', person: first.id, activity: 'study-together' });
+  assert.equal(studied.academic.enrollment?.performance, Math.min(100, grade + 6));
+  assert.match(advance(studied, { type: 'interact', person: second.id, activity: 'study-together' }).error ?? '', /already done/i);
+  const friend = apply(studied, { type: 'befriend', person: first.id });
+  const older = ageUntil(friend, 12);
+  assert.match(advance(older, { type: 'interact', person: first.id, activity: 'study-together' }).error ?? '', /current class/);
+  assert.ok(advance(older, { type: 'interact', person: first.id, activity: 'hang-out' }).life);
+});
+
 test('a life records a death and cannot age or act again', () => {
   const life = ageTo(8);
   life.character.age = maxAge - 1;

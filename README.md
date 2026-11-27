@@ -44,6 +44,7 @@ Mortal saves successful turns and decisions before showing them. **Save Life** i
 ### Advanced education
 
 - Open **School** to see grades, attendance, academic stress, and your class. Study and prepare for exams to improve grades. Talk to your teacher or socialize to manage academic stress.
+- Tap the name of your school or university to open your enrollment details, including attendance, academic stress, and any tuition or scholarship.
 - At high school graduation, choose university, vocational training, the workforce, or a gap year. Open **Career → View Education → Browse Programs** to compare courses, apply, and enroll after receiving an offer. Adult High School Equivalency is available to adults without a diploma.
 - Check tuition and scholarships before you enroll. If your balance falls short for the next year, education pauses until you pay, use a scholarship, or decide to withdraw. Open **Academic Records** to see outcomes, qualifications and money received in scholarships. Former school and university friends stay in **Relationships**.
 
@@ -51,7 +52,7 @@ Earlier academic grades from version 1 saves are unavailable. Workforce intent a
 
 ### Character portraits
 
-Use **Custom Life → Appearance** to choose a hairstyle, hair color, eyes, nose, and mouth. Random lives can use **Activities → Customize Appearance** at age zero. After the first **Age Up**, use **Activities → Change Hairstyle** to edit your hair. Tap your portrait in the journal for **My Profile**, or open a contact from **Relationships** or **Class** to see their portrait and gender identity.
+Use **Custom Life → Appearance** to choose a hairstyle, hair color, eyes, nose, and mouth. Random lives can use **Activities → Customize Appearance** at age zero. After the first **Age Up**, use **Activities → Change Hairstyle** to edit your hair. Tap your portrait in the journal for **My Profile**. When you open a contact from **Relationships** or **Class**, tap their name or portrait to see their profile and bond. Available interactions depend on the contact’s role and your age.
 
 Version 1 and 2 saves get stable portraits when they open. The upgraded version 3 payload is written on the next save.
 

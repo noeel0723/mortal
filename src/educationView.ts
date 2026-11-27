@@ -39,6 +39,14 @@ export function gradeLabel(enrollment: Enrollment) {
   return enrollment.performanceRecorded ? `${enrollment.performance}%` : 'Grade unavailable';
 }
 
+const schoolNames = { primary: 'Primary School', secondary: 'Secondary School', high: 'High School' } as const;
+
+export function institutionCard(life: Life, enrollment: Enrollment) {
+  return isSchoolStage(enrollment.level)
+    ? { name: `${life.character.city} ${schoolNames[enrollment.level]}`, detail: undefined, icon: 'school' as const }
+    : { name: institutionName(enrollment.institutionId), detail: academicProgramName(enrollment.programId), icon: 'university' as const };
+}
+
 export function academicControl(life: Life, action: AcademicAction, label: string, icon: Emoji): EducationControl {
   return { action, label, icon, issue: academicActionIssue(life, action) };
 }

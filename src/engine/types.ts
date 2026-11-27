@@ -1,5 +1,6 @@
 import type { AcademicAction, AcademicLevel, AcademicState, GraduationPath } from './academicTypes.ts';
 import type { Appearance, AppearanceChoices, HairChoice } from './appearance.ts';
+import type { RelationshipActivity } from './interactions.ts';
 
 export const stats = ['health', 'happiness', 'smarts', 'looks', 'charisma', 'discipline', 'athleticism', 'creativity', 'stress', 'energy', 'reputation'] as const;
 export type Stat = typeof stats[number];
@@ -103,6 +104,7 @@ export type Action =
   | { type: 'activity'; activity: 'read' | 'rest' | 'walk' | 'study' | 'library' | 'socialize' | 'extracurricular' | 'academic-talk' | 'exams' }
   | { type: 'talk'; person: string }
   | { type: 'befriend'; person: string }
+  | { type: 'interact'; person: string; activity: RelationshipActivity }
   | { type: 'change-appearance'; choices: AppearanceChoices }
   | { type: 'change-hair'; choices: HairChoice }
   | AcademicAction;

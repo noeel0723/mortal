@@ -1,16 +1,20 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Text, View } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { DetailMeter, DetailModal } from '../../src/components/detailModal';
 import { Portrait } from '../../src/components/portrait';
 import { ActionButton, DataRow, Heading, Page, Section, shared } from '../../src/components/ui';
+import { contactBondRows, contactInteractions, contactProfileRows, contactRole } from '../../src/contactView';
 import { genderLabels } from '../../src/data/veyra';
 import { educationStatus } from '../../src/engine/academics';
-import { findContact, isPeer } from '../../src/engine/school';
-import { befriendIssue, friendshipEnergyCost, talkIssue } from '../../src/engine/simulation';
+import { findContact } from '../../src/engine/school';
 import { useGame } from '../../src/stores/game';
+import { space } from '../../src/theme/tokens';
 
 export default function Person() {
   const { id, source } = useLocalSearchParams<{ id?: string; source?: string }>();
   const { slot, busy, dispatch } = useGame();
+  const [profileId, setProfileId] = useState<string | null>(null);
   if (!slot) return null;
   const life = slot.life;
   const { character } = life;
@@ -28,39 +32,34 @@ export default function Person() {
     </Section>
   </Page>;
   const person = findContact(life, id);
-  const issue = person ? talkIssue(life, person.id) : null;
-  const canBefriend = !!person && 'stage' in person && isPeer(person) && !person.friend;
-  const friendshipIssue = canBefriend ? befriendIssue(life, person.id) : null;
-  const blocked = !!life.pending || busy || !!life.character.causeOfDeath;
   return (
     <Page inGame>
-      <Heading title={person?.name ?? 'Character'} subtitle={person && 'stage' in person && person.friend ? 'Friend' : person?.role}
+      <Heading title={person ? contactRole(person) : 'Character'}
         back={() => source && router.canGoBack() ? router.back() : router.dismissTo('/game/relationships')} />
       {person ? <>
-        <View style={{ alignItems: 'center' }}>
-          <Portrait appearance={person.appearance} age={person.age} size={144} label={`Portrait of ${person.name}`} />
-        </View>
-        <Section title="About">
-          <DataRow label={person.alive ? 'Age' : 'Age at death'} value={person.age} />
-          <DataRow label="Gender identity" value={genderLabels[person.gender]} />
-          <DataRow label="City" value={person.city} />
-          <DataRow label="Occupation" value={person.occupation} />
-          <DataRow label="Health" value={`${person.health}%`} />
-        </Section>
-        <Section title="Your bond">
-          {Object.entries(person.bond).map(([label, value]) => (
-            <DataRow key={label} label={label[0]?.toUpperCase() + label.slice(1)} value={`${value}%`} />
+        <ActionButton icon="person" label={person.name} onPress={() => setProfileId(person.id)}
+          leading={<Portrait appearance={person.appearance} age={person.age} />}
+          detail={`${person.alive ? `Age ${person.age}` : 'Deceased'} · Affection ${person.bond.affection}%`} />
+        <Section title="Interactions">
+          {contactInteractions(life, person).map((item) => (
+            <ActionButton key={item.label} icon={item.icon} label={item.label} detail={item.issue ?? item.detail}
+              disabled={busy || !!item.issue} onPress={() => void dispatch(item.action)} />
           ))}
         </Section>
-        <ActionButton icon="talk" label="Have a Conversation" disabled={!!issue || blocked}
-          onPress={() => void dispatch({ type: 'talk', person: person.id })} />
-        <Text style={shared.small}>{issue ?? 'Uses 8 energy. Strengthens affection and trust.'}</Text>
-        {canBefriend && <>
-          <ActionButton icon="relationships" label="Become Friends" disabled={blocked || !!friendshipIssue}
-            onPress={() => void dispatch({ type: 'befriend', person: person.id })} />
-          <Text style={shared.small}>{friendshipIssue ?? `Uses ${friendshipEnergyCost} energy.`}</Text>
-        </>}
+        <DetailModal title="Character Profile" open={profileId === person.id} onDismiss={() => setProfileId(null)}>
+          <View style={styles.identity}>
+            <Portrait appearance={person.appearance} age={person.age} size={52} label={`Portrait of ${person.name}`} />
+            <View style={styles.name}><Text style={shared.strong}>{person.name}</Text><Text style={shared.small}>{contactRole(person)}</Text></View>
+          </View>
+          {contactProfileRows(person).map((row) => <DataRow key={row.label} {...row} />)}
+          <Section title="Your bond">{contactBondRows(person).map((row) => <DetailMeter key={row.label} {...row} />)}</Section>
+        </DetailModal>
       </> : <Text style={shared.body}>This person couldn’t be found.</Text>}
     </Page>
   );
 }
+
+const styles = StyleSheet.create({
+  identity: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: space.xs },
+  name: { flex: 1 },
+});

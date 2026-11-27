@@ -14,9 +14,10 @@ function listen(listener: () => void) {
   return () => window.removeEventListener('hashchange', listener);
 }
 
-function navigate(page = '') {
+function navigate(page = '', replace = false) {
   useGame.getState().clearMessage();
-  window.location.hash = page;
+  if (replace) window.location.replace(`#${page}`);
+  else window.location.hash = page;
 }
 
 function playUrl(id: string, page: GamePage = 'journal', person?: string) {
@@ -57,7 +58,7 @@ export function App() {
   let content;
   if (section === 'play') {
     content = activeLife && playId ? <Play key={playId} life={activeLife} page={page} personId={detail}
-      go={(next, person) => navigate(playUrl(playId, next, person))} home={() => navigate()} newLife={() => navigate('new')} /> :
+      go={(next, person, replace) => navigate(playUrl(playId, next, person), replace)} home={() => navigate()} newLife={() => navigate('new')} /> :
       <main className="inner" id="main">
         <Heading title={problem || !playId ? 'Life unavailable' : 'Opening your life…'} />
         <Feedback error={problem} />
