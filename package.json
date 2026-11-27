@@ -11,6 +11,9 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
+    "web": "vite",
+    "build:web": "vite build",
+    "preview:web": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "node --test tests/*.test.ts",
@@ -37,8 +40,10 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@types/react": "~19.3.0",
+    "@types/react-dom": "^19.3.0",
     "eslint": "^9.39.0",
     "eslint-config-expo": "~58.0.4",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "vite": "^8.4.0"
   }
 }
