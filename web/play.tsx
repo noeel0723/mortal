@@ -10,19 +10,21 @@ import { useGame } from './browserStore';
 import { PlayPage, PlayPageHeader } from './playPages';
 import type { GamePage, Navigate } from './playPages';
 import { Button, Feedback } from './ui';
+import { Portrait } from './portraits';
 
 const primaryStats = ['happiness', 'health', 'smarts', 'looks'] as const;
 
-function Profile({ life }: { life: Life }) {
+function Profile({ life, open }: { life: Life; open: () => void }) {
   const { character } = life;
   const name = `${character.firstName} ${character.lastName}`;
-  const initials = [character.firstName, character.lastName].map((value) => Array.from(value)[0]).join('').toUpperCase();
   const education = educationStatus(life);
   const status = isSchoolStage(life.academic.enrollment?.level) ? `${education} student` : education;
   return (
     <section className="character" aria-label="Life overview">
       <div className="profile-identity">
-        <div className="initials" aria-hidden="true">{initials}</div>
+        <button type="button" className="profile-portrait-button" aria-label="Open my profile" onClick={open}>
+          <Portrait appearance={character.appearance} age={character.age} />
+        </button>
         <div><h2>{name}</h2><p>{en.age(character.age)} · {status}</p></div>
       </div>
       <div className="profile-balance">
@@ -130,7 +132,7 @@ export function Play({ life, page, personId, go, home, newLife }: {
   const person = findContact(life, personId);
   return (
     <main className="game" id="main">
-      <Profile life={life} />
+      <Profile life={life} open={() => go('player-profile')} />
       {!isJournal && <PlayPageHeader page={page} person={person} schoolTitle={schoolTitle} go={go} />}
       <div className={`game-content${isJournal ? '' : ' game-content--page'}`} ref={viewport} tabIndex={0} role="region"
         aria-label={isJournal ? 'Journal entries' : undefined} aria-labelledby={isJournal ? undefined : 'play-page-title'}>

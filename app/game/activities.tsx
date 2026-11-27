@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { Text, View } from 'react-native';
 import { ActionButton, DataRow, Heading, Page, Section, shared } from '../../src/components/ui';
 import { activities, activityIssue } from '../../src/engine/simulation';
+import { canEditFace } from '../../src/engine/appearance';
 import { useGame } from '../../src/stores/game';
 import type { Emoji } from '../../src/theme/tokens';
 
@@ -34,6 +35,10 @@ export default function Activities() {
       <DataRow label="Energy" value={`${life.character.attributes.energy}%`} />
       <Section title="Health">{items.slice(0, 2).map(action)}</Section>
       <Section title="Personal Development">{items.slice(2).map(action)}</Section>
+      {!life.character.causeOfDeath && <Section title="Appearance">
+        <ActionButton icon="hair" label={canEditFace(life.character.age) ? 'Customize Appearance' : 'Change Hairstyle'}
+          onPress={() => router.push('/game/appearance')} />
+      </Section>}
     </Page>
   );
 }

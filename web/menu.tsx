@@ -2,9 +2,11 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { backgrounds, backgroundLabels, cities, country, defaultBirthYear, firstBirthYear, genders, genderLabels, lastBirthYear, talents, talentLabels } from '../src/data/veyra';
 import type { ProfileInput, Talent } from '../src/engine/types';
+import { creationAppearance } from '../src/engine/appearance';
 import { en } from '../src/i18n/en';
 import { useGame } from './browserStore';
 import { Button, Feedback, Heading, Icon, Mark, Rows } from './ui';
+import { PortraitEditor } from './portraits';
 
 export function Welcome({ onOpen, navigate }: { onOpen: (id: string) => void; navigate: (page: string) => void }) {
   const { ready, saves, busy, problem, initialize } = useGame();
@@ -61,7 +63,7 @@ export function NewLife({ start, customize }: { start: () => void; customize: ()
         </section>
         <section className="surface mode">
           <Icon name="custom" />
-          <h2>Custom Life</h2><p>Choose your name, birthplace, family background, and natural talent.</p>
+          <h2>Custom Life</h2><p>Choose your identity, portrait, birthplace, and background.</p>
           <Button icon="custom" disabled={busy} onClick={customize}>Create a Character</Button>
         </section>
       </div>
@@ -76,13 +78,14 @@ export function CustomLife({ start, cancel }: { start: (profile: ProfileInput) =
     firstName: '', lastName: '', gender: 'nonbinary', country, city: cities[0], background: 'middle-income',
     birthYear: defaultBirthYear, talent: null,
   });
+  const [appearance, setAppearance] = useState(creationAppearance);
   function set<K extends keyof ProfileInput>(key: K, value: ProfileInput[K]) {
     clearMessage();
     setProfile((current) => ({ ...current, [key]: value }));
   }
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    start(profile);
+    start({ ...profile, appearance });
   }
   return (
     <main className="inner" id="main">
@@ -91,7 +94,7 @@ export function CustomLife({ start, cancel }: { start: (profile: ProfileInput) =
         <div className="field-grid">
           <label>First name<input required maxLength={28} value={profile.firstName} autoComplete="off" onChange={(e) => set('firstName', e.target.value)} /></label>
           <label>Last name<input required maxLength={28} value={profile.lastName} autoComplete="off" onChange={(e) => set('lastName', e.target.value)} /></label>
-          <label>Gender<select value={profile.gender} onChange={(e) => set('gender', e.target.value as ProfileInput['gender'])}>
+          <label>Gender identity<select value={profile.gender} onChange={(e) => set('gender', e.target.value as ProfileInput['gender'])}>
             {genders.map((item) => <option key={item} value={item}>{genderLabels[item]}</option>)}
           </select></label>
           <label>Birth year<input type="number" required min={firstBirthYear} max={lastBirthYear}
@@ -107,6 +110,9 @@ export function CustomLife({ start, cancel }: { start: (profile: ProfileInput) =
             <option value="">None</option>{talents.map((item) => <option key={item} value={item}>{talentLabels[item]}</option>)}
           </select></label>
         </div>
+        <fieldset className="portrait-fieldset"><legend>Appearance</legend>
+          <PortraitEditor appearance={appearance} age={0} hairOnly={false} onChange={setAppearance} />
+        </fieldset>
         <Feedback error={problem} />
         <Button icon="new" kind="primary" type="submit" disabled={!ready || busy}>Begin Life</Button>
       </form>

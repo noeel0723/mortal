@@ -1,5 +1,6 @@
 import { eventById, events } from '../data/events.ts';
 import { advanceAcademics, chooseEducationPath, isTuitionDue, performAcademicAction } from './academics.ts';
+import { appearanceChanged, appearanceIssue, mergeAppearance, validFace, validHair } from './appearance.ts';
 import { clamp, record } from './journal.ts';
 import { seededRandom } from './random.ts';
 import { advanceContactOccupation, currentClass, findContact, isCurrentClassContact, isPeer, isSchoolStage } from './school.ts';
@@ -205,6 +206,20 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       person.bond.trust = clamp(person.bond.trust + 5);
       person.bond.familiarity = clamp(person.bond.familiarity + 6);
       record(life, 'school', `I became friends with ${person.name} from my class.`, { energy: -friendshipEnergyCost, happiness: 5 });
+      break;
+    }
+    case 'change-appearance':
+    case 'change-hair': {
+      const hairOnly = action.type === 'change-hair';
+      const issue = appearanceIssue(life, hairOnly);
+      if (issue) return { error: issue };
+      if (hairOnly ? !validHair(action.choices) : !validFace(action.choices)) return { error: 'Choose valid appearance options.' };
+      const current = life.character.appearance;
+      const next = mergeAppearance(current, hairOnly ? { hair: action.choices.hair, hairColor: action.choices.hairColor } : action.choices);
+      if (!appearanceChanged(current, next, hairOnly)) return { error: 'Your appearance is already set to these options.' };
+      life.character.appearance = next;
+      record(life, 'life', hairOnly ? `I changed my hairstyle to ${next.hair.toLowerCase()} with ${next.hairColor.toLowerCase()} hair.` :
+        'My appearance was set at the start of my life.');
       break;
     }
     default: {

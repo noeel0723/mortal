@@ -1,12 +1,13 @@
 import { eventById } from '../data/events.ts';
 import { academicStateAtBirth, migrateAcademics } from '../engine/academics.ts';
 import { academicLevels } from '../engine/academicTypes.ts';
+import { contactIdentity, generateAppearance, validAppearance } from '../engine/appearance.ts';
 import { validateProfile } from '../engine/create.ts';
 import { advanceContactOccupation, createSchoolClass, isSchoolStage } from '../engine/school.ts';
 import { maxAge } from '../engine/simulation.ts';
 import { stats } from '../engine/types.ts';
 import type { Life, ProfileInput } from '../engine/types.ts';
-import { cities } from '../data/veyra.ts';
+import { cities, genders } from '../data/veyra.ts';
 import { validAcademicState } from './academicCodec.ts';
 
 const record = (value: unknown): value is Record<string, unknown> =>
@@ -20,13 +21,14 @@ const categories = ['life', 'family', 'school', 'health', 'community', 'decision
 const effects = (value: unknown) => record(value) && Object.entries(value).every(([key, amount]) =>
   (key === 'bank' || stats.some((stat) => stat === key)) && integer(amount, -Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER));
 
-function savedPerson(person: unknown): person is Record<string, unknown> {
+function savedPerson(person: unknown, withAppearance: boolean): person is Record<string, unknown> {
   if (!record(person)) return false;
   const bond = person.bond;
   return typeof person.id === 'string' && typeof person.name === 'string' && integer(person.age, 0, maxAge) &&
     typeof person.occupation === 'string' && cities.some((city) => city === person.city) &&
     bounded(person.health) && typeof person.alive === 'boolean' &&
-    record(bond) && bondKeys.every((key) => bounded(bond[key]));
+    record(bond) && bondKeys.every((key) => bounded(bond[key])) &&
+    (!withAppearance || (genders.some((gender) => gender === person.gender) && validAppearance(person.appearance)));
 }
 
 export function decodeLife(json: string): Life {
@@ -37,10 +39,11 @@ export function decodeLife(json: string): Life {
     throw new Error('This saved life is damaged.');
   }
   if (!record(value)) throw new Error('This saved life is damaged.');
-  if (value.version !== 1 && value.version !== 2) throw new Error('This saved life uses an unsupported version.');
+  const version = value.version;
+  if (version !== 1 && version !== 2 && version !== 3) throw new Error('This saved life uses an unsupported version.');
   const { character, family, schoolContacts, journal, pending, scheduled, seen, usedActions, transactions, year } = value;
   if (!record(character) || typeof character.firstName !== 'string' || typeof character.lastName !== 'string' ||
-    validateProfile(character as ProfileInput) || !integer(character.age, 0, maxAge) ||
+    validateProfile(character as ProfileInput) || (version === 3 && !validAppearance(character.appearance)) || !integer(character.age, 0, maxAge) ||
     !integer(year, 1950, 2100 + maxAge) || year !== Number(character.birthYear) + character.age ||
     !integer(character.bank, 0, Number.MAX_SAFE_INTEGER) ||
     !['early', 'primary', 'secondary', 'high', 'completed'].some((stage) => stage === character.education) ||
@@ -53,13 +56,13 @@ export function decodeLife(json: string): Life {
   const age = character.age;
   if (!record(attributes) || !stats.every((stat) => bounded(attributes[stat])) ||
     !Array.isArray(family) || !family.every((person: unknown) =>
-      savedPerson(person) && (person.role === 'Mother' || person.role === 'Father')) ||
-    ((value.version === 2 || schoolContacts !== undefined) && (!Array.isArray(schoolContacts) ||
-      !schoolContacts.every((person: unknown) => savedPerson(person) && academicLevels.some((level) => level === person.stage) &&
+      savedPerson(person, version === 3) && (person.role === 'Mother' || person.role === 'Father')) ||
+    ((version !== 1 || schoolContacts !== undefined) && (!Array.isArray(schoolContacts) ||
+      !schoolContacts.every((person: unknown) => savedPerson(person, version === 3) && academicLevels.some((level) => level === person.stage) &&
         typeof person.friend === 'boolean' && (isSchoolStage(person.stage) ?
           (person.role === 'Teacher' || person.role === 'Classmate') && (person.role === 'Classmate' || !person.friend) &&
             person.cohortId === undefined :
-          value.version === 2 && typeof person.cohortId === 'string' && (person.role === 'Professor' || person.role === 'Student') &&
+          version !== 1 && typeof person.cohortId === 'string' && (person.role === 'Professor' || person.role === 'Student') &&
             (person.role === 'Student' ? integer(person.graduationAge, 18, maxAge) : !person.friend))) ||
       new Set([...family, ...schoolContacts].map((person) => person.id)).size !== family.length + schoolContacts.length)) ||
     !Array.isArray(journal) || !journal.length || !journal.every((entry: unknown) => record(entry) &&
@@ -74,8 +77,7 @@ export function decodeLife(json: string): Life {
     throw new Error('This saved life has invalid simulation data.');
   }
   const life = value as Life;
-  if (value.version === 1) {
-    life.version = 2;
+  if (version === 1) {
     life.academic = academicStateAtBirth();
     migrateAcademics(life);
     if (schoolContacts === undefined) {
@@ -86,6 +88,13 @@ export function decodeLife(json: string): Life {
     for (const person of life.schoolContacts) if (person.alive) advanceContactOccupation(person);
   } else if (!validAcademicState(value.academic, Number(character.birthYear), year)) {
     throw new Error('This saved life has invalid academic data.');
+  }
+  if (version !== 3) {
+    life.version = 3;
+    life.character.appearance = generateAppearance(life.seed, 'player');
+    for (const person of [...life.family, ...life.schoolContacts]) {
+      Object.assign(person, contactIdentity(life.seed, person.id, person.name, person.role));
+    }
   }
   return life;
 }

@@ -184,6 +184,18 @@ p { color: var(--muted); line-height: 1.56; }
   background-repeat: no-repeat;
 }
 .field-grid input[readonly] { color: var(--muted); }
+.portrait-fieldset { min-width: 0; margin: 0; padding: .7rem; border: 1px solid var(--line); border-radius: .75rem; }
+.portrait-fieldset legend { padding-inline: .35rem; color: var(--blue-dark); font-size: .92rem; font-weight: 740; }
+.portrait-editor { display: grid; min-width: 0; gap: .8rem; }
+.portrait-previews { display: flex; flex-wrap: wrap; justify-content: center; gap: .8rem; }
+.portrait-previews figure { display: grid; justify-items: center; gap: .3rem; margin: 0; }
+.portrait-previews figcaption { color: var(--muted); font-size: .76rem; }
+.portrait { display: block; width: 2.25rem; height: auto; aspect-ratio: 1; border-radius: .6rem; image-rendering: pixelated; }
+.portrait--large { width: 8rem; max-width: 100%; border-radius: .75rem; }
+.profile-art { display: grid; justify-items: center; padding: .8rem; border-bottom: 1px solid var(--line); }
+.profile-art .portrait--large { width: 9rem; }
+.appearance-panel { display: grid; gap: .9rem; padding: 1rem; }
+.appearance-panel > .button { justify-self: start; }
 .saves-list { gap: 0; }
 .save-row { display: flex; flex-wrap: wrap; gap: .7rem; align-items: center; padding: .8rem 0; border-bottom: 1px solid var(--line); }
 .save-row:first-of-type { padding-top: 0; }
@@ -275,7 +287,8 @@ button.play-row:disabled .play-row-icon { background: #edf2f7; opacity: .65; }
   border-radius: .7rem;
   background: #e9f3fe;
 }
-.play-row-avatar { background: #deedff; color: var(--blue-dark); font-size: .86rem; font-weight: 820; }
+.play-row-avatar { overflow: hidden; background: #deedff; }
+.play-row-avatar .portrait { width: 100%; height: 100%; border-radius: inherit; }
 .play-row-icon .emoji { font-size: 1.17rem; }
 .play-row-main { display: grid; gap: .18rem; min-width: 0; flex: 1; }
 .play-row-main > strong { color: var(--blue-dark); font-size: .96rem; font-weight: 740; line-height: 1.25; }
@@ -331,7 +344,8 @@ button.play-row:disabled .play-row-icon { background: #edf2f7; opacity: .65; }
   background: #dceeff;
   font-weight: 800;
 }
-.profile-identity .initials { width: 2.2rem; height: 2.2rem; flex-basis: 2.2rem; border-radius: .66rem; font-size: .88rem; }
+.profile-portrait-button { flex: 0 0 auto; display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border: 0; border-radius: .66rem; background: transparent; padding: 0; cursor: pointer; }
+.profile-portrait-button .portrait { width: 2.5rem; }
 .profile-balance { flex: none; display: grid; gap: .12rem; text-align: right; font-variant-numeric: tabular-nums; }
 .profile-balance strong { color: var(--blue-dark); font-size: .98rem; }
 .profile-balance span { color: var(--muted); font-size: .73rem; }

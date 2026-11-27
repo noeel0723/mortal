@@ -1,6 +1,7 @@
 import { institutionById } from '../data/academics.ts';
 import { educationLabels, genders, givenNames, surnames } from '../data/veyra.ts';
 import { seededRandom } from './random.ts';
+import { contactIdentity } from './appearance.ts';
 import type { Education, Life, SchoolContact, SchoolStage } from './types.ts';
 import type { Enrollment } from './academicTypes.ts';
 
@@ -35,10 +36,11 @@ export function createSchoolClass(life: Life, stage: SchoolStage): SchoolContact
   const yearsEnrolled = Math.max(0, character.age - entryAges[stage]);
   return Array.from({ length: 7 }, (_, index) => {
     const teacher = index === 0;
+    const id = `school-${stage}-${index}`;
+    const name = names.splice(random.integer(0, names.length - 1), 1)[0]!;
+    const role = teacher ? 'Teacher' : 'Classmate';
     return {
-      id: `school-${stage}-${index}`,
-      name: names.splice(random.integer(0, names.length - 1), 1)[0]!,
-      role: teacher ? 'Teacher' : 'Classmate',
+      id, name, role, ...contactIdentity(life.seed, id, name, role),
       age: teacher ? random.integer(27, 48) + yearsEnrolled : character.age,
       occupation: teacher ? `${educationLabels[stage]} teacher` : 'Student',
       city: character.city,
@@ -63,10 +65,12 @@ export function createProgramClass(life: Life, enrollment: Enrollment): SchoolCo
   return Array.from({ length: 7 }, (_, index) => {
     const professor = index === 0;
     const age = professor ? random.integer(31, 58) : random.integer(enrollment.level === 'postgraduate' ? 22 : 18, 32);
+    const id = `class-${enrollment.id}-${index}`;
+    const name = names.splice(random.integer(0, names.length - 1), 1)[0]!;
+    const role = professor ? 'Professor' : 'Student';
     return {
-      id: `class-${enrollment.id}-${index}`, cohortId: enrollment.id, stage: enrollment.level,
-      name: names.splice(random.integer(0, names.length - 1), 1)[0]!,
-      role: professor ? 'Professor' : 'Student', occupation: professor ? 'Professor' : 'Student',
+      id, name, role, ...contactIdentity(life.seed, id, name, role), cohortId: enrollment.id, stage: enrollment.level,
+      occupation: role,
       age, ...(professor ? {} : { graduationAge: age + enrollment.duration }), friend: false,
       city, health: random.integer(70, 98), alive: true,
       bond: {

@@ -2,8 +2,10 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { ActionButton, DataRow, Feedback, Heading, Page, Section, shared } from '../src/components/ui';
+import { PortraitEditor } from '../src/components/portrait';
 import { backgrounds, backgroundLabels, cities, country, defaultBirthYear, genders, genderLabels, talents, talentLabels } from '../src/data/veyra';
 import type { ProfileInput } from '../src/engine/types';
+import { creationAppearance } from '../src/engine/appearance';
 import { useGame } from '../src/stores/game';
 import { colors, radius, space } from '../src/theme/tokens';
 
@@ -24,13 +26,14 @@ export default function CharacterCreation() {
     background: 'middle-income', birthYear: defaultBirthYear, talent: null,
   });
   const [year, setYear] = useState(String(defaultBirthYear));
+  const [appearance, setAppearance] = useState(creationAppearance);
   const { start, ready, busy, problem, clearMessage } = useGame();
   function change<K extends keyof ProfileInput>(key: K, value: ProfileInput[K]) {
     clearMessage();
     setProfile((previous) => ({ ...previous, [key]: value }));
   }
   async function begin() {
-    if (await start({ ...profile, birthYear: /^\d{4}$/.test(year) ? Number(year) : NaN })) router.dismissTo('/game');
+    if (await start({ ...profile, appearance, birthYear: /^\d{4}$/.test(year) ? Number(year) : NaN })) router.dismissTo('/game');
   }
   return (
     <Page>
@@ -42,6 +45,7 @@ export default function CharacterCreation() {
         <Text style={shared.small}>Last name</Text>
         <TextInput accessibilityLabel="Last name" autoCapitalize="words" maxLength={28} value={profile.lastName}
           onChangeText={(text) => change('lastName', text)} placeholder="Last name" placeholderTextColor={colors.secondary} style={styles.input} />
+        <Text style={shared.small}>Gender identity</Text>
         <Choices options={genders} label={(gender) => genderLabels[gender]} value={profile.gender} select={(gender) => change('gender', gender)} />
       </Section>
       <Section title="Birthplace">
@@ -58,6 +62,7 @@ export default function CharacterCreation() {
         <Choices options={['none', ...talents]} label={(talent) => talent === 'none' ? 'None' : talentLabels[talent]}
           value={profile.talent ?? 'none'} select={(talent) => change('talent', talent === 'none' ? null : talent)} />
       </Section>
+      <Section title="Appearance"><PortraitEditor appearance={appearance} age={0} hairOnly={false} onChange={setAppearance} /></Section>
       <Feedback error={problem} />
       <ActionButton icon="new" label="Begin Life" variant="primary" disabled={!ready || busy} onPress={() => void begin()} />
     </Page>

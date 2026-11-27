@@ -5,9 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, emoji, radius, space } from '../theme/tokens';
 import type { Emoji } from '../theme/tokens';
 
-export function ActionButton({ icon, label, onPress, variant = 'secondary', disabled = false, compact = false, selected, style, testID }: {
+export function ActionButton({ icon, label, onPress, variant = 'secondary', disabled = false, compact = false, selected, style, testID, leading }: {
   icon: Emoji; label: string; onPress: () => void; variant?: 'primary' | 'secondary' | 'plain' | 'danger';
-  disabled?: boolean; compact?: boolean; selected?: boolean; style?: StyleProp<ViewStyle>; testID?: string;
+  disabled?: boolean; compact?: boolean; selected?: boolean; style?: StyleProp<ViewStyle>; testID?: string; leading?: ReactNode;
 }) {
   return (
     <Pressable
@@ -16,7 +16,7 @@ export function ActionButton({ icon, label, onPress, variant = 'secondary', disa
       style={({ pressed }) => [styles.button, styles[variant], selected && styles.selected, compact && styles.compact,
         pressed && (variant === 'primary' ? styles.primaryPressed : styles.pressed), disabled && styles.disabled, style]}
     >
-      <Text accessibilityElementsHidden importantForAccessibility="no" style={styles.emoji}>{emoji[icon]}</Text>
+      {leading ?? <Text accessibilityElementsHidden importantForAccessibility="no" style={styles.emoji}>{emoji[icon]}</Text>}
       {!compact && <Text style={[styles.buttonLabel, variant === 'primary' && styles.whiteLabel, variant === 'danger' && styles.errorLabel]}>{label}</Text>}
     </Pressable>
   );

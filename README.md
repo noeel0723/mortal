@@ -47,7 +47,13 @@ Mortal saves successful turns and decisions before showing them. **Save Life** i
 - At high school graduation, choose university, vocational training, the workforce, or a gap year. Open **Career → View Education → Browse Programs** to compare courses, apply, and enroll after receiving an offer. Adult High School Equivalency is available to adults without a diploma.
 - Check tuition and scholarships before you enroll. If your balance falls short for the next year, education pauses until you pay, use a scholarship, or decide to withdraw. Open **Academic Records** to see outcomes, qualifications and money received in scholarships. Former school and university friends stay in **Relationships**.
 
-Existing version 1 lives open in version 2 with their progress preserved. Earlier grades are unavailable, and the upgraded payload is written on the next save. Workforce intent and qualification tags are available in this milestone. Jobs, wages, and student loans are planned separately.
+Earlier academic grades from version 1 saves are unavailable. Workforce intent and qualification tags are available in this milestone. Jobs, wages, and student loans are planned separately.
+
+### Character portraits
+
+Use **Custom Life → Appearance** to choose a hairstyle, hair color, eyes, nose, and mouth. Random lives can use **Activities → Customize Appearance** at age zero. After the first **Age Up**, use **Activities → Change Hairstyle** to edit your hair. Tap your portrait in the journal for **My Profile**, or open a contact from **Relationships** or **Class** to see their portrait and gender identity.
+
+Version 1 and 2 saves get stable portraits when they open. The upgraded version 3 payload is written on the next save.
 
 ## Verify
 

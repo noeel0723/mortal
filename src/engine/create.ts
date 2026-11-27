@@ -1,6 +1,7 @@
 import { backgrounds, cities, country, defaultBirthYear, firstBirthYear, genders, givenNames, lastBirthYear, surnames, talents } from '../data/veyra.ts';
 import { seededRandom } from './random.ts';
 import { academicStateAtBirth } from './academics.ts';
+import { contactIdentity, creationAppearance, generateAppearance, mergeAppearance, validFace } from './appearance.ts';
 import type { Life, Person, ProfileInput, Stat } from './types.ts';
 
 const occupations = {
@@ -26,13 +27,14 @@ export function validateProfile(profile: ProfileInput) {
   if (!genders.includes(profile.gender) || !backgrounds.includes(profile.background) || (profile.talent !== null && !talents.includes(profile.talent))) {
     return 'Choose valid options for your new life.';
   }
+  if (profile.appearance !== undefined && !validFace(profile.appearance)) return 'Choose valid facial features and hair.';
   return null;
 }
 
 export function createLife(seed: number, profile?: ProfileInput): Life {
   const random = seededRandom(seed);
   const gender = random.pick(genders);
-  const input = profile ?? {
+  const input: ProfileInput = profile ?? {
     firstName: random.pick(givenNames[gender]),
     lastName: random.pick(surnames),
     gender,
@@ -50,21 +52,23 @@ export function createLife(seed: number, profile?: ProfileInput): Life {
     { id: 'parent-1', gender: 'woman', role: 'Mother' },
     { id: 'parent-2', gender: 'man', role: 'Father' },
   ] as const;
-  const family: Person[] = parents.map((parent) => ({
-    id: parent.id,
-    name: `${random.pick(givenNames[parent.gender])} ${lastName}`,
-    age: random.integer(22, 40),
-    role: parent.role,
-    occupation: random.pick(occupations[input.background]),
-    city: input.city,
-    health: random.integer(75, 98),
-    alive: true,
-    bond: {
-      affection: random.integer(65, 90), trust: random.integer(65, 90),
-      respect: random.integer(45, 65), compatibility: random.integer(35, 80),
-      resentment: random.integer(0, 8), familiarity: 50,
-    },
-  }));
+  const family: Person[] = parents.map((parent) => {
+    const name = `${random.pick(givenNames[parent.gender])} ${lastName}`;
+    return {
+      id: parent.id, name, ...contactIdentity(seed, parent.id, name, parent.role),
+      age: random.integer(22, 40),
+      role: parent.role,
+      occupation: random.pick(occupations[input.background]),
+      city: input.city,
+      health: random.integer(75, 98),
+      alive: true,
+      bond: {
+        affection: random.integer(65, 90), trust: random.integer(65, 90),
+        respect: random.integer(45, 65), compatibility: random.integer(35, 80),
+        resentment: random.integer(0, 8), familiarity: 50,
+      },
+    };
+  });
   const attributes = {
     health: random.integer(74, 96), happiness: random.integer(56, 82),
     smarts: random.integer(33, 65), looks: random.integer(34, 78),
@@ -77,11 +81,12 @@ export function createLife(seed: number, profile?: ProfileInput): Life {
   if (input.background === 'working-class') attributes.discipline += 4;
   const bank = birthSavings[input.background];
   const personality = random.pick(['curious', 'steady', 'outgoing', 'thoughtful'] as const);
+  const appearance = input.appearance ? mergeAppearance(creationAppearance, input.appearance) : generateAppearance(seed, 'player');
   return {
-    version: 2,
+    version: 3,
     seed: seed >>> 0,
     random: random.state,
-    character: { ...input, firstName, lastName, age: 0, attributes, bank, personality, education: 'early', causeOfDeath: null },
+    character: { ...input, appearance, firstName, lastName, age: 0, attributes, bank, personality, education: 'early', causeOfDeath: null },
     year: input.birthYear,
     family,
     schoolContacts: [],

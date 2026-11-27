@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { backgroundLabels, cities, cityDescriptions, talentLabels } from '../src/data/veyra';
+import { backgroundLabels, cities, cityDescriptions, genderLabels, talentLabels } from '../src/data/veyra';
 import { programById } from '../src/data/academics';
 import { academicProgramName, educationStatus } from '../src/engine/academics';
 import { currentClass, isPeer, isSchoolStage } from '../src/engine/school';
+import { canEditFace } from '../src/engine/appearance';
 import { activities, activityIssue, befriendIssue, friendshipEnergyCost, talkIssue } from '../src/engine/simulation';
 import {
   academicActivities, academicControl, academicRecordGroups, availableProgramGroups, educationOverview, enrollmentControls,
@@ -16,6 +17,7 @@ import { en, money, statLabels } from '../src/i18n/en';
 import type { Emoji } from '../src/theme/tokens';
 import { useGame } from './browserStore';
 import { Achievements, Settings } from './menu';
+import { AppearancePage, Portrait } from './portraits';
 import { Icon, Rows } from './ui';
 
 export const pageTitles = {
@@ -32,10 +34,12 @@ export const pageTitles = {
   relationships: 'Relationships',
   person: 'Family Member',
   'person-info': 'Character Profile',
+  'player-profile': 'My Profile',
   'family-tree': 'Family Tree',
   assets: 'Assets',
   finances: 'Finances',
   activities: 'Activities',
+  appearance: 'Appearance',
   statistics: 'Life Statistics',
   world: 'World',
   menu: 'Life Menu',
@@ -61,6 +65,7 @@ const parentPages: Partial<Record<DetailPage, GamePage>> = {
   'person-info': 'person',
   'family-tree': 'relationships',
   finances: 'assets',
+  appearance: 'activities',
   settings: 'menu',
   achievements: 'menu',
 };
@@ -100,7 +105,7 @@ function PageGroup({ title, children }: { title: string; children: ReactNode }) 
 }
 
 function MenuRow({ title, detail, icon, avatar, value, children, onClick, disabled }: {
-  title: string; detail?: string; icon?: Emoji; avatar?: string; value?: string;
+  title: string; detail?: string; icon?: Emoji; avatar?: ReactNode; value?: string;
   children?: ReactNode; onClick?: () => void; disabled?: boolean;
 }) {
   const id = useId();
@@ -134,9 +139,8 @@ function PageMeter({ label, value }: { label: string; value: number }) {
 }
 
 function PersonRow({ person, onClick }: { person: Contact; onClick?: () => void }) {
-  const initials = person.name.split(/\s+/).slice(0, 2).map((part) => Array.from(part)[0]).join('').toUpperCase();
   const role = 'stage' in person && person.friend ? 'Friend' : person.role;
-  return <MenuRow title={person.name} avatar={initials} onClick={onClick}
+  return <MenuRow title={person.name} avatar={<Portrait appearance={person.appearance} age={person.age} />} onClick={onClick}
     detail={`${role} · ${person.alive ? en.age(person.age) : 'Deceased'}`}>
     <PageMeter label="Affection" value={person.bond.affection} />
   </MenuRow>;
@@ -262,9 +266,19 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
         </PageGroup>}
         {page === 'relationships'
           ? <PageGroup title="Family records"><MenuRow icon="tree" title="Family Tree" detail="See your place in the family." onClick={() => go('family-tree')} /></PageGroup>
-          : <PageGroup title="You"><MenuRow icon="person" title={`${character.firstName} ${character.lastName}`} detail={`Born ${character.birthYear}`} /></PageGroup>}
+          : <PageGroup title="You"><MenuRow avatar={<Portrait appearance={character.appearance} age={character.age} />}
+            title={`${character.firstName} ${character.lastName}`} detail={`Born ${character.birthYear}`} onClick={() => go('player-profile')} /></PageGroup>}
       </>;
     }
+    case 'player-profile':
+      return <PageGroup title={`${character.firstName} ${character.lastName}`}>
+        <div className="profile-art"><Portrait appearance={character.appearance} age={character.age} label="Your portrait" large /></div>
+        <Rows items={[
+          { label: character.causeOfDeath ? 'Age at death' : 'Age', value: character.age },
+          { label: 'Gender identity', value: genderLabels[character.gender] },
+          { label: 'Birth city', value: character.city }, { label: 'Education', value: educationStatus(life) },
+        ]} />
+      </PageGroup>;
     case 'person':
     case 'person-info':
     case 'class-person':
@@ -272,9 +286,11 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       if (!person) return <p className="play-empty">This character is unavailable.</p>;
       const contact = person;
       if (page === 'person-info' || page === 'class-person-info') return <>
-        <PageGroup title="About"><PersonRow person={contact} />
+        <PageGroup title={contact.name}>
+          <div className="profile-art"><Portrait appearance={contact.appearance} age={contact.age} label={`Portrait of ${contact.name}`} large /></div>
           <Rows items={[
             { label: contact.alive ? 'Age' : 'Age at death', value: contact.age },
+            { label: 'Gender identity', value: genderLabels[contact.gender] },
             { label: 'City', value: contact.city }, { label: 'Occupation', value: contact.occupation },
             { label: 'Health', value: `${contact.health}%` },
           ]} />
@@ -291,7 +307,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       return <>
         <PageGroup title="Character">
           <PersonRow person={contact} />
-          <MenuRow icon="person" title="View Profile" detail="See age, occupation, health, and your bond."
+          <MenuRow icon="person" title="View Profile" detail="See age, gender identity, occupation, and your bond."
             onClick={() => go(page === 'class-person' ? 'class-person-info' : 'person-info', contact.id)} />
         </PageGroup>
         <PageGroup title="Interactions">
@@ -329,7 +345,13 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
               onClick={() => void dispatch({ type: 'activity', activity: item.id })} />;
           })}
         </PageGroup>
+        {!character.causeOfDeath && <PageGroup title="Appearance">
+          <MenuRow icon="hair" title={canEditFace(character.age) ? 'Customize Appearance' : 'Change Hairstyle'}
+            onClick={() => go('appearance')} />
+        </PageGroup>}
       </>;
+    case 'appearance':
+      return <AppearancePage life={life} back={() => go('activities')} />;
     case 'statistics':
       return <>
         <PageGroup title="Attributes"><Rows items={stats.map((stat) => ({ label: statLabels[stat], value: `${character.attributes[stat]}%` }))} /></PageGroup>

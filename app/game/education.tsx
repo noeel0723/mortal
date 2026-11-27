@@ -1,5 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { Text } from 'react-native';
+import { Portrait } from '../../src/components/portrait';
 import { ActionButton, DataRow, Heading, Page, Section, shared } from '../../src/components/ui';
 import { programById } from '../../src/data/academics';
 import {
@@ -48,7 +49,7 @@ export default function Education() {
   if (screen === 'class') return <Page inGame>
     <Heading title="Class" back={back} />
     {currentClass(life).map((person) => <Section key={person.id}>
-      <ActionButton icon="person" label={person.name} onPress={() => router.push({
+      <ActionButton icon="person" label={person.name} leading={<Portrait appearance={person.appearance} age={person.age} size={36} />} onPress={() => router.push({
         pathname: '/game/person', params: { id: person.id, source: 'class' },
       })} />
       <Text style={shared.small}>{person.role} · Affection {person.bond.affection}%</Text>

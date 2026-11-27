@@ -1,4 +1,5 @@
 import type { AcademicAction, AcademicLevel, AcademicState, GraduationPath } from './academicTypes.ts';
+import type { Appearance, AppearanceChoices, HairChoice } from './appearance.ts';
 
 export const stats = ['health', 'happiness', 'smarts', 'looks', 'charisma', 'discipline', 'athleticism', 'creativity', 'stress', 'energy', 'reputation'] as const;
 export type Stat = typeof stats[number];
@@ -19,9 +20,11 @@ export type ProfileInput = {
   background: Background;
   birthYear: number;
   talent: Talent | null;
+  appearance?: AppearanceChoices;
 };
 
 export type Character = ProfileInput & {
+  appearance: Appearance;
   age: number;
   attributes: Record<Stat, number>;
   bank: number;
@@ -33,6 +36,8 @@ export type Character = ProfileInput & {
 export type Person<Role = 'Mother' | 'Father'> = {
   id: string;
   name: string;
+  gender: Gender;
+  appearance: Appearance;
   age: number;
   role: Role;
   occupation: string;
@@ -76,7 +81,7 @@ export type LifeEvent = {
 };
 
 export type Life = {
-  version: 2;
+  version: 3;
   seed: number;
   random: number;
   character: Character;
@@ -98,4 +103,6 @@ export type Action =
   | { type: 'activity'; activity: 'read' | 'rest' | 'walk' | 'study' | 'library' | 'socialize' | 'extracurricular' | 'academic-talk' | 'exams' }
   | { type: 'talk'; person: string }
   | { type: 'befriend'; person: string }
+  | { type: 'change-appearance'; choices: AppearanceChoices }
+  | { type: 'change-hair'; choices: HairChoice }
   | AcademicAction;
