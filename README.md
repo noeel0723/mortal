@@ -48,13 +48,24 @@ Mortal saves successful turns and decisions before showing them. **Save Life** i
 - At high school graduation, choose university, vocational training, the workforce, or a gap year. Open **Career → View Education → Browse Programs** to compare courses, apply, and enroll after receiving an offer. Adult High School Equivalency is available to adults without a diploma.
 - Check tuition and scholarships before you enroll. If your balance falls short for the next year, education pauses until you pay, use a scholarship, or decide to withdraw. Open **Academic Records** to see outcomes, qualifications and money received in scholarships. Former school and university friends stay in **Relationships**.
 
-Earlier academic grades from version 1 saves are unavailable. Workforce intent and qualification tags are available in this milestone. Jobs, wages, and student loans are planned separately.
+Earlier academic grades from version 1 saves are unavailable. Qualifications now unlock relevant jobs in the Career menu.
 
 ### Character portraits
 
 Use **Custom Life → Appearance** to choose a hairstyle, hair color, eyes, nose, and mouth. Random lives can use **Activities → Customize Appearance** at age zero. After the first **Age Up**, use **Activities → Change Hairstyle** to edit your hair. Tap your portrait in the journal for **My Profile**. When you open a contact from **Relationships** or **Class**, tap their name or portrait to see their profile and bond. Available interactions depend on the contact’s role and your age.
 
-Version 1 and 2 saves get stable portraits when they open. The upgraded version 3 payload is written on the next save.
+Version 1 and 2 saves get stable portraits when they open. Version 1–3 lives open in version 4 with their existing progress, and the upgraded payload is written on the next save. Existing adults start with a neutral career record.
+
+### Work and money
+
+- From age 18, use **Career → Find a Job** to filter vacancies, read qualifications and experience requirements, and apply. Accept an offer to start working. While enrolled, use **School or University → View Career** to find compatible part-time work.
+- Tap your current job or employment status to see salary, workplace ratings, and education details in the Career pop-up.
+- Improve performance with **Work Harder**, adjust your work week, ask for a raise, or open **Co-workers**. Friends can stay in **Relationships** after leaving an employer. NPC pages also offer **Insult** and **Mess With**, with consequences for the relationship and for conduct at your current workplace.
+- **Age Up** pays the elapsed work year and applies taxes and living costs before study and the next review. Use **Assets → Finances** to review the ledger, filter by year, and see unpaid living bills. Use **Career History** to see jobs, pay changes, and lifetime earnings. Retirement opens at age 65.
+
+Conversations and time spent together write different journal entries based on the relationship, age, school, or current job.
+
+Veyra uses a fictional currency scale. Retirement living costs are funded from savings. Pensions, borrowing, investments, and the broader economy are future work.
 
 ## Verify
 
@@ -69,7 +80,7 @@ npx expo install --check
 
 For a native smoke test, begin a random life, age to six, and exit with the first-day-of-school decision open. Force close and reopen the app, choose **Continue Life**, and verify the character, year, journal, and pending choice. Resolve the decision and confirm that Age Up becomes available. Repeat with a packaged build in airplane mode to verify offline use independently of Metro.
 
-For the education smoke test, keep `npm run preview:web` running after building and install Playwright Core in the ignored tool directory with `npm install --prefix .expo/web-qa playwright-core`. Run `npm run test:web:education` in another terminal. It uses Edge on Windows by default. Set `MORTAL_BROWSER_PATH` for a different Chromium executable. The test uses a fresh browser context to verify IndexedDB migration, graduation decisions, university admission, scholarships, tuition, and persistent friends.
+For browser smoke tests, keep `npm run preview:web` running after building and install Playwright Core in the ignored tool directory with `npm install --prefix .expo/web-qa playwright-core`. Run `npm run test:web:education` and `npm run test:web:career` in another terminal. Both use a fresh browser context and Edge on Windows by default. Set `MORTAL_BROWSER_PATH` for a different Chromium executable.
 
 - [Game design](docs/GAME_DESIGN.md)
 - [Architecture](docs/ARCHITECTURE.md)

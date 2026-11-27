@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
   age: { backgroundColor: '#DDEFFF', borderWidth: 1, borderColor: '#C0DEF7' },
   pressed: { backgroundColor: '#BDDEF9' },
   disabled: { opacity: .54 },
-  icon: { fontSize: 17, lineHeight: 22 },
+  icon: { fontSize: 19, lineHeight: 23 },
   ageIcon: { fontSize: 20, lineHeight: 25 },
   label: { color: colors.muted, fontSize: 9, fontWeight: '600', textAlign: 'center' },
   keyLabel: { color: colors.action, fontWeight: '800' },

@@ -127,7 +127,7 @@ test('opening a legacy student save generates the current roster without losing 
   const life = ageTo(7);
   const legacy = JSON.stringify({ ...life, version: 1, academic: undefined, schoolContacts: undefined });
   const restored = decodeLife(legacy);
-  assert.equal(restored.version, 3);
+  assert.equal(restored.version, 4);
   assert.deepEqual(restored.schoolContacts, life.schoolContacts);
   assert.deepEqual(restored.character, life.character);
   assert.deepEqual(restored.journal, life.journal);
@@ -184,6 +184,45 @@ test('available family interactions update multiple bond dimensions', () => {
   assert.equal(after.family[0]?.bond.trust, person.bond.trust + 2);
   person.alive = false;
   assert.match(advance(life, { type: 'talk', person: person.id }).error ?? '', /no longer available/);
+});
+
+test('family journal stories vary across years and give the same results after save and reload', () => {
+  let life = ageTo(4);
+  const father = life.family.find(({ role }) => role === 'Father')!;
+  const mother = life.family.find(({ role }) => role === 'Mother')!;
+  const talk = { type: 'talk', person: father.id } as const;
+  const together = { type: 'interact', person: mother.id, activity: 'family-time' } as const;
+  const conversations = new Set<string>();
+  const outings = new Set<string>();
+  for (let age = 4; age <= 9; age++) {
+    life = ageUntil(life, age);
+    if (life.pending) life = apply(life, { type: 'choose', event: life.pending, choice: eventById.get(life.pending)!.choices![0]!.id });
+    const previous = life;
+    life = apply(life, talk);
+    assert.deepEqual(life, apply(decodeLife(JSON.stringify(previous)), talk));
+    const conversation = life.journal.at(-1)!.text;
+    assert.ok(conversation.includes(`my father, ${father.name}`));
+    conversations.add(conversation);
+    life = apply(life, together);
+    const outing = life.journal.at(-1)!.text;
+    assert.ok(outing.includes(`my mother, ${mother.name}`));
+    outings.add(outing);
+    assert.equal(life.random, previous.random);
+  }
+  assert.equal(conversations.size, 6);
+  assert.equal(outings.size, 6);
+});
+
+test('teacher conversations use classroom topics and time with a young classmate uses play stories', () => {
+  const life = apply(ageTo(6), { type: 'choose', event: 'first-classroom', choice: 'join' });
+  const [teacher, peer] = currentClass(life);
+  assert.ok(teacher && peer);
+  const conversation = apply(life, { type: 'talk', person: teacher.id });
+  assert.ok(conversation.journal.at(-1)!.text.includes(`my teacher, ${teacher.name}`));
+  assert.match(conversation.journal.at(-1)!.text, /class|homework|book|lesson|teacher/);
+  const playing = apply(life, { type: 'interact', person: peer.id, activity: 'hang-out' });
+  assert.ok(playing.journal.at(-1)!.text.includes(peer.name));
+  assert.match(playing.journal.at(-1)!.text, /paper boats|played tag|board game|drew a comic/);
 });
 
 test('parents give one allowance per year and gifts debit the full amount', () => {

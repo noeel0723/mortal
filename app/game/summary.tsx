@@ -1,5 +1,6 @@
 import { Redirect, router } from 'expo-router';
 import { Text } from 'react-native';
+import { careerSummary } from '../../src/careerView';
 import { ActionButton, DataRow, Heading, Page, Section, shared } from '../../src/components/ui';
 import { educationStatus } from '../../src/engine/academics';
 import { money } from '../../src/i18n/en';
@@ -11,6 +12,7 @@ export default function Summary() {
   const { character } = life;
   if (!character.causeOfDeath) return <Redirect href="/game" />;
   const turningPoints = life.journal.filter((entry) => entry.category === 'decision' || entry.category === 'school').slice(-4);
+  const employment = careerSummary(life);
   return (
     <Page inGame>
       <Heading title="Life Summary" subtitle={`${character.firstName} ${character.lastName} · ${character.birthYear}–${life.year}`} />
@@ -23,6 +25,7 @@ export default function Summary() {
       <Section title="Family">
         {life.family.map((person) => <DataRow key={person.id} label={person.role} value={person.name} />)}
       </Section>
+      {employment.length > 0 && <Section title="Career">{employment.map((row) => <DataRow key={row.label} {...row} />)}</Section>}
       {turningPoints.length > 0 && <Section title="Turning points">
         {turningPoints.map((event, index) => (
           <Text key={index} style={shared.body}>Age {event.age} · {event.text}</Text>

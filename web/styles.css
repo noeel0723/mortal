@@ -82,7 +82,7 @@ p { color: var(--muted); line-height: 1.56; }
 .masthead .button { color: #e7f3ff; font-size: .82rem; padding: .35rem .4rem; gap: .35rem; }
 .masthead .button:not(:disabled):hover { color: var(--white); background: #286295; border-color: #6093bd; }
 .masthead :focus-visible { outline-color: #e4f4ff; outline-offset: 0; }
-.emoji { font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; line-height: 1; font-size: 1.06rem; flex: none; }
+.emoji { font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; line-height: 1; font-size: 1.18rem; flex: none; }
 .button {
   min-height: 2.8rem;
   border-radius: .72rem;
@@ -289,7 +289,7 @@ button.play-row:disabled .play-row-icon { background: #edf2f7; opacity: .65; }
 }
 .play-row-avatar { overflow: hidden; background: #deedff; }
 .play-row-avatar .portrait { width: 100%; height: 100%; border-radius: inherit; }
-.play-row-icon .emoji { font-size: 1.17rem; }
+.play-row-icon .emoji { font-size: 1.36rem; }
 .play-row-main { display: grid; gap: .18rem; min-width: 0; flex: 1; }
 .play-row-main > strong { color: var(--blue-dark); font-size: .96rem; font-weight: 740; line-height: 1.25; }
 .play-row-detail, .play-empty { color: var(--muted); font-size: .83rem; line-height: 1.42; }
@@ -326,6 +326,8 @@ button.play-row:disabled .play-row-icon { background: #edf2f7; opacity: .65; }
 .detail-bond h3 { color: var(--blue-dark); font-size: .9rem; margin-bottom: .15rem; }
 .detail-bond .play-meter { grid-template-columns: minmax(4.8rem, 30%) minmax(0, 1fr) 2.15rem; width: 100%; }
 .detail-bond .play-meter progress { width: 100%; }
+.job-filters { padding-block: .7rem; }
+.job-filters label:first-child { grid-column: 1 / -1; }
 .play-empty { padding: .8rem .75rem; }
 .play-meter {
   display: grid;

@@ -2,11 +2,17 @@ import assert from 'node:assert/strict';
 import { decodeLife } from '../src/database/codec.ts';
 import { programById, programs } from '../src/data/academics.ts';
 import { eventById } from '../src/data/events.ts';
+import { jobById } from '../src/data/jobs.ts';
 import { academicActionIssue, isTuitionDue, latestApplication } from '../src/engine/academics.ts';
+import { careerActionIssue, jobRequirementsIssue, vacancies } from '../src/engine/career.ts';
 import { createLife } from '../src/engine/create.ts';
+import { incomeTax, outstanding } from '../src/engine/finance.ts';
+import { relationshipIssue } from '../src/engine/interactions.ts';
 import { isSchoolStage } from '../src/engine/school.ts';
 import { activityIssue, advance, maxAge } from '../src/engine/simulation.ts';
+import { activeCoworkers } from '../src/engine/workplace.ts';
 import type { AcademicAction, ProgramLevel } from '../src/engine/academicTypes.ts';
+import type { CareerAction } from '../src/engine/careerTypes.ts';
 import type { Action, Life } from '../src/engine/types.ts';
 
 const count = Number(process.argv[2] ?? 1000);
@@ -20,6 +26,16 @@ let paidScholarships = 0;
 let admissionsAccepted = 0;
 let admissionsDeclined = 0;
 let withdrawals = 0;
+let salariedYears = 0;
+let hardshipLives = 0;
+let retiredLives = 0;
+let partTimeLives = 0;
+let fullTimeLives = 0;
+let neverWorked = 0;
+let professionalHires = 0;
+let vocationalHires = 0;
+let promotions = 0;
+let dismissals = 0;
 const plans: Record<string, number> = {};
 const qualifications: Record<string, number> = {};
 const schoolwork = ['study', 'exams', 'socialize'] as const;
@@ -32,6 +48,48 @@ function apply(life: Life, action: Action) {
 
 function tryAcademic(life: Life, action: AcademicAction) {
   return academicActionIssue(life, action) ? life : apply(life, action);
+}
+
+function tryCareer(life: Life, action: CareerAction) {
+  return careerActionIssue(life, action) ? life : apply(life, action);
+}
+
+function employmentChoice(life: Life, seed: number) {
+  const { age } = life.character;
+  const { career, academic } = life;
+  if (age < 18 || career.retiredYear !== null || seed % 12 === 0) return life;
+  if (age >= 65 && seed % 4 !== 0) return tryCareer(life, { type: 'retire' });
+  const job = career.current;
+  if (job && (age === 32 && seed % 7 === 0)) return tryCareer(life, { type: 'resign' });
+
+  const held = new Set(academic.qualifications.map(({ level }) => level));
+  const stillStudying = !!academic.enrollment || ((academic.path === 'university' || academic.path === 'gap-year') && age < 25 && !held.has('postgraduate')) ||
+    (academic.path === 'vocational' && age < 24 && !held.has('vocational'));
+  const switchToFullTime = job && jobById.get(job.jobId)?.type === 'part-time' && !stillStudying && age < 40 && age % 2 === 0 && seed % 6 !== 0;
+  if (!job || switchToFullTime) {
+    const candidates = vacancies(life).filter(({ job }) => (stillStudying ? job.type === 'part-time' : !switchToFullTime || job.type === 'full-time') &&
+      !jobRequirementsIssue(life, job)).sort((a, b) => Number(!!b.job.qualification) - Number(!!a.job.qualification) || b.salary - a.salary);
+    for (const vacancy of candidates.slice(0, 4)) {
+      const attempted = tryCareer(life, { type: 'apply-job', vacancy: vacancy.id });
+      if (attempted !== life && attempted.career.applications.at(-1)?.result === 'offered') {
+        life = apply(attempted, { type: 'accept-job', vacancy: vacancy.id });
+        break;
+      }
+      life = attempted;
+    }
+  }
+  if (!life.career.current) return life;
+  if (seed % 17 === 0 && life.year - life.career.current.startedYear <= 2) {
+    for (const coworker of activeCoworkers(life)) {
+      for (const activity of ['insult', 'mess-with'] as const) {
+        if (!relationshipIssue(life, coworker, activity)) life = apply(life, { type: 'interact', person: coworker.id, activity });
+      }
+    }
+    return life;
+  }
+  if (seed % 5 !== 0) life = tryCareer(life, { type: 'work-harder' });
+  if (age % 3 === 0) life = tryCareer(life, { type: 'request-raise' });
+  return life;
 }
 
 function educationChoice(life: Life, seed: number) {
@@ -88,11 +146,23 @@ for (let seed = 1; seed <= count; seed++) {
       if (pending === 'graduation-plan') plans[choice.id] = (plans[choice.id] ?? 0) + 1;
       decisions++;
     }
-    if (!life.character.causeOfDeath) life = educationChoice(life, seed);
+    if (!life.character.causeOfDeath) life = employmentChoice(educationChoice(life, seed), seed);
     assert.equal(life.year, life.character.birthYear + life.character.age);
     assert.ok(Object.values(life.character.attributes).every((value) => Number.isInteger(value) && value >= 0 && value <= 100));
     assert.ok(life.family.every((person) => person.age <= maxAge && Object.values(person.bond).every((value) => value >= 0 && value <= 100)));
     assert.equal(life.character.bank, life.transactions.reduce((balance, item) => balance + item.amount, 0));
+    assert.ok(life.character.bank >= 0);
+    const current = life.career.current;
+    if (current) {
+      const definition = jobById.get(current.jobId)!;
+      assert.ok(current.salary >= definition.salary[0] && current.salary <= definition.salary[1]);
+      assert.equal(jobRequirementsIssue(life, definition), null);
+      assert.equal(life.career.retiredYear, null);
+      assert.ok(Object.values(life.finance.arrears).every((amount) => Number.isSafeInteger(amount) && amount >= 0));
+    }
+    if (seed % 47 === 0 && life.character.age === 17) {
+      assert.deepEqual(decodeLife(JSON.stringify({ ...life, version: 3, career: undefined, finance: undefined })), life);
+    }
     const enrollment = life.academic.enrollment;
     if (enrollment) {
       assert.ok([enrollment.performance, enrollment.attendance, enrollment.stress].every((value) => Number.isInteger(value) && value >= 0 && value <= 100));
@@ -101,6 +171,25 @@ for (let seed = 1; seed <= count; seed++) {
     }
   }
   if (seed % 47 === 0) assert.deepEqual(decodeLife(JSON.stringify(life)), life);
+  assert.equal(life.career.current, null);
+  const salaries = life.transactions.filter(({ category }) => category === 'salary');
+  const taxes = life.transactions.filter(({ category }) => category === 'tax');
+  assert.equal(new Set(salaries.map(({ year }) => year)).size, salaries.length);
+  assert.equal(taxes.reduce((sum, entry) => sum - entry.amount, 0), salaries.reduce((sum, entry) => sum + incomeTax(entry.amount), 0));
+  assert.equal(salaries.length, life.career.experience);
+  salariedYears += salaries.length;
+  if (outstanding(life)) hardshipLives++;
+  if (life.career.retiredYear !== null) retiredLives++;
+  if (!life.career.history.length) neverWorked++;
+  if (life.career.history.some((entry) => jobById.get(entry.initialJobId)?.type === 'part-time')) partTimeLives++;
+  if (life.career.history.some((entry) => jobById.get(entry.initialJobId)?.type === 'full-time')) fullTimeLives++;
+  for (const entry of life.career.history) {
+    const initial = jobById.get(entry.initialJobId)!;
+    if (initial.qualification === 'undergraduate' || initial.qualification === 'postgraduate') professionalHires++;
+    if (initial.qualification === 'vocational') vocationalHires++;
+    if (entry.reason === 'dismissed') dismissals++;
+    promotions += entry.promotions.length;
+  }
   const academic = life.academic;
   assert.equal(new Set(academic.qualifications.map(({ programId }) => programId)).size, academic.qualifications.length);
   for (const qualification of academic.qualifications) {
@@ -145,4 +234,15 @@ console.log(JSON.stringify({
   paidScholarships,
   tuitionHoldTurns: tuitionHolds,
   withdrawals,
+  employedLives: count - neverWorked,
+  neverWorked,
+  partTimeLives,
+  fullTimeLives,
+  retiredLives,
+  hardshipLives,
+  salariedYears,
+  professionalHires,
+  vocationalHires,
+  promotions,
+  dismissals,
 }, null, 2));

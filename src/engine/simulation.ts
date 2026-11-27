@@ -1,10 +1,14 @@
 import { eventById, events } from '../data/events.ts';
 import { advanceAcademics, chooseEducationPath, isTuitionDue, performAcademicAction } from './academics.ts';
 import { appearanceChanged, appearanceIssue, mergeAppearance, validFace, validHair } from './appearance.ts';
+import { advanceCareer, applyCareerEffect, closeCareerYear, endEmployment, performCareerAction, studyWorkload } from './career.ts';
+import { annualFinance } from './finance.ts';
 import { contactIssue, performRelationshipActivity } from './interactions.ts';
 import { clamp, record } from './journal.ts';
 import { seededRandom } from './random.ts';
+import { conversationStory } from './relationshipStories.ts';
 import { advanceContactOccupation, currentClass, findContact, isPeer, isSchoolStage } from './school.ts';
+import { ageWorkplace, canMakeFriend, isWorkContact } from './workplace.ts';
 import type { Action, Life } from './types.ts';
 
 export const maxAge = 115;
@@ -40,6 +44,7 @@ export function isAcademicActivity(activity: Activity): activity is AcademicActi
 function ageUp(life: Life) {
   const random = seededRandom(life.random);
   const character = life.character;
+  const elapsedAge = character.age;
   character.age += 1;
   life.year += 1;
   life.usedActions = [];
@@ -66,17 +71,23 @@ function ageUp(life: Life) {
     if (person.age >= maxAge || person.health === 0) person.alive = false;
     if (person.alive) advanceContactOccupation(person);
   }
+  ageWorkplace(life, maxAge);
+  annualFinance(life, elapsedAge);
+  closeCareerYear(life);
   const dies = character.attributes.health === 0 || age >= maxAge ||
     (age >= 72 && random.next() < (age - 69) / 650 + (100 - character.attributes.health) / 1800);
   if (dies) {
     character.causeOfDeath = character.attributes.health === 0 ? 'Declining health' : 'Natural causes';
     life.academic.gapUntil = null;
     life.scheduled = [];
+    endEmployment(life, 'died');
     record(life, 'life', `My life ended at age ${age}.`);
     life.random = random.state;
     return;
   }
+  studyWorkload(life);
   const graduated = advanceAcademics(life, random);
+  advanceCareer(life, random);
   for (const consequence of life.scheduled) {
     if (consequence.year === life.year) record(life, 'decision', consequence.text, consequence.effects);
   }
@@ -96,6 +107,7 @@ function ageUp(life: Life) {
   if (triggered) {
     life.seen.push(triggered.id);
     record(life, triggered.category, triggered.text, triggered.effects);
+    if (triggered.careerEffects) applyCareerEffect(life, triggered.careerEffects);
     if (triggered.choices) life.pending = triggered.id;
   }
   life.random = random.state;
@@ -129,8 +141,8 @@ export function talkIssue(life: Life, id: string) {
 }
 
 export function befriendIssue(life: Life, id: string) {
-  const person = life.schoolContacts.find((contact) => contact.id === id);
-  if (!person || !isPeer(person)) return 'You can only befriend a classmate.';
+  const person = findContact(life, id);
+  if (!person || !('friend' in person) || !canMakeFriend(person)) return 'You can only befriend a classmate or co-worker.';
   if (person.friend) return 'You are already friends.';
   const issue = contactIssue(life, person);
   if (issue) return issue;
@@ -151,6 +163,8 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       if (life.pending !== action.event || !choice) return { error: 'This decision is no longer available.' };
       life.pending = null;
       if (choice.academicPath) chooseEducationPath(life, choice.academicPath);
+      if (choice.academicPath === 'workforce' && !life.career.current && life.career.retiredYear === null) life.career.seeking = true;
+      if (choice.careerEffects) applyCareerEffect(life, choice.careerEffects);
       record(life, 'decision', choice.outcome, choice.effects);
       if (choice.delayed) {
         life.scheduled.push({ year: life.year + choice.delayed.years, text: choice.delayed.text, effects: choice.delayed.effects });
@@ -186,19 +200,27 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       person.bond.affection = clamp(person.bond.affection + 3);
       person.bond.trust = clamp(person.bond.trust + 2);
       person.bond.familiarity = clamp(person.bond.familiarity + 4);
-      record(life, 'stage' in person ? 'community' : 'family',
-        `I caught up with ${person.name} about what we had been doing lately.`, { energy: -8, happiness: 3 });
+      record(life, isWorkContact(person) ? 'career' : 'stage' in person ? 'community' : 'family',
+        conversationStory(life, person), { energy: -8, happiness: 3 });
       break;
     }
     case 'befriend': {
       const issue = befriendIssue(life, action.person);
       if (issue) return { error: issue };
-      const person = life.schoolContacts.find(({ id }) => id === action.person)!;
+      const person = findContact(life, action.person)!;
+      if (!('friend' in person)) return { error: 'This contact cannot become a friend.' };
       person.friend = true;
       person.bond.affection = clamp(person.bond.affection + 8);
       person.bond.trust = clamp(person.bond.trust + 5);
       person.bond.familiarity = clamp(person.bond.familiarity + 6);
-      record(life, 'school', `I became friends with ${person.name} from my class.`, { energy: -friendshipEnergyCost, happiness: 5 });
+      const work = isWorkContact(person);
+      record(life, work ? 'career' : 'school', `I became friends with ${person.name} from my ${work ? 'workplace' : 'class'}.`, { energy: -friendshipEnergyCost, happiness: 5 });
+      break;
+    }
+    case 'seek-work': case 'work-harder': case 'request-raise': case 'resign': case 'retire':
+    case 'apply-job': case 'accept-job': case 'decline-job': case 'work-hours': {
+      const issue = performCareerAction(life, action);
+      if (issue) return { error: issue };
       break;
     }
     case 'interact': {
@@ -234,6 +256,14 @@ function structuredCloneLife(life: Life): Life {
     character: { ...life.character, attributes: { ...life.character.attributes } },
     family: life.family.map((person) => ({ ...person, bond: { ...person.bond } })),
     schoolContacts: life.schoolContacts.map((person) => ({ ...person, bond: { ...person.bond } })),
+    career: {
+      ...life.career,
+      current: life.career.current ? { ...life.career.current, salaryHistory: [...life.career.current.salaryHistory], promotions: [...life.career.current.promotions] } : null,
+      history: [...life.career.history], industryExperience: { ...life.career.industryExperience },
+      applications: life.career.applications.map((item) => ({ ...item })),
+      contacts: life.career.contacts.map((person) => ({ ...person, bond: { ...person.bond } })),
+    },
+    finance: { ...life.finance, arrears: { ...life.finance.arrears } },
     academic: {
       ...life.academic,
       enrollment: life.academic.enrollment ? { ...life.academic.enrollment } : null,

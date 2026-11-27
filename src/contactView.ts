@@ -1,7 +1,9 @@
 import { genderLabels } from './data/veyra.ts';
+import { employerById } from './data/employers.ts';
 import { canStudyWith, contactGroup, giftCost, relationshipActivities, relationshipIssue } from './engine/interactions.ts';
 import type { RelationshipActivity } from './engine/interactions.ts';
 import { befriendIssue, friendshipEnergyCost, talkIssue } from './engine/simulation.ts';
+import { canMakeFriend, isWorkContact } from './engine/workplace.ts';
 import type { Action, Contact, Life } from './engine/types.ts';
 import { money } from './i18n/en.ts';
 import type { Emoji } from './theme/tokens.ts';
@@ -18,10 +20,14 @@ const presentation: Record<RelationshipActivity, { label: string; icon: Emoji; d
   'academic-help': { label: 'Ask for Academic Help', icon: 'study', detail: 'Get feedback to improve your coursework.' },
   'mentor-guidance': { label: 'Ask for Guidance', icon: 'guidance', detail: 'Talk through your study goals and next steps.' },
   'thank-educator': { label: 'Say Thank You', icon: 'thanks', detail: 'Thank them for the support they give you.' },
+  'work-break': { label: 'Spend Time Together', icon: 'coffee', detail: 'Get to know one another outside work.' },
+  'discuss-work': { label: 'Discuss Work', icon: 'work', detail: 'Talk through a task and improve your performance.' },
+  insult: { label: 'Insult', icon: 'insult', detail: 'Make a rude remark that harms trust and respect.' },
+  'mess-with': { label: 'Mess With', icon: 'prank', detail: 'Play a prank that may strain the relationship.' },
 };
 
 export function contactRole(person: Contact) {
-  return 'stage' in person && person.friend ? 'Friend' : person.role;
+  return 'friend' in person && person.friend ? 'Friend' : person.role;
 }
 
 export function contactProfileRows(person: Contact) {
@@ -31,6 +37,7 @@ export function contactProfileRows(person: Contact) {
     { label: 'Gender identity', value: genderLabels[person.gender] },
     { label: 'City', value: person.city },
     { label: 'Occupation', value: person.occupation },
+    ...(isWorkContact(person) ? [{ label: 'Employer', value: employerById.get(person.employerId)?.name ?? person.employerId }] : []),
     { label: 'Health', value: `${person.health}%` },
   ];
 }
@@ -46,7 +53,7 @@ export function contactInteractions(life: Life, person: Contact) {
   const blocked = life.character.causeOfDeath ? 'This life has already ended.' :
     life.pending ? 'Resolve the open decision in your journal.' : null;
   const rows: InteractionRow[] = [];
-  if (group === 'peer' && 'stage' in person && !person.friend) {
+  if ('friend' in person && canMakeFriend(person) && !person.friend) {
     rows.push({ label: 'Become Friends', icon: 'relationships', detail: `Uses ${friendshipEnergyCost} energy. Adds them to Relationships.`,
       issue: blocked ?? befriendIssue(life, person.id), action: { type: 'befriend', person: person.id } });
   }
@@ -58,6 +65,7 @@ export function contactInteractions(life: Life, person: Contact) {
     if (!rule.groups.some((allowed) => allowed === group)) continue;
     if (activity === 'study-together' && !canStudyWith(life, person)) continue;
     if (activity === 'ask-allowance' && life.character.age >= 18) continue;
+    if (activity === 'discuss-work' && (!isWorkContact(person) || person.employerId !== life.career.current?.employerId)) continue;
     const item = presentation[activity];
     const label = activity === 'hang-out' && life.character.age < 12 ? 'Play Together' : item.label;
     rows.push({ ...item, label, detail: `${item.detail} Uses ${rule.energy} energy.`,

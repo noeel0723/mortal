@@ -123,7 +123,10 @@ test('scholarships and tuition reconcile exactly once per funded year through po
   expectIssue(university, { type: 'apply-scholarship', programId }, /already been awarded/);
   expectIssue(university, { type: 'enroll-program', programId: 'law' }, /current program/);
   expectIssue(university, { type: 'pay-tuition' }, /no tuition due/);
-  assert.equal(currentClass(university).filter(({ role }) => role === 'Professor').length, 1);
+  const professors = currentClass(university).filter(({ role }) => role === 'Professor');
+  assert.equal(professors.length, 1);
+  assert.match(act(university, { type: 'talk', person: professors[0]!.id }).journal.at(-1)?.text ?? '',
+    /lecture|researchers|understand a difficult topic|semester|teaching their subject/);
   const student = currentClass(university).find(({ role }) => role === 'Student');
   assert.ok(student);
   const friend = act(university, { type: 'befriend', person: student.id });
@@ -207,7 +210,7 @@ test('a version 1 graduate gets a migration credential with no invented grades o
     schoolContacts: life.schoolContacts.map((person) => person.role === 'Classmate' ? { ...person, occupation: 'Student' } : person),
   };
   const restored = decodeLife(JSON.stringify(legacy));
-  assert.equal(restored.version, 3);
+  assert.equal(restored.version, 4);
   assert.deepEqual(restored.academic.history, []);
   assert.equal(highestQualification(restored)?.performance, null);
   assert.equal(highestQualification(restored)?.year, life.year);

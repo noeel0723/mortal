@@ -11,14 +11,17 @@ export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
 export const radius = { sm: 8, md: 12, lg: 18, pill: 999 } as const;
 
 export const emoji = {
-  life: '📖', career: '💼', relationships: '🤝', age: '⏳', assets: '💰', activities: '🎯',
-  world: '🌐', settings: '⚙️', school: '📚', classroom: '👥', study: '📖', family: '🏡', tree: '🌳',
-  bank: '💳', health: '🩺', rest: '🛌', walk: '🚶', art: '🎨',
+  life: '📖', career: '💼', relationships: '🤝', age: '➕', assets: '💰', activities: '🎲',
+  world: '🌍', settings: '⚙️', school: '🏫', classroom: '👥', study: '📚', family: '🏡', tree: '🌳',
+  bank: '💵', health: '❤️', rest: '🛌', walk: '🚶', art: '🎨',
   new: '🌱', continue: '▶️', save: '💾', load: '📂', back: '◀️', accept: '✅',
   decline: '↩️', close: '✖️', trophy: '🏆', history: '📜', stats: '📊', custom: '✍️',
-  random: '🎲', location: '📍', support: '🤝', talk: '💬', home: '🏠', delete: '🗑️',
+  random: '🎲', location: '📍', support: '🤝', talk: '🗣️', home: '🏠', delete: '🗑️',
   phone: '📳', options: '🔹', calendar: '📅', person: '👤', next: '➡️',
   university: '🎓', vocational: '🛠️', exam: '📝', library: '📖', extracurricular: '🏅',
-  hair: '✂️', gift: '🎁', thanks: '💛', compliment: '✨', together: '🏞️', guidance: '🧭',
+  hair: '✂️', gift: '🎁', thanks: '😊', compliment: '😘', together: '🎟️', guidance: '🧭',
+  insult: '😠', prank: '👉', coffee: '☕', work: '📋', search: '🔎', harder: '📈', hours: '🕰️', exit: '🚪', retire: '🌿',
+  laptop: '💻', computer: '🖥️', medical: '🩺', blueprint: '📐', files: '🗃️', calculator: '🧮',
+  court: '⚖️', restaurant: '🍽️', cooking: '🍳', cart: '🛒', camera: '🎥',
 } as const;
 export type Emoji = keyof typeof emoji;

@@ -1,4 +1,5 @@
 import type { LifeEvent } from '../engine/types.ts';
+import { careerEvents } from './careerEvents.ts';
 
 export const events: readonly LifeEvent[] = [
   { id: 'first-steps', ages: [1, 2], category: 'family', probability: 1, text: 'I took my first steps across the living room.', effects: { happiness: 3 } },
@@ -94,6 +95,7 @@ export const events: readonly LifeEvent[] = [
   { id: 'balcony', ages: [69, 99], category: 'life', probability: .23, text: 'A pair of birds started visiting my balcony. I learned to recognize their calls.', effects: { happiness: 4, stress: -3 } },
   { id: 'park-bench', ages: [73, 103], category: 'community', probability: .23, text: 'Someone repaired the park bench I used every week. I left a thank-you with the parks office.', effects: { happiness: 4 } },
   { id: 'warm-visit', ages: [79, 110], category: 'community', probability: .27, text: 'A neighbor brought soup during a cold spell and stayed to talk.', effects: { happiness: 6, health: 1 } },
+  ...careerEvents,
 ];
 
 export const eventById = new Map(events.map((event) => [event.id, event]));

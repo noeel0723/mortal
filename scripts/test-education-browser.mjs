@@ -1,17 +1,9 @@
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { join } from 'node:path';
 import { eventById } from '../src/data/events.ts';
 import { createLife } from '../src/engine/create.ts';
 import { currentClass } from '../src/engine/school.ts';
 import { advance } from '../src/engine/simulation.ts';
-
-const require = createRequire(new URL('../.expo/web-qa/runner.cjs', import.meta.url));
-const { chromium } = require('playwright-core');
-const edge = join(process.env['ProgramFiles(x86)'] ?? '', 'Microsoft/Edge/Application/msedge.exe');
-const executablePath = process.env.MORTAL_BROWSER_PATH || (existsSync(edge) ? edge : undefined);
-const url = process.env.MORTAL_WEB_URL || 'http://127.0.0.1:5173/';
+import { saveSlot, startBrowser, url } from './browserTestSupport.mjs';
 const slotId = 'education-browser-test';
 
 function act(life, action) {
@@ -30,31 +22,10 @@ function olderSave() {
     if (age >= 6) life = act(life, { type: 'activity', activity: 'study' });
     if (age === 6) life = act(life, { type: 'befriend', person: currentClass(life).find(({ role }) => role === 'Classmate').id });
   }
-  return { ...life, academic: undefined, version: 1 };
+  return { ...life, academic: undefined, career: undefined, finance: undefined, version: 1 };
 }
 
-function saveSlot({ id, entry }) {
-  return new Promise((resolve, reject) => {
-    const opening = indexedDB.open('mortal-web', 1);
-    opening.onerror = () => reject(opening.error);
-    opening.onsuccess = () => {
-      const db = opening.result;
-      const transaction = db.transaction('lives', entry ? 'readwrite' : 'readonly');
-      const store = transaction.objectStore('lives');
-      const request = entry ? store.put(entry) : store.get(id);
-      transaction.oncomplete = () => {
-        db.close();
-        resolve(request.result);
-      };
-      transaction.onabort = () => {
-        db.close();
-        reject(transaction.error);
-      };
-    };
-  });
-}
-
-const browser = await chromium.launch({ executablePath, headless: true });
+const browser = await startBrowser();
 try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const page = await context.newPage();
@@ -94,7 +65,7 @@ try {
   await page.reload();
   await button('Apply to University').waitFor();
   const migrated = await read();
-  assert.equal(migrated.version, 3);
+  assert.equal(migrated.version, 4);
   assert.equal(migrated.pending, 'graduation-plan');
   assert.equal(migrated.academic.qualifications[0].title, 'High School Diploma');
   assert.equal(migrated.schoolContacts.find(({ friend }) => friend).id, oldFriend.id);

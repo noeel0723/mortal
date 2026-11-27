@@ -12,7 +12,9 @@ Validation covered 29 engine and SQLite tests, 2,000 seeded lives across all fou
 
 ## Phase 2.2 · Career and employment
 
-Planned work includes a job catalog keyed by the existing qualification and career tags, job search and applications, employment states, role progression, wages, and recurring expenses integrated with the ledger. NPC occupation labels currently progress by age and cohort duration. Labor-market behavior, detailed NPC careers, and student lending remain later work.
+Version 0.2.2 adds the job market, qualification-based hiring, part-time work during study, performance reviews, promotions, retirement, workplace relationships, and categorized finances with arrears. Schools and campus still run through the existing progression. Autonomous NPC careers, pensions, borrowing, and a broader labor market are later work.
+
+Validation passed with 44 automated tests, 2,000 seeded lives, and both education and career browser scenarios. The simulation reconciled 92,540 salaried years and exercised promotions, dismissals, and retirement. Android and iOS production bundles exported successfully. Physical-device testing remains pending.
 
 ## Phase 3 · World simulation and assets
 

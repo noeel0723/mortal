@@ -18,4 +18,11 @@ The native visual system uses white and soft-blue surfaces, subtle dividers, pas
 - Alder Bay University, Bellmere University, and Northwick University offer nine undergraduate categories and three postgraduate courses. Veyra Technical College offers two vocational diplomas and adult high school equivalency. Program pages show the institution, duration, prerequisites, tuition, scholarship options, and skills.
 - Players can seek admission, keep an offer for a limited time, enroll, and fund each academic year. A scholarship can cover tuition through graduation. Players short on funds can pause or withdraw and apply again later. Leaving school early opens the adult equivalency route once eligible.
 - University cohorts have a professor and students with individual profiles. Players can befriend students and keep those friendships after school. Peers progress through Graduate, Job Seeker, and Employed labels.
-- Academic Records shows completed, failed, and withdrawn study, plus current enrollment, grades, qualifications, and scholarships. Career shows the current education status and highest qualification alongside education links. Qualification tags will connect to jobs in a later milestone.
+- Academic Records shows completed, failed, and withdrawn study, plus current enrollment, grades, qualifications, and scholarships. Career shows the current education status and highest qualification alongside education links.
+
+## Phase 2.2 · Career, employment, and personal economy
+
+- Thirty-four roles across ten industries include entry jobs, vocational work, and degree-gated careers. Fictional employers operate in the cities of Veyra. Listings refresh yearly, and the player decides whether to accept an offer.
+- Performance, stress, job security, satisfaction, reputation, industry experience, and employer culture shape promotions, raises, warnings, and dismissals. Players can choose a lighter or longer work week, resign, change employers, or retire from age 65.
+- Each employer has a persistent supervisor, manager, and co-workers. Players can discuss tasks, spend time together, and make friends who stay accessible after leaving. Insults and pranks can harm a bond and damage standing at an active workplace.
+- The ledger shows salary, tax, essentials, tuition, scholarships, and other spending. Unpaid essentials carry forward as arrears. Career History shows the real employment timeline and lifetime gross earnings.

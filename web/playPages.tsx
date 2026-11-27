@@ -1,12 +1,21 @@
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { backgroundLabels, cities, cityDescriptions, genderLabels, talentLabels } from '../src/data/veyra';
 import { contactBondRows, contactInteractions, contactProfileRows, contactRole } from '../src/contactView';
+import {
+  canShowRetirement, careerCard, careerControl, careerRows, careerSummary, careerTimeline, defaultJobFilters, employmentLabels,
+  financeEntries, financeOverview, financeYears, jobIcon, jobListings, jobRatings, lifetimeEarnings, vacancyActions, vacancyRows,
+} from '../src/careerView';
+import type { JobFilters } from '../src/careerView';
 import { programById } from '../src/data/academics';
+import { jobById } from '../src/data/jobs';
 import { educationStatus } from '../src/engine/academics';
+import { workAge, workHours } from '../src/engine/career';
+import { industries } from '../src/engine/careerTypes';
 import { currentClass, isPeer, isSchoolStage } from '../src/engine/school';
 import { canEditFace } from '../src/engine/appearance';
 import { activities, activityIssue } from '../src/engine/simulation';
+import { activeCoworkers } from '../src/engine/workplace';
 import {
   academicActivities, academicControl, academicRecordGroups, availableProgramGroups, educationOverview, enrollmentControls,
   enrollmentRows, gradeLabel, institutionCard, programControls, programRows,
@@ -25,6 +34,15 @@ import { Icon, Rows } from './ui';
 export const pageTitles = {
   journal: en.lifeJournal,
   career: 'Career',
+  'career-info': 'Career Details',
+  jobs: 'Job Listings',
+  job: 'Job Details',
+  'work-hours': 'Working Hours',
+  coworkers: 'Co-workers',
+  'work-person': 'Co-worker',
+  'work-person-info': 'Character Profile',
+  'career-history': 'Career History',
+  'career-exit': 'Leave Employment',
   education: 'Education',
   'institution-info': 'Institution Details',
   programs: 'Programs',
@@ -56,13 +74,22 @@ export type Navigate = (page: GamePage, detail?: string, replace?: boolean) => v
 type DetailPage = Exclude<GamePage, 'journal'>;
 
 export function backgroundPage(page: GamePage): GamePage {
+  if (page === 'career-info') return 'career';
   if (page === 'person-info') return 'person';
   if (page === 'class-person-info') return 'class-person';
+  if (page === 'work-person-info') return 'work-person';
   if (page === 'institution-info') return 'education';
   return page;
 }
 
 const parentPages: Partial<Record<DetailPage, GamePage>> = {
+  jobs: 'career',
+  job: 'jobs',
+  'work-hours': 'career',
+  coworkers: 'career',
+  'work-person': 'coworkers',
+  'career-history': 'career',
+  'career-exit': 'career',
   education: 'career',
   programs: 'education',
   program: 'programs',
@@ -83,8 +110,8 @@ export function PlayPageHeader({ page, person, schoolTitle, go }: { page: Detail
   if (page === 'education' && schoolTitle) parent = 'journal';
   const titleFor = (target: GamePage) => {
     if (target === 'education' && schoolTitle) return schoolTitle;
-    if ((target === 'person' || target === 'class-person') && person) {
-      return target === 'person' && 'stage' in person && person.friend ? 'Friend' : person.role;
+    if ((target === 'person' || target === 'class-person' || target === 'work-person') && person) {
+      return target === 'person' ? contactRole(person) : person.role;
     }
     return pageTitles[target];
   };
@@ -158,6 +185,7 @@ function ControlRows({ controls, go }: { controls: EducationControl[]; go: Navig
     detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onClick={() => {
       void dispatch(item.action).then((success) => {
         if (success && (item.action.type === 'enroll-program' || item.action.type === 'drop-out')) go('education');
+        if (success && (item.action.type === 'accept-job' || item.action.type === 'resign' || item.action.type === 'retire')) go('career');
       });
     }} />);
 }
@@ -168,6 +196,48 @@ const activityOptions = [
   { id: 'read', icon: 'study', label: 'Read a Book', description: 'Improves smarts and happiness.' },
 ] as const;
 
+function JobListings({ life, go }: { life: Life; go: Navigate }) {
+  const [filters, setFilters] = useState(defaultJobFilters);
+  const listings = jobListings(life, filters);
+  return <>
+    <PageGroup title={`Open positions · ${life.year}`}>
+      <div className="play-group-inset field-grid job-filters">
+        <label>Search by title<input type="search" value={filters.query} onChange={(event) => setFilters({ ...filters, query: event.target.value })} /></label>
+        <label>Industry<select value={filters.industry} onChange={(event) => setFilters({ ...filters, industry: event.target.value as JobFilters['industry'] })}>
+          <option value="">All industries</option>{industries.map((industry) => <option key={industry}>{industry}</option>)}
+        </select></label>
+        <label>Employment type<select value={filters.type} onChange={(event) => setFilters({ ...filters, type: event.target.value as JobFilters['type'] })}>
+          <option value="">All schedules</option><option value="full-time">Full-time</option><option value="part-time">Part-time</option>
+        </select></label>
+      </div>
+    </PageGroup>
+    <PageGroup title={`${listings.length} vacancies`}>
+      {listings.length ? listings.map((listing) => <MenuRow key={listing.id} icon={jobIcon(listing.job)} title={listing.job.title}
+        detail={`${listing.employer.name} · ${employmentLabels[listing.job.type]} · ${listing.status}`}
+        value={money(listing.salary)} onClick={() => go('job', listing.id)} />) : <p className="play-empty">No jobs match these filters.</p>}
+    </PageGroup>
+  </>;
+}
+
+function Finances({ life }: { life: Life }) {
+  const [year, setYear] = useState<number | null>(life.year);
+  const entries = financeEntries(life, year);
+  return <>
+    <PageGroup title={`Financial overview · ${year ?? life.year}`}>
+      <div className="play-group-inset field-grid">
+        <label>Transaction year<select value={year ?? ''} onChange={(event) => setYear(event.target.value ? Number(event.target.value) : null)}>
+          <option value="">All years</option>{financeYears(life).map((option) => <option key={option}>{option}</option>)}
+        </select></label>
+      </div>
+      <Rows items={financeOverview(life, year ?? life.year)} />
+    </PageGroup>
+    <PageGroup title="Transactions">
+      {entries.length ? entries.map((item, index) => <MenuRow key={index} title={item.label} detail={`${item.year} · ${item.group}`} value={money(item.amount)} />) :
+        <p className="play-empty">No transactions yet.</p>}
+    </PageGroup>
+  </>;
+}
+
 export function PlayPage({ life, page, person, detail, go, home, newLife }: {
   life: Life; page: DetailPage; person?: Contact; detail?: string; go: Navigate; home: () => void; newLife: () => void;
 }) {
@@ -175,15 +245,87 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
   const { character, family } = life;
   const blocked = life.pending ? 'Resolve the open decision in your journal.' : character.causeOfDeath ? 'This life has ended.' : null;
   const energy = `${character.attributes.energy}%`;
+  const job = life.career.current;
+  const canFindJob = character.age >= workAge && !character.causeOfDeath && life.career.retiredYear === null;
 
   switch (page) {
     case 'career':
+    case 'career-info': {
+      const career = careerCard(life);
+      const details = careerRows(life);
       return <>
-        <PageGroup title="Education"><Rows items={educationOverview(life)} /></PageGroup>
-        <PageGroup title="Education actions">
+        <PageGroup title={job ? 'Current job' : 'Employment'}>
+          <MenuRow icon={career.icon} title={career.title} detail={career.detail} opensDialog onClick={() => go('career-info')}>
+            {job && <PageMeter label="Performance" value={job.performance} />}
+          </MenuRow>
+        </PageGroup>
+        {page === 'career-info' && <DetailDialog title="Career Details" onDismiss={() => go('career', undefined, true)}>
+          <div className="detail-identity"><span className="play-row-icon"><Icon name={career.icon} /></span>
+            <div><strong>{career.title}</strong>{career.detail && <p>{career.detail}</p>}</div>
+          </div>
+          {details.length > 0 && <Rows items={details} />}
+          {job && <section className="detail-bond"><h3>Work performance</h3>
+            {jobRatings(life).map((row) => <PageMeter key={row.label} {...row} />)}
+          </section>}
+          <section className="detail-bond"><h3>Education</h3><Rows items={educationOverview(life)} /></section>
+        </DetailDialog>}
+        <PageGroup title="Career actions">
+          {canFindJob && <MenuRow icon="search" title="Find a Job" onClick={() => {
+            if (!job && !life.career.seeking && !life.pending) void dispatch({ type: 'seek-work' }).then((success) => { if (success) go('jobs'); });
+            else go('jobs');
+          }} disabled={busy} />}
+          {canFindJob && job && <>
+            <ControlRows go={go} controls={[
+              careerControl(life, { type: 'work-harder' }, 'Work Harder', 'harder', 'Uses 16 energy. Improves performance and increases stress.'),
+              careerControl(life, { type: 'request-raise' }, 'Request a Raise', 'bank'),
+            ]} />
+            <MenuRow icon="hours" title="Working Hours" detail={`${job.hours} hours per week`} onClick={() => go('work-hours')} />
+            <MenuRow icon="relationships" title="Co-workers" onClick={() => go('coworkers')} />
+            <MenuRow icon="exit" title="Resign" onClick={() => go('career-exit', 'resign')} />
+          </>}
+          {canShowRetirement(life) && <MenuRow icon="retire" title="Retire" onClick={() => go('career-exit', 'retire')} />}
+          <MenuRow icon="history" title="Career History" onClick={() => go('career-history')} />
           <MenuRow icon="school" title="View Education" onClick={() => go('education')} />
         </PageGroup>
       </>;
+    }
+    case 'jobs':
+      return canFindJob ? <JobListings life={life} go={go} /> : <p className="play-empty">Job listings are unavailable.</p>;
+    case 'job': {
+      const listing = canFindJob && jobListings(life).find(({ id }) => id === detail);
+      if (!listing) return <p className="play-empty">This vacancy is no longer available.</p>;
+      const controls = vacancyActions(life, listing);
+      return <>
+        <PageGroup title={listing.job.title}><Rows items={vacancyRows(listing)} /></PageGroup>
+        {controls.length > 0 && <PageGroup title="Application"><ControlRows controls={controls} go={go} /></PageGroup>}
+      </>;
+    }
+    case 'work-hours':
+      return job ? <PageGroup title="Hours per week">
+        <ControlRows go={go} controls={workHours(jobById.get(job.jobId)!).map((hours) =>
+          careerControl(life, { type: 'work-hours', hours }, `${hours} Hours`, 'hours', 'Workload affects performance, stress, and energy.'))} />
+      </PageGroup> : <p className="play-empty">You are not currently employed.</p>;
+    case 'coworkers':
+      return job ? <PageGroup title="Your workplace">
+        {activeCoworkers(life).map((contact) => <PersonRow key={contact.id} person={contact} onClick={() => go('work-person', contact.id)} />)}
+      </PageGroup> : <p className="play-empty">You are not currently employed.</p>;
+    case 'career-history': {
+      const timeline = careerTimeline(life);
+      return <>
+        <PageGroup title="Career totals"><Rows items={[{ label: 'Lifetime gross earnings', value: money(lifetimeEarnings(life)) },
+          { label: 'Professional experience', value: `${life.career.experience} years` }]} /></PageGroup>
+        {timeline.length ? timeline.map((entry, index) => <PageGroup key={index} title={entry.title}><Rows items={entry.rows} /></PageGroup>) :
+          <p className="play-empty">No employment records yet.</p>}
+      </>;
+    }
+    case 'career-exit': {
+      const retiring = detail === 'retire';
+      if (retiring ? !canShowRetirement(life) : !job) return <p className="play-empty">This action is unavailable.</p>;
+      return <PageGroup title={retiring ? 'Retire' : 'Resign'}>
+        <p className="play-empty">{retiring ? 'Retirement ends your current job and closes access to job listings.' : 'Resigning ends your current contract before the next Age Up.'}</p>
+        <ControlRows go={go} controls={[careerControl(life, { type: retiring ? 'retire' : 'resign' }, retiring ? 'Confirm Retirement' : 'Confirm Resignation', retiring ? 'retire' : 'exit')]} />
+      </PageGroup>;
+    }
     case 'education':
     case 'institution-info': {
       const enrollment = life.academic.enrollment;
@@ -214,6 +356,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           {fees.length > 0 && <PageGroup title="Funding"><ControlRows controls={fees} go={go} /></PageGroup>}
         </> : <PageGroup title="Education status"><Rows items={educationOverview(life)} /></PageGroup>}
         <PageGroup title="Academic options">
+          {enrollment && character.age >= workAge && <MenuRow icon="career" title="View Career" onClick={() => go('career')} />}
           {!enrollment && character.age >= 18 && <MenuRow icon="university" title="Browse Programs" onClick={() => go('programs')} />}
           <MenuRow icon="history" title="Academic Records" onClick={() => go('records')} />
           {enrollment && <MenuRow icon="decline" title="Drop Out" onClick={() => go('withdraw')} />}
@@ -266,7 +409,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
     }
     case 'relationships':
     case 'family-tree': {
-      const friends = life.schoolContacts.filter((contact) => contact.friend);
+      const friends = [...life.schoolContacts, ...life.career.contacts].filter((contact) => contact.friend);
       return <>
         <PageGroup title="Parents">
           {family.map((relative) => <PersonRow key={relative.id} person={relative} onClick={() => go('person', relative.id)} />)}
@@ -292,14 +435,17 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
     case 'person':
     case 'person-info':
     case 'class-person':
+    case 'work-person':
+    case 'work-person-info':
     case 'class-person-info': {
       if (!person) return <p className="play-empty">This character is unavailable.</p>;
       const contact = person;
-      const showingProfile = page === 'person-info' || page === 'class-person-info';
-      const base = page === 'class-person' || page === 'class-person-info' ? 'class-person' : 'person';
+      const showingProfile = page === 'person-info' || page === 'class-person-info' || page === 'work-person-info';
+      const base = page === 'work-person' || page === 'work-person-info' ? 'work-person' :
+        page === 'class-person' || page === 'class-person-info' ? 'class-person' : 'person';
       return <>
         <PageGroup title="Character">
-          <PersonRow person={contact} opensDialog onClick={() => go(base === 'class-person' ? 'class-person-info' : 'person-info', contact.id)} />
+          <PersonRow person={contact} opensDialog onClick={() => go(`${base}-info`, contact.id)} />
         </PageGroup>
         <PageGroup title="Interactions">
           {contactInteractions(life, contact).map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label}
@@ -322,14 +468,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           value={money(character.bank)} onClick={() => go('finances')} />
       </PageGroup>;
     case 'finances':
-      return <>
-        <PageGroup title="Bank account"><MenuRow icon="bank" title="Current balance" value={money(character.bank)} /></PageGroup>
-        <PageGroup title="Transactions">
-          {life.transactions.length ? [...life.transactions].reverse().map((item, index) => (
-            <MenuRow key={index} title={item.label} detail={String(item.year)} value={money(item.amount)} />
-          )) : <p className="play-empty">No transactions yet.</p>}
-        </PageGroup>
-      </>;
+      return <Finances life={life} />;
     case 'activities':
       return <>
         <PageGroup title="Energy"><MenuRow icon="health" title="Current energy" value={energy} /></PageGroup>
@@ -381,6 +520,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
     case 'summary': {
       if (!character.causeOfDeath) return <p className="play-empty">This life is still in progress.</p>;
       const turningPoints = life.journal.filter((entry) => entry.category === 'decision' || entry.category === 'school').slice(-4);
+      const employment = careerSummary(life);
       return <>
         <PageGroup title="Biography">
           <MenuRow icon="person" title={`${character.firstName} ${character.lastName}`} detail={`${character.birthYear}–${life.year}`} />
@@ -390,6 +530,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
             ...family.map((relative) => ({ label: relative.role, value: relative.name })),
           ]} />
         </PageGroup>
+        {employment.length > 0 && <PageGroup title="Career"><Rows items={employment} /></PageGroup>}
         {turningPoints.length > 0 && <PageGroup title="Turning points">
           {turningPoints.map((entry, index) => <MenuRow key={index} title={en.age(entry.age)} detail={entry.text} />)}
         </PageGroup>}

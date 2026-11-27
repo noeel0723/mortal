@@ -11,6 +11,7 @@ import {
 } from '../../src/educationView';
 import type { EducationControl } from '../../src/educationView';
 import { currentClass } from '../../src/engine/school';
+import { workAge } from '../../src/engine/career';
 import { money } from '../../src/i18n/en';
 import { useGame } from '../../src/stores/game';
 
@@ -103,6 +104,7 @@ export default function Education() {
       {educationOverview(life).map((row) => <DataRow key={row.label} {...row} />)}
     </Section>}
     {!enrollment && life.character.age >= 18 && <ActionButton icon="university" label="Browse Programs" onPress={() => open('programs')} />}
+    {enrollment && life.character.age >= workAge && <ActionButton icon="career" label="View Career" onPress={() => router.push('/game/career')} />}
     <ActionButton icon="history" label="Academic Records" onPress={() => open('records')} />
     {enrollment && <ActionButton icon="decline" label="Drop Out" onPress={() => open('withdraw')} />}
   </Page>;

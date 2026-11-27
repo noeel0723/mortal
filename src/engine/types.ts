@@ -1,6 +1,8 @@
 import type { AcademicAction, AcademicLevel, AcademicState, GraduationPath } from './academicTypes.ts';
 import type { Appearance, AppearanceChoices, HairChoice } from './appearance.ts';
 import type { RelationshipActivity } from './interactions.ts';
+import type { CareerAction, CareerEffect, CareerState, WorkContact } from './careerTypes.ts';
+import type { FinanceState, Transaction } from './financeTypes.ts';
 
 export const stats = ['health', 'happiness', 'smarts', 'looks', 'charisma', 'discipline', 'athleticism', 'creativity', 'stress', 'energy', 'reputation'] as const;
 export type Stat = typeof stats[number];
@@ -10,7 +12,7 @@ export type Talent = 'academic' | 'athletic' | 'creative' | 'social';
 export type City = 'Alder Bay' | 'Bellmere' | 'Northwick';
 export type Education = 'early' | 'primary' | 'secondary' | 'high' | 'completed';
 export type SchoolStage = 'primary' | 'secondary' | 'high';
-export type Category = 'life' | 'family' | 'school' | 'health' | 'community' | 'decision';
+export type Category = 'life' | 'family' | 'school' | 'health' | 'community' | 'decision' | 'career' | 'finance';
 
 export type ProfileInput = {
   firstName: string;
@@ -51,7 +53,7 @@ export type Person<Role = 'Mother' | 'Father'> = {
 export type SchoolContact = Person<'Teacher' | 'Classmate' | 'Professor' | 'Student'> & {
   stage: AcademicLevel; friend: boolean; cohortId?: string; graduationAge?: number;
 };
-export type Contact = Person | SchoolContact;
+export type Contact = Person | SchoolContact | WorkContact;
 
 export type Effect = Partial<Record<Stat | 'bank', number>>;
 export type JournalEntry = {
@@ -67,6 +69,7 @@ export type EventChoice = {
   outcome: string;
   effects: Effect;
   academicPath?: GraduationPath;
+  careerEffects?: CareerEffect;
   delayed?: { years: number; text: string; effects: Effect };
 };
 export type LifeEvent = {
@@ -76,13 +79,14 @@ export type LifeEvent = {
   probability: number;
   text: string;
   effects?: Effect;
+  careerEffects?: CareerEffect;
   eligible?: (life: Life) => boolean;
   modifier?: (life: Life) => number;
   choices?: readonly EventChoice[];
 };
 
 export type Life = {
-  version: 3;
+  version: 4;
   seed: number;
   random: number;
   character: Character;
@@ -90,12 +94,14 @@ export type Life = {
   family: Person[];
   schoolContacts: SchoolContact[];
   academic: AcademicState;
+  career: CareerState;
+  finance: FinanceState;
   journal: JournalEntry[];
   seen: string[];
   pending: string | null;
   scheduled: { year: number; text: string; effects: Effect }[];
   usedActions: string[];
-  transactions: { year: number; label: string; amount: number }[];
+  transactions: Transaction[];
 };
 
 export type Action =
@@ -107,4 +113,5 @@ export type Action =
   | { type: 'interact'; person: string; activity: RelationshipActivity }
   | { type: 'change-appearance'; choices: AppearanceChoices }
   | { type: 'change-hair'; choices: HairChoice }
-  | AcademicAction;
+  | AcademicAction
+  | CareerAction;

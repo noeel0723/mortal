@@ -1,9 +1,12 @@
 import { isTuitionDue } from './academics.ts';
+import { applyCareerEffect } from './career.ts';
 import { clamp, record } from './journal.ts';
+import { timeTogetherStory } from './relationshipStories.ts';
 import { findContact, isCurrentClassContact, isPeer } from './school.ts';
+import { isWorkContact } from './workplace.ts';
 import type { Contact, Effect, Life } from './types.ts';
 
-type ContactGroup = 'parent' | 'peer' | 'educator';
+type ContactGroup = 'parent' | 'peer' | 'educator' | 'worker';
 type Rule = {
   groups: readonly ContactGroup[];
   age: number;
@@ -11,7 +14,7 @@ type Rule = {
   bond: Partial<Contact['bond']>;
   effects?: Effect;
   academic?: { performance: number; attendance: number; stress: number };
-  text: (name: string) => string;
+  text: (name: string, life: Life, person: Contact) => string;
 };
 
 export const giftCost = 500;
@@ -20,26 +23,36 @@ const allowance = { 'working-class': 200, 'middle-income': 500, affluent: 800 };
 export const relationshipActivities = {
   'ask-allowance': { groups: ['parent'], age: 8, energy: 5, bond: { familiarity: 2 }, text: (name) => `I received pocket money from ${name}.` },
   'thank-parent': { groups: ['parent'], age: 3, energy: 4, bond: { affection: 4, trust: 3 }, text: (name) => `I thanked ${name} for taking care of me.` },
-  'family-time': { groups: ['parent'], age: 3, energy: 12, bond: { affection: 5, familiarity: 5 }, effects: { happiness: 5, stress: -4 }, text: (name) => `I spent an afternoon with ${name}.` },
+  'family-time': { groups: ['parent'], age: 3, energy: 12, bond: { affection: 5, familiarity: 5 }, effects: { happiness: 5, stress: -4 }, text: together },
   'ask-advice': { groups: ['parent'], age: 8, energy: 7, bond: { trust: 4, respect: 3 }, effects: { stress: -4, discipline: 1 }, text: (name) => `I asked ${name} for advice and felt better about what to do next.` },
   compliment: { groups: ['peer'], age: 6, energy: 4, bond: { affection: 4, respect: 2 }, text: (name) => `I gave ${name} a compliment.` },
-  'hang-out': { groups: ['peer'], age: 6, energy: 12, bond: { affection: 5, familiarity: 6, compatibility: 2 }, effects: { happiness: 5, stress: -3 }, text: (name) => `I hung out with ${name}.` },
+  'hang-out': { groups: ['peer'], age: 6, energy: 12, bond: { affection: 5, familiarity: 6, compatibility: 2 }, effects: { happiness: 5, stress: -3 }, text: together },
   'study-together': { groups: ['peer'], age: 6, energy: 10, bond: { trust: 3, familiarity: 3 }, academic: { performance: 3, attendance: 1, stress: -2 }, text: (name) => `I studied with ${name} and understood the material better.` },
   gift: { groups: ['parent', 'peer'], age: 8, energy: 5, bond: { affection: 5, trust: 2 }, effects: { bank: -giftCost }, text: (name) => `I bought a small gift for ${name}.` },
   'academic-help': { groups: ['educator'], age: 6, energy: 7, bond: { respect: 3, familiarity: 2 }, effects: { stress: -2 }, academic: { performance: 3, attendance: 2, stress: -4 }, text: (name) => `I asked ${name} for feedback on my coursework.` },
   'mentor-guidance': { groups: ['educator'], age: 12, energy: 7, bond: { trust: 3, respect: 4 }, effects: { discipline: 2, stress: -3 }, text: (name) => `I spoke with ${name} about what to focus on next.` },
   'thank-educator': { groups: ['educator'], age: 6, energy: 4, bond: { affection: 2, respect: 4 }, text: (name) => `I thanked ${name} for their help with my education.` },
+  'work-break': { groups: ['worker'], age: 18, energy: 8, bond: { affection: 4, familiarity: 5 }, effects: { happiness: 4, stress: -3 }, text: together },
+  'discuss-work': { groups: ['worker'], age: 18, energy: 9, bond: { respect: 3, trust: 3 }, text: (name) => `I discussed our work with ${name} and came away with a clearer plan.` },
+  insult: { groups: ['parent', 'peer', 'educator', 'worker'], age: 6, energy: 5, bond: { affection: -8, trust: -5, respect: -6, resentment: 7 }, effects: { reputation: -2, stress: 3 }, text: (name) => `I insulted ${name}. It strained our relationship.` },
+  'mess-with': { groups: ['parent', 'peer', 'educator', 'worker'], age: 6, energy: 6, bond: { affection: -4, trust: -4, resentment: 5 }, effects: { reputation: -1 }, text: (name) => `I played a silly prank on ${name}. They did not appreciate it.` },
 } as const satisfies Record<string, Rule>;
 
 export type RelationshipActivity = keyof typeof relationshipActivities;
 
+function together(_name: string, life: Life, person: Contact) {
+  return timeTogetherStory(life, person);
+}
+
 export function contactGroup(person: Contact): ContactGroup {
+  if (isWorkContact(person)) return 'worker';
   if (!('stage' in person)) return 'parent';
   return isPeer(person) ? 'peer' : 'educator';
 }
 
 export function contactIssue(life: Life, person: Contact) {
   if (!person.alive) return 'This person is no longer available.';
+  if (isWorkContact(person) && !person.friend && person.employerId !== life.career.current?.employerId) return 'This contact is from a previous workplace.';
   if ('stage' in person && !person.friend && !isCurrentClassContact(life, person)) return 'This contact is from a previous class.';
   return null;
 }
@@ -50,7 +63,7 @@ export function canStudyWith(life: Life, person: Contact) {
 
 function annualKey(activity: RelationshipActivity, id: string) {
   if (activity === 'academic-help') return 'academic-talk';
-  if (activity === 'ask-allowance' || activity === 'study-together') return activity;
+  if (activity === 'ask-allowance' || activity === 'study-together' || activity === 'discuss-work') return activity;
   return `${activity}:${id}`;
 }
 
@@ -66,6 +79,7 @@ export function relationshipIssue(life: Life, person: Contact, activity: Relatio
     if (person.bond.trust < 45) return 'Build more trust before asking for pocket money.';
   }
   if (activity === 'gift' && life.character.bank < giftCost) return 'You cannot afford this gift.';
+  if (activity === 'discuss-work' && (!isWorkContact(person) || person.employerId !== life.career.current?.employerId)) return 'Available with your current workplace.';
   if (rule.academic) {
     const enrollment = life.academic.enrollment;
     if (!enrollment || !canStudyWith(life, person)) return 'Available with your current class.';
@@ -93,7 +107,12 @@ export function performRelationshipActivity(life: Life, id: string, activity: Re
     enrollment.attendance = clamp(enrollment.attendance + rule.academic.attendance);
     enrollment.stress = clamp(enrollment.stress + rule.academic.stress);
   }
-  record(life, rule.academic ? 'school' : contactGroup(person) === 'parent' ? 'family' : 'community', rule.text(person.name), {
+  const group = contactGroup(person);
+  if (activity === 'discuss-work') applyCareerEffect(life, { performance: 4, stress: -2 });
+  if (isWorkContact(person) && person.employerId === life.career.current?.employerId && (activity === 'insult' || activity === 'mess-with')) {
+    applyCareerEffect(life, { security: activity === 'insult' ? -9 : -5, reputation: -3 });
+  }
+  record(life, rule.academic ? 'school' : group === 'parent' ? 'family' : group === 'worker' ? 'career' : 'community', rule.text(person.name, life, person), {
     energy: -rule.energy, ...rule.effects,
     ...(activity === 'ask-allowance' ? { bank: allowance[life.character.background] } : {}),
   });

@@ -7,6 +7,8 @@ import { test } from 'node:test';
 import { createRepository, migrate } from '../src/database/repository.ts';
 import type { Database } from '../src/database/repository.ts';
 import { createLife } from '../src/engine/create.ts';
+import { eventById } from '../src/data/events.ts';
+import { vacancies } from '../src/engine/career.ts';
 import { advance } from '../src/engine/simulation.ts';
 import { createGameStore } from '../src/stores/gameState.ts';
 
@@ -93,7 +95,7 @@ test('SQLite opens a version 1 slot and saves the migrated payload on the next a
     const legacy = { ...life, version: 1, academic: undefined };
     database.prepare('UPDATE lives SET payload = ? WHERE id = ?').run(JSON.stringify(legacy), slot.id);
     const restored = await repository.load(slot.id);
-    assert.equal(restored.life.version, 3);
+    assert.equal(restored.life.version, 4);
     assert.equal(restored.life.pending, 'first-classroom');
     assert.deepEqual(restored.life.schoolContacts, legacy.schoolContacts);
     assert.deepEqual(restored.life.journal, legacy.journal);
@@ -105,7 +107,7 @@ test('SQLite opens a version 1 slot and saves the migrated payload on the next a
     const saved = await repository.save(restored, next.life);
     assert.deepEqual(await repository.load(slot.id), saved);
     const persisted = database.prepare('SELECT payload FROM lives WHERE id = ?').get(slot.id);
-    assert.equal(JSON.parse(String(persisted?.payload)).version, 3);
+    assert.equal(JSON.parse(String(persisted?.payload)).version, 4);
   } finally {
     database.close();
   }
@@ -121,6 +123,41 @@ test('unsupported database versions are rejected without clearing saves', async 
     database.exec('PRAGMA user_version = 2');
     await assert.rejects(migrate(adapter), /Update Mortal/);
     assert.equal((await repository.list()).length, 1);
+  } finally {
+    database.close();
+  }
+});
+
+test('SQLite persists an active job, payroll and workplace identities in one turn', async () => {
+  const database = new DatabaseSync(':memory:');
+  try {
+    const adapter = adapt(database);
+    await migrate(adapter);
+    const repository = createRepository(adapter);
+    let life = createLife(4);
+    while (life.character.age < 18 || life.pending) {
+      const action = life.pending ?
+        { type: 'choose' as const, event: life.pending, choice: eventById.get(life.pending)!.choices![0]!.id } : { type: 'age' as const };
+      const next = advance(life, action);
+      assert.ok(next.life, next.error);
+      life = next.life;
+    }
+    Object.assign(life.character.attributes, { smarts: 95, discipline: 95, charisma: 95, health: 95 });
+    const vacancy = vacancies(life).find(({ job }) => job.id === 'records-clerk')!;
+    const offered = advance(life, { type: 'apply-job', vacancy: vacancy.id });
+    assert.ok(offered.life, offered.error);
+    const accepted = advance(offered.life, { type: 'accept-job', vacancy: vacancy.id });
+    assert.ok(accepted.life, accepted.error);
+    const slot = await repository.insert('employee', accepted.life);
+    const worked = advance(slot.life, { type: 'age' });
+    assert.ok(worked.life, worked.error);
+    const saved = await repository.save(slot, worked.life);
+    const reopened = await createRepository(adapter).load(slot.id);
+    assert.deepEqual(reopened, saved);
+    assert.equal(reopened.life.career.current?.jobId, 'records-clerk');
+    assert.equal(reopened.life.career.contacts.length, 5);
+    assert.equal(reopened.life.transactions.filter(({ category }) => category === 'salary').length, 1);
+    assert.equal(reopened.life.finance.lastSettledYear, reopened.life.year);
   } finally {
     database.close();
   }

@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
   compact: { width: 48, paddingHorizontal: 0 },
   pressed: { backgroundColor: colors.softBlue },
   disabled: { opacity: .5 },
-  emoji: { fontSize: 17, lineHeight: 24 },
+  emoji: { fontSize: 19, lineHeight: 25 },
   buttonLabel: { color: colors.ink, fontSize: 14, textAlign: 'center', fontWeight: '600', flexShrink: 1 },
   buttonText: { flex: 1, gap: 2 },
   rowLabel: { textAlign: 'left' },

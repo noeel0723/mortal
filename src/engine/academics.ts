@@ -1,4 +1,5 @@
 import { institutionById, programById } from '../data/academics.ts';
+import { jobById } from '../data/jobs.ts';
 import type { Program } from '../data/academics.ts';
 import { educationLabels } from '../data/veyra.ts';
 import { clamp, record } from './journal.ts';
@@ -151,6 +152,7 @@ export function academicActionIssue(life: Life, action: AcademicAction): string 
     return null;
   }
   if (!offer) return 'Apply and receive an offer before enrolling.';
+  if (life.career.current && jobById.get(life.career.current.jobId)?.type === 'full-time') return 'Switch to part-time work or resign before enrolling.';
   const aid = scholarshipFor(life, offer.id)?.annualAmount ?? 0;
   return program.tuition - aid > life.character.bank ? 'You cannot afford the first year. Check scholarship eligibility.' : null;
 }
@@ -162,9 +164,9 @@ function fundTerm(life: Life, enrollment: Enrollment) {
   const title = academicProgramName(enrollment.programId);
   if (aid && aid.annualAmount) {
     aid.receivedTotal += aid.annualAmount;
-    record(life, 'school', `I received my ${title} scholarship for year ${year}.`, { bank: aid.annualAmount });
+    record(life, 'school', `I received my ${title} scholarship for year ${year}.`, { bank: aid.annualAmount }, 'scholarship');
   }
-  if (enrollment.tuition) record(life, 'school', `I paid ${title} tuition for year ${year}.`, { bank: -enrollment.tuition });
+  if (enrollment.tuition) record(life, 'school', `I paid ${title} tuition for year ${year}.`, { bank: -enrollment.tuition }, 'tuition');
   enrollment.yearsFunded += 1;
   return true;
 }
