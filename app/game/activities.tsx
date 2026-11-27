@@ -34,7 +34,7 @@ export default function Activities() {
       <Heading title="Activities" back={() => router.dismissTo('/game')} />
       <DataRow label="Energy" value={`${life.character.attributes.energy}%`} />
       <Section title="Health">
-        <ActionButton icon="medical" label="Doctor" detail="See active illnesses and arrange treatment." onPress={() => router.push('/game/doctor')} />
+        <ActionButton icon="medical" label="Doctors" detail="Browse healthcare services." onPress={() => router.push('/game/doctor')} />
         {items.slice(0, 2).map(action)}
       </Section>
       <Section title="Personal Development">{items.slice(2).map(action)}</Section>

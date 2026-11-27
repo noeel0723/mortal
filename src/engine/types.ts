@@ -3,7 +3,7 @@ import type { Appearance, AppearanceChoices, HairChoice } from './appearance.ts'
 import type { RelationshipActivity } from './interactions.ts';
 import type { CareerAction, CareerEffect, CareerState, WorkContact } from './careerTypes.ts';
 import type { FinanceState, Transaction } from './financeTypes.ts';
-import type { IllnessCase, IllnessId } from './healthTypes.ts';
+import type { HealthVisit, IllnessCase, IllnessId } from './healthTypes.ts';
 
 export const stats = ['health', 'happiness', 'smarts', 'looks', 'charisma', 'discipline', 'athleticism', 'creativity', 'stress', 'energy', 'reputation'] as const;
 export type Stat = typeof stats[number];
@@ -112,7 +112,7 @@ export type Action =
   | { type: 'age' }
   | { type: 'choose'; event: string; choice: string }
   | { type: 'acknowledge-event'; entry: number }
-  | { type: 'doctor'; patient: string }
+  | { type: 'healthcare'; visit: HealthVisit }
   | { type: 'activity'; activity: 'read' | 'rest' | 'walk' | 'study' | 'library' | 'socialize' | 'extracurricular' | 'academic-talk' | 'exams' }
   | { type: 'talk'; person: string }
   | { type: 'befriend'; person: string }

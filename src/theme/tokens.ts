@@ -22,6 +22,7 @@ export const emoji = {
   hair: '✂️', gift: '🎁', thanks: '😊', compliment: '😘', together: '🎟️', guidance: '🧭',
   insult: '😠', prank: '👉', coffee: '☕', work: '📋', search: '🔎', harder: '📈', hours: '🕰️', exit: '🚪', retire: '🌿',
   laptop: '💻', computer: '🖥️', medical: '🩺', blueprint: '📐', files: '🗃️', calculator: '🧮',
+  ambulance: '🚑', eye: '👁️', thoughts: '🧠', blood: '🩸', syringe: '💉',
   court: '⚖️', restaurant: '🍽️', cooking: '🍳', cart: '🛒', camera: '🎥',
 } as const;
 export type Emoji = keyof typeof emoji;

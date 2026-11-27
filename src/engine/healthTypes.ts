@@ -1,9 +1,12 @@
+import type { DoctorId } from '../data/doctors.ts';
+
 export const illnessLevels = ['mild', 'moderate', 'severe'] as const;
 export type IllnessLevel = typeof illnessLevels[number];
 export const illnesses = {
   cold: { name: 'Common cold', onset: 'mild', max: 'mild' },
   'stomach-bug': { name: 'Stomach bug', onset: 'mild', max: 'moderate' },
   migraine: { name: 'Migraine episode', onset: 'moderate', max: 'moderate' },
+  'eye-strain': { name: 'Eye strain', onset: 'mild', max: 'mild' },
   flu: { name: 'Flu', onset: 'moderate', max: 'severe' },
   bronchitis: { name: 'Bronchitis', onset: 'moderate', max: 'severe' },
   pneumonia: { name: 'Pneumonia', onset: 'severe', max: 'severe' },
@@ -12,3 +15,10 @@ export const illnesses = {
 export type IllnessId = keyof typeof illnesses;
 export type IllnessCase = { patient: string; illness: IllnessId; level: IllnessLevel; started: number };
 export const playerPatient = 'self';
+export type PatientService = 'doctor' | 'emergency' | 'optometrist';
+export type PersonalService = 'psychiatrist' | 'donate-blood' | 'donate-plasma';
+export type HealthService = PatientService | PersonalService;
+export type HealthVisit =
+  | { service: 'doctor'; patient: string; provider: DoctorId }
+  | { service: 'emergency' | 'optometrist'; patient: string }
+  | { service: PersonalService };

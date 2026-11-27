@@ -7,7 +7,8 @@ import { academicActionIssue, isTuitionDue, latestApplication } from '../src/eng
 import { careerActionIssue, jobRequirementsIssue, vacancies } from '../src/engine/career.ts';
 import { createLife } from '../src/engine/create.ts';
 import { incomeTax, outstanding } from '../src/engine/finance.ts';
-import { doctorIssue } from '../src/engine/health.ts';
+import { doctors } from '../src/data/doctors.ts';
+import { healthcareQuote } from '../src/engine/health.ts';
 import { relationshipIssue } from '../src/engine/interactions.ts';
 import { isSchoolStage } from '../src/engine/school.ts';
 import { activityIssue, advance, maxAge } from '../src/engine/simulation.ts';
@@ -151,9 +152,11 @@ for (let seed = 1; seed <= count; seed++) {
     }
     if (!life.character.causeOfDeath) life = employmentChoice(educationChoice(life, seed), seed);
     if (!life.character.causeOfDeath && seed % 2 === 0) {
-      const patient = life.illnesses.find(({ patient }) => !doctorIssue(life, patient));
-      if (patient) {
-        life = apply(life, { type: 'doctor', patient: patient.patient });
+      const provider = doctors[seed % doctors.length]!.id;
+      const visit = life.illnesses.map(({ patient }) => ({ service: 'doctor', patient, provider }) as const)
+        .find((offer) => !healthcareQuote(life, offer).issue);
+      if (visit) {
+        life = apply(life, { type: 'healthcare', visit });
         treatedCases++;
       }
     }

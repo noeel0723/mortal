@@ -29,7 +29,9 @@
 ## Health and events
 
 - Age and health influence the seeded chance of new illness. One active case per patient can improve, persist, or worsen over later years. Untreated illness can lower health and the player's energy.
-- The doctor can treat one case per patient per year. The in-game fee is $2.50 for mild, $7.50 for moderate, and $16 for severe. Visits for the player before age 18 are free. To accompany a living family member or friend, the player must have received salary and have enough cash. Visits that NPCs arrange independently do not charge the player.
+- Each city has three doctors. Higher reputation carries a higher fee and a higher probability of successful treatment. Severity lowers that probability. Successful treatment clears a mild or moderate case and stabilizes a severe case to moderate. The selected fee is charged for the visit even if the case persists.
+- A physical care visit uses one annual slot per patient. Emergency care guarantees stabilization for a severe illness, and the optometrist treats eye strain. For players under 18, the community doctor, emergency care, and the optometrist are free. To accompany a living family member or friend, the player must have received salary and have enough cash. Visits that NPCs arrange independently do not charge the player.
+- Psychiatry reduces stress and improves happiness. Blood and plasma donations use energy and share one annual donation slot. Plasma pays a fixed amount that counts as other income in the ledger.
 - Decisions block gameplay until answered. Informational pop-ups wait behind any decision and are acknowledged in journal order. Their journal entries remain available afterward.
 
 The headless runner varies education, employment, and doctor visits across seeded lives. It checks salary bounds, contract eligibility, ledger and tax reconciliation, unique payments, graduation dates, save round-trips, and termination.

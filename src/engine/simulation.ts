@@ -4,7 +4,7 @@ import { appearanceChanged, appearanceIssue, mergeAppearance, validFace, validHa
 import { advanceCareer, applyCareerEffect, closeCareerYear, endEmployment, performCareerAction, studyWorkload } from './career.ts';
 import { annualFinance } from './finance.ts';
 import { eventTitle, recordNotice } from './eventNotices.ts';
-import { advanceIllnesses, startIllness, visitDoctor } from './health.ts';
+import { advanceIllnesses, startIllness, visitHealthcare } from './health.ts';
 import { playerPatient } from './healthTypes.ts';
 import { contactIssue, performRelationshipActivity } from './interactions.ts';
 import { clamp, record } from './journal.ts';
@@ -170,8 +170,8 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
     case 'age':
       ageUp(life);
       break;
-    case 'doctor': {
-      const issue = visitDoctor(life, action.patient);
+    case 'healthcare': {
+      const issue = visitHealthcare(life, action.visit);
       if (issue) return { error: issue };
       break;
     }

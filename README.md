@@ -69,8 +69,8 @@ Veyra uses a fictional currency scale. Retirement living costs are funded from s
 
 ## Health and life events
 
-- Open **Activities → Doctor** to see active conditions and visit fees for yourself, your family, and your friends. You can pay for someone else's visit after earning a salary if your balance covers the fee.
-- Illnesses can improve or worsen as the years pass. A doctor improves severe cases to moderate and clears mild and moderate cases. A visit for your own character is free before age 18. NPCs can seek care independently.
+- Open **Activities → Doctors** to compare local doctors, book emergency or eye care, attend a psychiatry session, or donate blood or plasma. Doctor fees and chances of successful treatment vary with the provider and illness severity.
+- Successful treatment improves severe cases to moderate and clears mild and moderate cases. Emergency care guarantees stabilization for severe cases. The community doctor is free for players under 18. You can pay for a family member or friend after earning a salary if your balance covers the fee. NPCs can seek care independently.
 - Life events show as pop-ups and stay in the journal. Choose a response when an event calls for a decision. Use **Continue** to dismiss informational pop-ups. Open decisions and unread pop-ups persist when you reload.
 
 ## Verify

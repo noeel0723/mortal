@@ -327,6 +327,17 @@ button.play-row:disabled .play-row-icon { background: #edf2f7; opacity: .65; }
 .event-question { margin: 0 0 .5rem; font-size: .89rem; font-weight: 750; }
 .event-options { display: grid; gap: .42rem; }
 .event-options .button { min-height: 2.75rem; justify-content: start; text-align: start; }
+.healthcare-dialog-body { display: grid; gap: .6rem; font-size: .88rem; line-height: 1.42; }
+.healthcare-dialog-body > .event-category { padding-bottom: .35rem; border-bottom: 1px solid var(--line); }
+.healthcare-patient { display: grid; gap: .28rem; padding: .55rem .65rem; border-radius: .65rem; background: var(--blue-soft); color: var(--blue-dark); }
+.healthcare-patient label { display: grid; gap: .22rem; font-weight: 680; }
+.healthcare-patient select { width: 100%; min-height: 2.5rem; }
+.healthcare-option { display: grid; gap: .22rem; padding: .38rem .55rem .5rem; border: 1px solid var(--line); border-radius: .65rem; }
+.healthcare-option .play-meter { width: 100%; }
+.healthcare-book { justify-content: flex-start; width: 100%; min-height: 2.75rem; text-align: start; }
+.healthcare-book > strong { margin-inline-start: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.healthcare-book > span { min-width: 0; overflow-wrap: anywhere; }
+.healthcare-hint { color: var(--muted); font-size: .78rem; }
 .detail-identity { display: flex; align-items: center; gap: .7rem; padding-bottom: .65rem; border-bottom: 1px solid var(--line); }
 .detail-identity .portrait { flex: none; width: 3.15rem; }
 .detail-identity strong { color: var(--blue-dark); }

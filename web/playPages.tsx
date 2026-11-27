@@ -16,7 +16,8 @@ import { currentClass, isPeer, isSchoolStage } from '../src/engine/school';
 import { canEditFace } from '../src/engine/appearance';
 import { activities, activityIssue } from '../src/engine/simulation';
 import { activeCoworkers } from '../src/engine/workplace';
-import { patientRows, profileHealthRows } from '../src/healthView';
+import type { HealthService } from '../src/engine/healthTypes';
+import { careSections, careSelection, careServices, profileHealthRows } from '../src/healthView';
 import {
   academicActivities, academicControl, academicRecordGroups, availableProgramGroups, educationOverview, enrollmentControls,
   enrollmentRows, gradeLabel, institutionCard, programControls, programRows,
@@ -30,7 +31,7 @@ import { useGame } from './browserStore';
 import { Achievements, Settings } from './menu';
 import { AppearancePage, Portrait } from './portraits';
 import { DetailDialog } from './detailDialog';
-import { Icon, Rows } from './ui';
+import { Button, Feedback, Icon, Rows } from './ui';
 
 export const pageTitles = {
   journal: en.lifeJournal,
@@ -61,7 +62,7 @@ export const pageTitles = {
   assets: 'Assets',
   finances: 'Finances',
   activities: 'Activities',
-  doctor: 'Doctor',
+  doctor: 'Doctors',
   appearance: 'Appearance',
   statistics: 'Life Statistics',
   world: 'World',
@@ -172,6 +173,54 @@ function PageMeter({ label, value }: { label: string; value: number }) {
     <progress aria-label={label} max={100} value={value} />
     <span>{value}%</span>
   </span>;
+}
+
+function DoctorsPage({ life }: { life: Life }) {
+  const { busy, problem, dispatch, clearMessage } = useGame();
+  const [selection, setSelection] = useState<{ service: HealthService; patient?: string }>();
+  const care = careSelection(life, selection);
+
+  function appointment() {
+    if (!care || life.pending || life.notices.length) return null;
+    const { service, info, patients, patient, options, empty, prompt, sharedIssue } = care;
+    return <DetailDialog title={info.title} onDismiss={() => { if (!busy) setSelection(undefined); }}>
+      <div className="healthcare-dialog-body">
+        <p className="event-category"><Icon name={info.icon} />Healthcare</p>
+        <p>{prompt}</p>
+        {patient && <div className="healthcare-patient">
+          {patients.length > 1 ? <label htmlFor="care-patient">Patient
+            <select id="care-patient" value={patient.id} disabled={busy}
+              onChange={(event) => setSelection({ service, patient: event.target.value })}>
+              {patients.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
+            </select>
+          </label> : <strong>{patient.name}</strong>}
+          <p>{patient.condition}</p>
+        </div>}
+        {service === 'doctor' && patient?.level === 'severe' && <p className="healthcare-hint">Successful treatment reduces a severe illness to moderate.</p>}
+        {!empty && sharedIssue && <p className="healthcare-hint">{sharedIssue}</p>}
+        {options.map((option) => <div className="healthcare-option" key={option.label}>
+          <Button icon={info.icon} kind="plain" className="healthcare-book" aria-label={option.label}
+            disabled={busy || !!option.issue} onClick={() => void dispatch({ type: 'healthcare', visit: option.visit }).then((ok) => {
+              if (ok) setSelection(undefined);
+            })}>
+            <span>{option.label}</span>{option.fee && <strong>{option.fee}</strong>}
+          </Button>
+          {option.reputation !== undefined && <PageMeter label="Reputation" value={option.reputation} />}
+          {option.chance !== undefined && <p className="healthcare-hint">{option.chance}% treatment success</p>}
+          {!empty && !sharedIssue && option.issue && <p className="healthcare-hint">{option.issue}</p>}
+        </div>)}
+        <Feedback error={problem} />
+      </div>
+    </DetailDialog>;
+  }
+
+  return <>
+    {careSections.map(({ title, services }) => <PageGroup key={title} title={title}>
+      {services.map((id) => <MenuRow key={id} {...careServices[id]} opensDialog
+        onClick={() => { clearMessage(); setSelection({ service: id }); }} />)}
+    </PageGroup>)}
+    {appointment()}
+  </>;
 }
 
 function PersonRow({ person, onClick, opensDialog }: { person: Contact; onClick?: () => void; opensDialog?: boolean }) {
@@ -477,7 +526,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       return <>
         <PageGroup title="Energy"><MenuRow icon="health" title="Current energy" value={energy} /></PageGroup>
         <PageGroup title="Wellbeing">
-          <MenuRow icon="medical" title="Doctor" detail="See active illnesses and arrange treatment." onClick={() => go('doctor')} />
+          <MenuRow icon="medical" title="Doctors" detail="Browse healthcare services." onClick={() => go('doctor')} />
           {activityOptions.map((item) => {
             const issue = blocked ?? activityIssue(life, item.id);
             const cost = activities[item.id].energy;
@@ -491,16 +540,8 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
             onClick={() => go('appearance')} />
         </PageGroup>}
       </>;
-    case 'doctor': {
-      const patients = patientRows(life);
-      return <PageGroup title="Patients">
-        {patients.length ? patients.map((patient) => <MenuRow key={patient.id} icon="medical"
-          title={patient.self ? 'Treat Yourself' : `Take ${patient.name} to the Doctor`}
-          detail={`${patient.condition}${patient.issue ? ` · ${patient.issue}` : ''}`} value={patient.fee}
-          disabled={busy || !!patient.issue} onClick={() => void dispatch({ type: 'doctor', patient: patient.id })} />) :
-          <p className="play-empty">You and your family and friends have no active illnesses.</p>}
-      </PageGroup>;
-    }
+    case 'doctor':
+      return <DoctorsPage life={life} />;
     case 'appearance':
       return <AppearancePage life={life} back={() => go('activities')} />;
     case 'statistics':
