@@ -1,9 +1,10 @@
 import { adoptionCost, familyIssue, parenting } from './engine/familyLife.ts';
-import { activeRomance, dateActivities, datingCompatibility, loveIssue, romanceFor, romanceLabels, weddingPlans } from './engine/love.ts';
+import { activeRomances, dateActivities, datingCompatibility, isActiveRomance, loveIssue, romanceFor, romanceLabels, weddingPlans } from './engine/love.ts';
 import { allContacts, isFamily, npcProfile } from './engine/npcs.ts';
 import { findContact, isCurrentClassContact, isPeer } from './engine/school.ts';
 import { isWorkAcquaintance, isWorkContact } from './engine/workplace.ts';
-import type { SocialAction } from './engine/socialTypes.ts';
+import { datingSources } from './engine/socialTypes.ts';
+import type { DatingSource, SocialAction } from './engine/socialTypes.ts';
 import type { Contact, Life } from './engine/types.ts';
 import { money } from './i18n/en.ts';
 import type { Emoji } from './theme/tokens.ts';
@@ -46,16 +47,16 @@ export function relationshipGroups(life: Life) {
     return (romance?.ended != null || friendship === 'Former Friend' || friendship === 'Rival');
   };
   const known = allContacts(life);
-  const partner = activeRomance(life)?.person;
+  const partnerIds = new Set(activeRomances(life).map(({ person }) => person));
   return {
     family: known.filter(({ id }) => isFamily(life, id)),
-    partner: partner ? findContact(life, partner) : undefined,
-    friends: known.filter((person) => !isFamily(life, person.id) && person.id !== partner && 'friend' in person && person.friend && !former(person)),
-    acquaintances: known.filter((person) => person.alive && person.id !== partner && !isFamily(life, person.id) &&
+    partners: known.filter(({ id }) => partnerIds.has(id)),
+    friends: known.filter((person) => !isFamily(life, person.id) && !partnerIds.has(person.id) && 'friend' in person && person.friend && !former(person)),
+    acquaintances: known.filter((person) => person.alive && !partnerIds.has(person.id) && !isFamily(life, person.id) &&
       'friend' in person && !person.friend && !former(person) && (isWorkContact(person) ? isWorkAcquaintance(person) :
       person.role === 'Acquaintance' || romanceFor(life, person.id)?.status === 'interest' ||
       ('stage' in person && isPeer(person) && isCurrentClassContact(life, person)))),
-    former: known.filter((person) => !isFamily(life, person.id) && former(person)),
+    former: known.filter((person) => !partnerIds.has(person.id) && !isFamily(life, person.id) && former(person)),
   };
 }
 
@@ -82,7 +83,7 @@ export function childParents(life: Life, person: Contact) {
 export function datingCandidates(life: Life) {
   if (life.character.age < 18) return [];
   return allContacts(life).filter((person) => person.alive && person.age >= 18 && person.city === life.character.city &&
-    !isFamily(life, person.id) && !npcProfile(life, person).localPartner &&
+    !isFamily(life, person.id) && !isActiveRomance(romanceFor(life, person.id)) && !npcProfile(life, person).localPartner &&
     (person.role === 'Acquaintance' || ('friend' in person && person.friend)));
 }
 
@@ -97,6 +98,22 @@ const love = (life: Life, action: Parameters<typeof loveIssue>[1], label: string
   ({ action, label, icon, detail, issue: loveIssue(life, action) });
 const family = (life: Life, action: Parameters<typeof familyIssue>[1], label: string, icon: Emoji, detail?: string): Control =>
   ({ action, label, icon, detail, issue: familyIssue(life, action) });
+
+const datingActivities: Record<DatingSource, { label: string; icon: Emoji; detail: string }> = {
+  spotlight: { label: 'Spotlight Dating', icon: 'star', detail: 'Get matched with a local public figure.' },
+  date: { label: 'Find a Date', icon: 'health', detail: 'Meet someone at a singles event.' },
+  app: { label: 'Dating App', icon: 'datingPhone', detail: 'Find a match nearby.' },
+  lgbtq: { label: 'LGBTQ+ Dating', icon: 'pride', detail: 'Meet a match through an LGBTQ+ dating app.' },
+  casual: { label: 'Casual Date', icon: 'rose', detail: 'Share an evening without committing to a relationship.' },
+  matchmaking: { label: 'Matchmaking', icon: 'loveLetter', detail: 'Let a local matchmaker introduce you.' },
+};
+
+export function datingControls(life: Life) {
+  return datingSources.map((source) => {
+    const { label, icon, detail } = datingActivities[source];
+    return love(life, { type: 'dating-match', source }, label, icon, detail);
+  });
+}
 
 export function meetingControls(life: Life, romantic: boolean) {
   return romantic ? [
@@ -117,9 +134,9 @@ export function relationshipControls(life: Life, person: Contact) {
     family(life, { type: 'parent-child', person: id, action }, parenting[action].label, parentingIcons[action],
       parenting[action].cost ? money(parenting[action].cost) : undefined));
 
-  const status = romanceFor(life, id)?.status;
-  const partner = activeRomance(life)?.person === id;
-  if (partner) {
+  const romance = romanceFor(life, id);
+  const status = romance?.status;
+  if (isActiveRomance(romance)) {
     const rows = (Object.keys(dateActivities) as (keyof typeof dateActivities)[]).map((action) =>
       love(life, { type: 'romance', person: id, action }, dateActivities[action].label, romanceIcons[action],
         dateActivities[action].cost ? money(dateActivities[action].cost) : undefined));

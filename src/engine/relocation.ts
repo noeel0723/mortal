@@ -1,6 +1,6 @@
 import { cities } from '../data/veyra.ts';
 import { recordNotice } from './eventNotices.ts';
-import { activeRomance } from './love.ts';
+import { committedRomance } from './love.ts';
 import { ensureNpc } from './npcs.ts';
 import { localExpense } from './pricing.ts';
 import { findContact } from './school.ts';
@@ -26,7 +26,7 @@ export function relocate(life: Life, city: City) {
   if (issue) return issue;
   const from = life.character.city;
   const price = relocationQuote(life, city);
-  const spouse = activeRomance(life);
+  const spouse = committedRomance(life);
   const household = life.social.people.filter((person) => person.alive && person.age < 18 && life.social.children[person.id] &&
     life.social.parents[person.id]?.includes('self'));
   const partner = spouse?.status === 'married' ? findContact(life, spouse.person) : undefined;

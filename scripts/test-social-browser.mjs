@@ -113,9 +113,93 @@ try {
   assert.deepEqual(saved.social.parents[child.id], ['self', friend.id]);
   assert.equal(saved.communityFriends.filter(({ id }) => id === friend.id).length, 1);
   assert.equal(saved.character.bank, saved.transactions.reduce((sum, { amount }) => sum + amount, 0));
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth === innerWidth), true);
+
+  await click('Close Relationships');
+  await page.setViewportSize({ width: 320, height: 740 });
+  await click('Activities');
+  const sections = await page.locator('.play-group h2').allTextContents();
+  assert.deepEqual(sections.slice(0, 4), ['Love', 'Healthcare', 'Appearance', 'Wellbeing']);
+  assert.equal(await button('Take a Walk').count(), 0);
+  await click('Mind & Body');
+  await heading('Mind & Body').waitFor();
+  for (const label of ['Take a Walk', 'Rest', 'Exercise', 'Eat a Balanced Meal', 'Meditate']) await button(label).waitFor();
+  await click('Back to Activities');
+  await click('Love');
+  await heading('Love').waitFor();
+  for (const label of ['Spotlight Dating', 'Find a Date', 'Dating App', 'LGBTQ+ Dating', 'Casual Date', 'Matchmaking']) await button(label).waitFor();
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await click('Find a Date');
+  await dialog('Dating Match').waitFor();
+  await page.reload();
+  await dialog('Dating Match').waitFor();
+  await click('Start Dating');
+  await dialog('Dating Now').waitFor();
+  await acknowledgeEvents(page);
+  await click('Back to Activities');
+  await click('Close Activities');
+
+  async function ageUp() {
+    const nextAge = (await read()).character.age + 1;
+    // A second Age Up within 350 ms of the last save is ignored.
+    await page.waitForTimeout(350);
+    await click('Age Up');
+    await page.locator('.profile-identity p').filter({ hasText: `Age ${nextAge} ·` }).waitFor();
+    return read();
+  }
+
+  await ageUp();
+  await acknowledgeEvents(page, true);
+  await click('Activities');
+  await click('Love');
+  await click('LGBTQ+ Dating');
+  await dialog('Dating Match').waitFor();
+  await click('Start Dating');
+  await dialog('Dating Now').waitFor();
+  await acknowledgeEvents(page);
+  await click('Back to Activities');
+  await click('Close Activities');
+  await click('Family');
+  await click('Open Love Life');
+  await heading('Current Partners').waitFor();
+  const partners = (await read()).social.romances.filter(({ status }) => status === 'dating');
+  assert.equal(partners.length, 2);
+  await click('Back to Relationships');
+  await click('Close Relationships');
+
+  let discoverer;
+  for (let turn = 0; turn < 20; turn++) {
+    const next = await ageUp();
+    if (next.pending === 'social-affair') {
+      discoverer = next.social.pendingPerson;
+      break;
+    }
+    await acknowledgeEvents(page, true);
+  }
+  assert.ok(discoverer);
+  const caught = dialog('Caught Dating');
+  await caught.waitFor();
+  const story = await caught.locator('.event-story').textContent();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await caught.getByText(story, { exact: true }).waitFor();
+  assert.equal((await read()).social.pendingPerson, discoverer);
+  await click('Take Responsibility');
+  await caught.waitFor({ state: 'hidden' });
+  const notices = (await read()).notices;
+  const resultIndex = notices.findIndex(({ title }) => title === 'Relationship Ended');
+  assert.ok(resultIndex >= 0);
+  for (const { entry } of notices.slice(0, resultIndex)) {
+    const earlier = page.locator(`dialog[data-life-event="notice-${entry}"]`);
+    await earlier.getByRole('button', { name: 'Continue', exact: true }).click();
+  }
+  await dialog('Relationship Ended').waitFor();
+  await acknowledgeEvents(page);
+  const afterDiscovery = (await read()).social.romances;
+  assert.equal(afterDiscovery.find(({ person }) => person === discoverer).status, 'broken-up');
+  assert.equal(afterDiscovery.filter(({ ended, status }) => ended === null && ['dating', 'engaged'].includes(status)).length, 1);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   assert.deepEqual(errors, []);
-  console.log('Social smoke passed at 320px and 390px: V6 migration, dating after reload, wedding, adoption, parenting, divorce and family links.');
+  console.log('Social smoke passed at 320px and 390px: migration, family progression, Activities navigation, multiple partners and discovery after reload.');
 } finally {
   await browser.close();
 }

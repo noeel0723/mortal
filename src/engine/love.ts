@@ -5,6 +5,7 @@ import { clamp } from './journal.ts';
 import { ensureNpc, isFamily, makeNpc, newPeopleLimit, npcProfile, npcRandom, remember } from './npcs.ts';
 import { findContact } from './school.ts';
 import { pickStory } from './stories.ts';
+import { datingSources } from './socialTypes.ts';
 import type { Romance, SocialAction } from './socialTypes.ts';
 import type { Contact, Effect, Life } from './types.ts';
 
@@ -29,10 +30,12 @@ export const dateActivities = {
   apologize: { label: 'Apologize', cost: 0, affection: 2, trust: 3 },
 } as const;
 
-export type LoveAction = Extract<SocialAction, { type: 'meet' | 'romance' | 'wedding' }>;
-const activeStatuses = ['dating', 'engaged', 'married'];
+export type LoveAction = Extract<SocialAction, { type: 'meet' | 'dating-match' | 'romance' | 'wedding' }>;
+export const isActiveRomance = (entry?: Romance) => !!entry && (entry.status === 'dating' || entry.status === 'engaged' || entry.status === 'married');
 export const romanceFor = (life: Life, id: string) => life.social.romances.find(({ person }) => person === id);
-export const activeRomance = (life: Life) => life.social.romances.find(({ status }) => activeStatuses.includes(status));
+export const committedRomance = (life: Life) => life.social.romances.find(({ status }) => status === 'engaged' || status === 'married');
+export const activeRomances = (life: Life) => life.social.romances.filter(isActiveRomance);
+export const activeRomance = (life: Life) => committedRomance(life) ?? life.social.romances.find(isActiveRomance);
 
 export function romanceHistory(life: Life, id: string, text: string) {
   const romance = romanceFor(life, id);
@@ -55,6 +58,15 @@ export function changeRomance(life: Life, id: string, status: Romance['status'],
   romanceHistory(life, id, text);
 }
 
+export function endRomance(life: Life, person: Contact, text: string) {
+  const divorce = romanceFor(life, person.id)?.status === 'married';
+  const settlement = divorce ? Math.min(5000, Math.floor(life.character.bank * .08)) : 0;
+  ensureNpc(life, person).savings += settlement;
+  changeRomance(life, person.id, divorce ? 'divorced' : 'broken-up', text);
+  person.bond.affection = clamp(person.bond.affection - 12);
+  return settlement;
+}
+
 function related(life: Life, id: string) {
   return isFamily(life, id) || !!life.social.parents['self']?.some((parent) => life.social.parents[id]?.includes(parent));
 }
@@ -65,28 +77,30 @@ export function datingCompatibility(life: Life, person: Contact) {
   return clamp(Math.round(compatibility * .6 + affection * .17 + familiarity * .12 + profile.traits.empathy * .11 + Math.min(8, sharedHobbies(life, person).length * 4)));
 }
 
-function loveKey(action: Exclude<LoveAction, { type: 'meet' }>) {
+function loveKey(action: Exclude<LoveAction, { type: 'meet' | 'dating-match' }>) {
   if (action.type === 'wedding') return 'wedding';
-  // Share a cooldown across all advances, including advances to a different person.
   return action.action === 'ask' || action.action === 'propose' ? 'romantic-advance' : `romance-${action.action}`;
 }
 
 export function loveIssue(life: Life, action: LoveAction): string | null {
   if (life.character.causeOfDeath) return 'This life has ended.';
   if (life.pending) return 'Resolve the pending decision first.';
-  if (action.type === 'meet') {
-    const dating = action.source === 'date' || action.source === 'app';
+  if (action.type === 'meet' || action.type === 'dating-match') {
+    const match = action.type === 'dating-match';
+    if (match && !datingSources.includes(action.source)) return 'Choose a dating activity.';
+    const dating = match || action.source === 'date' || action.source === 'app';
     if (life.character.age < (dating ? 18 : 8)) return dating ? 'Dating opens at age 18.' : 'Available from age 8.';
-    if (dating && activeRomance(life)) return 'You already have a partner.';
     if (life.social.people.filter(({ role }) => role === 'Acquaintance').length >= newPeopleLimit - 8 &&
       (action.source !== 'hobbies' || !hobbyGroupContact(life))) return 'Your social circle is full.';
+    if (match) return life.usedActions.includes('dating-match') || findContact(life, `npc-dating-${life.year}`) ? 'You already received a match this year.' : null;
     return life.usedActions.includes('meet-new-person') ? 'You already met someone new this year.' : null;
   }
   const person = findContact(life, action.person);
   if (!person?.alive) return 'This person is unavailable.';
   if (life.character.age < 18 || person.age < 18) return 'Both people must be adults.';
   const romance = romanceFor(life, person.id);
-  if (life.usedActions.includes(loveKey(action))) return 'Available again next year.';
+  const key = loveKey(action);
+  if (life.usedActions.includes(key) || life.usedActions.includes(`${key}:${person.id}`)) return 'Available again next year.';
   if (action.type === 'wedding') {
     if (romance?.status !== 'engaged') return 'You need to be engaged first.';
     return life.character.bank < weddingPlans[action.plan].cost ? 'Your balance does not cover this wedding.' : null;
@@ -94,12 +108,12 @@ export function loveIssue(life: Life, action: LoveAction): string | null {
   const kind = action.action;
   if (kind === 'interest' || kind === 'ask') {
     if (related(life, person.id)) return 'Dating is unavailable with relatives.';
-    if (activeRomance(life)) return 'You already have a partner.';
+    if (isActiveRomance(romance)) return 'You are already together.';
     if (person.city !== life.character.city) return 'This person lives in another city.';
     if (npcProfile(life, person).localPartner) return 'This person is seeing someone.';
     if (kind === 'interest' && romance?.status === 'interest') return 'You already marked this interest.';
-  } else if (!romance || !activeStatuses.includes(romance.status)) return 'Available with your current partner.';
-  else if (kind === 'propose' && romance.status !== 'dating') return 'Available while dating.';
+  } else if (!romance || !isActiveRomance(romance)) return 'Available with a current partner.';
+  else if (kind === 'propose' && (romance.status !== 'dating' || committedRomance(life))) return 'Proposals require dating and no existing engagement or marriage.';
   else if (kind === 'divorce' && romance.status !== 'married') return 'Available while married.';
   else if (kind === 'breakup' && romance.status === 'married') return 'Use Divorce to end a marriage.';
   if (kind in dateActivities && life.character.bank < dateActivities[kind as keyof typeof dateActivities].cost) return 'Your balance does not cover this activity.';
@@ -121,7 +135,7 @@ function dateStory(life: Life, person: Contact, action: keyof typeof dateActivit
   return pickStory(life, `${person.id}:romance:${action}`, stories[action]);
 }
 
-export function applyLove(life: Life, action: LoveAction) {
+export function applyLove(life: Life, action: Exclude<LoveAction, { type: 'dating-match' }>) {
   const issue = loveIssue(life, action);
   if (issue) return issue;
   if (action.type === 'meet') {
@@ -153,7 +167,7 @@ export function applyLove(life: Life, action: LoveAction) {
   const person = findContact(life, action.person)!;
   const profile = ensureNpc(life, person);
   const previous = person.bond.affection;
-  life.usedActions.push(loveKey(action));
+  life.usedActions.push(`${loveKey(action)}:${person.id}`);
   let title: string;
   let story: string;
   let effect: Effect = {};
@@ -189,12 +203,9 @@ export function applyLove(life: Life, action: LoveAction) {
     effect = { energy: -6, happiness: accepted ? 4 : -2 };
   } else if (action.action === 'breakup' || action.action === 'divorce') {
     const divorce = action.action === 'divorce';
-    const settlement = divorce ? Math.min(5000, Math.floor(life.character.bank * .08)) : 0;
-    profile.savings += settlement;
     title = divorce ? 'Divorce' : 'Breakup';
     story = divorce ? `${person.name} and I divorced and settled our shared expenses.` : `I ended my relationship with ${person.name}.`;
-    changeRomance(life, person.id, divorce ? 'divorced' : 'broken-up', story);
-    person.bond.affection = clamp(previous - 12);
+    const settlement = endRomance(life, person, story);
     effect = { bank: -settlement, happiness: -5 };
   } else {
     const item = dateActivities[action.action];

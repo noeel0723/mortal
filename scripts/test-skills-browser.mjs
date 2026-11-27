@@ -55,9 +55,11 @@ try {
   await button('Remove Hobby').waitFor();
   await click('Back to Knowledge & Learning');
   await click('Back to Activities');
+  await click('Mind & Body');
   await click('Rest');
   await page.getByRole('dialog', { name: 'Time to Rest' }).waitFor();
   await acknowledgeEvents(page);
+  await click('Back to Activities');
   await click('Close Activities');
   await click('Details');
   await click('My Skills');

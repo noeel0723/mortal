@@ -59,6 +59,7 @@ try {
   await click('Go to Library');
   await dialog('Library Visit').getByRole('progressbar', { name: 'Smarts' }).waitFor();
   await acknowledgeEvents(page);
+  await click('Mind & Body');
   await click('Take a Walk');
   const walk = dialog('A Walk Outside');
   await walk.getByRole('progressbar', { name: 'Health' }).waitFor();
@@ -68,6 +69,7 @@ try {
   await walk.waitFor();
   assert.notEqual(await walk.locator('.event-story').textContent(), firstWalk);
   await acknowledgeEvents(page);
+  await click('Back to Activities');
   await click('Close Activities');
   await click('Family');
   for (const name of socialLabels) assert.equal(await button(name).count(), 0);

@@ -22,8 +22,8 @@ function personalActivity(life: Life, item: typeof library | typeof wellbeing[nu
   };
 }
 
-export function wellbeingActivities(life: Life): ActivityControl[] {
-  return wellbeing.map((item) => personalActivity(life, item));
+export function mindAndBodyActivities(life: Life): ActivityControl[] {
+  return [...wellbeing.map((item) => personalActivity(life, item)), ...lifestyleActivities(life, 'Mind & Body')];
 }
 
 export function socialActivities(life: Life): ActivityControl[] {

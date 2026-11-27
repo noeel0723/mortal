@@ -83,7 +83,7 @@ Veyra uses a fictional currency scale. Retirement living costs are funded from s
 
 ## Phase 2.3 · Relationships and family
 
-- Open **Family → Open Love Life** at age 18 to meet local adults or ask someone you know on a date. NPCs can decline based on compatibility, preferences, circumstances, and your history together.
+- At age 18, open **Activities → Love** to find a match and decide whether to date. Use **Family → Open Love Life** to view current partners, ask someone you know out, or review past relationships. Dating several people can trigger a discovery event during Age Up. The partner who finds out ends their relationship with you.
 - Dates and shared activities build a bond. An engagement opens three wedding options. Spouses can discuss family planning or adoption. Parenting actions appear on each child’s profile.
 - **Family Tree** shows relatives, spouses, former spouses, and children. **Relationship History** preserves the relationship timeline. Profiles show known education, interests, and personality alongside the existing portraits.
 - Parents use their own savings for allowance and house gifts. Weddings, adoption, and other paid activities appear in the ledger. Unpaid childcare is added to personal-expense arrears.

@@ -33,10 +33,12 @@ export default function LoveLife() {
       </Section>;
     }) : <Text style={shared.body}>Your relationship history is empty.</Text>}</Page>;
 
-  const partner = relationshipGroups(life).partner;
+  const { partners } = relationshipGroups(life);
   return <Page inGame>
     <Heading title="Love Life" back={back} />
-    {partner && <Section title="Current Partner">{row(partner)}</Section>}
+    {partners.length > 0 && <Section title={partners.length === 1 ? 'Current Partner' : 'Current Partners'}>
+      {partners.map((person) => row(person))}
+    </Section>}
     <Section title="Dating">
       {meetingControls(life, true).map((item) => <ActionButton key={item.label} icon={item.icon} label={item.label}
         detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onPress={() => void dispatch(item.action)} />)}

@@ -22,7 +22,7 @@ import { applyPropertyAction, movingAge } from './property.ts';
 import { seededRandom } from './random.ts';
 import { relocate } from './relocation.ts';
 import { conversationStory, friendshipStory } from './relationshipStories.ts';
-import { answerSocialEvent, isSocialEvent, offerSocialEvent } from './socialEvents.ts';
+import { answerSocialEvent, applyDatingMatch, isSocialEvent, offerSocialEvent } from './socialEvents.ts';
 import { advanceContactOccupation, currentClass, findContact, isPeer, isSchoolStage } from './school.ts';
 import { ageSkills, cloneSkills, incidentalPractice, setHobby, trainSkill } from './skills.ts';
 import { developAcademicSkills } from './skillIntegration.ts';
@@ -253,8 +253,8 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       if (issue) return { error: issue };
       break;
     }
-    case 'meet': case 'romance': case 'wedding': {
-      const issue = applyLove(life, action);
+    case 'meet': case 'dating-match': case 'romance': case 'wedding': {
+      const issue = action.type === 'dating-match' ? applyDatingMatch(life, action) : applyLove(life, action);
       if (issue) return { error: issue };
       break;
     }

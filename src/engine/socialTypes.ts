@@ -16,7 +16,11 @@ export type NpcProfile = {
 export const romanceStatuses = ['interest', 'dating', 'engaged', 'married', 'broken-up', 'divorced', 'widowed'] as const;
 export type Romance = { person: string; status: typeof romanceStatuses[number]; started: number; engagement: number | null;
   wedding: number | null; ended: number | null; history: { year: number; text: string }[] };
-export const socialEvents = ['social-dinner', 'social-time', 'social-proposal', 'social-support', 'social-school', 'social-finances'] as const;
+export const socialEvents = ['social-dinner', 'social-time', 'social-proposal', 'social-support', 'social-school', 'social-finances',
+  'social-dating-match', 'social-casual-match', 'social-affair'] as const;
+export type SocialEventId = typeof socialEvents[number];
+export const datingSources = ['spotlight', 'date', 'app', 'lgbtq', 'casual', 'matchmaking'] as const;
+export type DatingSource = typeof datingSources[number];
 export type ChildRecord = { year: number; adopted: boolean; wellbeing: number; learning: number; confidence: number; supportEnded: boolean };
 export type SocialState = {
   people: SocialPerson[]; profiles: Record<string, NpcProfile>;
@@ -27,6 +31,7 @@ export const romanticActivities = ['date', 'gift', 'dinner', 'movie', 'support',
 export const parentingActivities = ['care', 'read', 'school', 'hobby', 'lesson', 'gift', 'support', 'future'] as const;
 export type SocialAction =
   | { type: 'meet'; source: 'neighborhood' | 'hobbies' | 'date' | 'app' }
+  | { type: 'dating-match'; source: DatingSource }
   | { type: 'romance'; person: string; action: 'interest' | 'ask' | 'propose' | 'breakup' | 'divorce' | typeof romanticActivities[number] }
   | { type: 'wedding'; person: string; plan: 'civil' | 'gathering' | 'celebration' }
   | { type: 'plan-child'; person: string; method: 'family' | 'adoption'; name?: string }

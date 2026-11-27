@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { lifestyleActivities, socialActivities, wellbeingActivities, type ActivityControl } from '../src/activityView';
+import { lifestyleActivities, mindAndBodyActivities, socialActivities, type ActivityControl } from '../src/activityView';
 import { assetById, assetKinds } from '../src/data/shops';
 import type { AssetListing } from '../src/data/shops';
 import { backgroundLabels, genderLabels, talentLabels } from '../src/data/veyra';
@@ -18,7 +18,7 @@ import { workAge, workHours } from '../src/engine/career';
 import { industries } from '../src/engine/careerTypes';
 import { currentClass, findContact, isPeer, isSchoolStage } from '../src/engine/school';
 import { romanceLabels } from '../src/engine/love';
-import { childParents, datingCandidates, datingSummary, familyTreeGroups, meetingControls, relationshipControls, relationshipGroups } from '../src/socialView';
+import { childParents, datingCandidates, datingControls, datingSummary, familyTreeGroups, meetingControls, relationshipControls, relationshipGroups } from '../src/socialView';
 import { canEditFace } from '../src/engine/appearance';
 import { propertyIssue, propertyQuote } from '../src/engine/property';
 import { assetArt } from '../src/portraits/assetArt';
@@ -94,6 +94,8 @@ export const pageTitles = {
   fund: 'Holding',
   transactions: 'Transaction History',
   activities: 'Activities',
+  love: 'Love',
+  'mind-body': 'Mind & Body',
   doctor: 'Doctors',
   appearance: 'Appearance',
   statistics: 'Life Statistics',
@@ -163,6 +165,8 @@ const parentPages: Partial<Record<DetailPage, GamePage>> = {
   fund: 'investments',
   appearance: 'activities',
   doctor: 'activities',
+  love: 'activities',
+  'mind-body': 'activities',
   skills: 'statistics',
   'skill-training': 'activities',
   skill: 'skills',
@@ -495,7 +499,8 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
   const job = life.career.current;
   const canFindJob = character.age >= workAge && !character.causeOfDeath && life.career.retiredYear === null;
   const activityRow = (item: ActivityControl) => <MenuRow key={item.label} icon={item.icon} title={item.label}
-    detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onClick={() => void dispatch(item.action)} />;
+    detail={item.issue ?? item.detail} disabled={busy || !!item.issue} opensDialog={item.action.type === 'dating-match'}
+    onClick={() => void dispatch(item.action)} />;
 
   switch (page) {
     case 'career':
@@ -667,7 +672,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           <MenuRow icon="tree" title="Family Tree" onClick={() => go('family-tree')} />
         </PageGroup>
         <PageGroup title="Love Life">
-          <MenuRow icon="rose" title="Open Love Life" detail={groups.partner?.name ?? 'Dating, partners, and relationship history.'}
+          <MenuRow icon="rose" title="Open Love Life" detail={groups.partners.length ? groups.partners.map(({ name }) => name).join(', ') : 'Dating, partners, and relationship history.'}
             onClick={() => go('love-life')} />
         </PageGroup>
         {groups.friends.length > 0 && <PageGroup title="Friends">
@@ -691,9 +696,11 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
         </PageGroup>)}
       </>;
     case 'love-life': {
-      const partner = relationshipGroups(life).partner;
+      const { partners } = relationshipGroups(life);
       return <>
-        {partner && <PageGroup title="Current Partner"><PersonRow life={life} person={partner} onClick={() => go('person', partner.id)} /></PageGroup>}
+        {partners.length > 0 && <PageGroup title={partners.length === 1 ? 'Current Partner' : 'Current Partners'}>
+          {partners.map((partner) => <PersonRow key={partner.id} life={life} person={partner} onClick={() => go('person', partner.id)} />)}
+        </PageGroup>}
         <PageGroup title="Dating">
           {meetingControls(life, true).map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label}
             detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onClick={() => void dispatch(item.action)} />)}
@@ -840,9 +847,14 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       return <WealthPage key={`${page}-${detail ?? ''}`} page={page} detail={detail} life={life} go={go} />;
     case 'activities':
       return <>
-        <PageGroup title="Mind & Body">
-          {wellbeingActivities(life).map(activityRow)}
-          {lifestyleActivities(life, 'Mind & Body').map(activityRow)}
+        <PageGroup title="Love"><MenuRow icon="health" title="Love" detail="Meet people and find a date." onClick={() => go('love')} /></PageGroup>
+        <PageGroup title="Healthcare"><MenuRow icon="medical" title="Doctors" detail="Browse healthcare services." onClick={() => go('doctor')} /></PageGroup>
+        {!character.causeOfDeath && <PageGroup title="Appearance">
+          <MenuRow icon="hair" title={canEditFace(character.age) ? 'Customize Appearance' : 'Change Hairstyle'}
+            onClick={() => go('appearance')} />
+        </PageGroup>}
+        <PageGroup title="Wellbeing">
+          <MenuRow icon="meditation" title="Mind & Body" detail="Rest, exercise, and build healthy habits." onClick={() => go('mind-body')} />
         </PageGroup>
         <PageGroup title="Skill Training">
           {activitySkillCategories.map(({ category, label, icon }) => <MenuRow key={category} icon={icon} title={label}
@@ -853,12 +865,11 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           {socialActivities(life).map(activityRow)}
         </PageGroup>
         <PageGroup title="Travel">{lifestyleActivities(life, 'Travel').map(activityRow)}</PageGroup>
-        <PageGroup title="Healthcare"><MenuRow icon="medical" title="Doctors" detail="Browse healthcare services." onClick={() => go('doctor')} /></PageGroup>
-        {!character.causeOfDeath && <PageGroup title="Appearance">
-          <MenuRow icon="hair" title={canEditFace(character.age) ? 'Customize Appearance' : 'Change Hairstyle'}
-            onClick={() => go('appearance')} />
-        </PageGroup>}
       </>;
+    case 'love':
+      return <PageGroup title="Dating">{datingControls(life).map(activityRow)}</PageGroup>;
+    case 'mind-body':
+      return <PageGroup title="Wellbeing Activities">{mindAndBodyActivities(life).map(activityRow)}</PageGroup>;
     case 'doctor':
       return <DoctorsPage life={life} />;
     case 'appearance':

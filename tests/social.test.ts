@@ -10,14 +10,15 @@ import { ageFamilyOpportunities, annualChildcare } from '../src/engine/familyLif
 import { annualFinance } from '../src/engine/finance.ts';
 import { canAccompany, startIllness } from '../src/engine/health.ts';
 import { postTransaction } from '../src/engine/journal.ts';
-import { activeRomance, loveIssue, romanceFor } from '../src/engine/love.ts';
+import { activeRomance, activeRomances, loveIssue, romanceFor } from '../src/engine/love.ts';
 import { advanceNpcLives, allContacts, ensureNpc, makeNpc, npcRandom, syncNpcs } from '../src/engine/npcs.ts';
 import { findContact } from '../src/engine/school.ts';
 import { advance } from '../src/engine/simulation.ts';
 import { offerSocialEvent } from '../src/engine/socialEvents.ts';
+import { datingSources } from '../src/engine/socialTypes.ts';
 import type { Action, CommunityFriend, Life } from '../src/engine/types.ts';
 import { eventPopup } from '../src/eventView.ts';
-import { familyTreeGroups, friendshipLabel } from '../src/socialView.ts';
+import { familyTreeGroups, friendshipLabel, relationshipGroups } from '../src/socialView.ts';
 
 function act(life: Life, action: Action) {
   const result = advance(life, action);
@@ -77,6 +78,89 @@ function marry() {
   assert.equal(activeRomance(life)?.status, 'married');
   return { life, id: friend.id };
 }
+
+function acceptMatch(life: Life, source: 'date' | 'app') {
+  const matched = act(life, { type: 'dating-match', source });
+  return act(matched, { type: 'choose', event: 'social-dating-match', choice: 'accept' });
+}
+
+test('Love introductions are adult-only and keep the match and response after reload', () => {
+  assert.match(advance(createLife(30), { type: 'dating-match', source: 'date' }).error ?? '', /age 18/);
+  const stories = new Set<string>();
+  for (const source of datingSources) {
+    const matched = act(adult(), { type: 'dating-match', source });
+    const restored = decodeLife(JSON.stringify(matched));
+    assert.deepEqual(restored, matched);
+    const person = findContact(restored, restored.social.pendingPerson!)!;
+    assert.ok(person.age >= 18 && ensureNpc(restored, person).preferences.includes(restored.character.gender));
+    if (source === 'lgbtq') assert.ok(ensureNpc(restored, person).preferences.includes(person.gender));
+    if (source === 'spotlight') assert.equal(ensureNpc(restored, person).status, 'employed');
+    stories.add(restored.journal.at(-2)!.text);
+    const result = act(restored, { type: 'choose', event: restored.pending!, choice: source === 'casual' ? 'accept' : 'pass' });
+    assert.equal(result.social.pendingPerson, null);
+    assert.equal(activeRomances(result).length, 0);
+    assert.match(advance(result, { type: 'dating-match', source: 'app' }).error ?? '', /this year/);
+  }
+  assert.equal(stories.size, datingSources.length);
+});
+
+test('two dating partners persist together until one discovers the other', () => {
+  const first = acceptMatch(adult(), 'date');
+  const both = acceptMatch(age(first), 'app');
+  const partners = activeRomances(both);
+  assert.equal(partners.length, 2);
+  assert.equal(relationshipGroups(both).partners.length, 2);
+  assert.deepEqual(decodeLife(JSON.stringify(both)), both);
+
+  let discovery: Life | undefined;
+  let undiscovered = false;
+  for (let offset = 0; offset < 60; offset++) {
+    const candidate = act({ ...both, seed: both.seed + offset }, { type: 'age' });
+    if (candidate.pending === 'social-affair') discovery ??= candidate;
+    else undiscovered ||= activeRomances(candidate).length === 2;
+    if (discovery && undiscovered) break;
+  }
+  assert.ok(discovery && undiscovered);
+  const restored = decodeLife(JSON.stringify(discovery));
+  const discoverer = restored.social.pendingPerson!;
+  const other = partners.find(({ person }) => person !== discoverer)!.person;
+  const popup = eventPopup(restored);
+  assert.equal(popup?.title, 'Caught Dating');
+  for (const id of [discoverer, other]) assert.ok(popup.text.includes(findContact(restored, id)!.name));
+  const honest = act(restored, { type: 'choose', event: 'social-affair', choice: 'apologize' });
+  const denied = act(restored, { type: 'choose', event: 'social-affair', choice: 'deny' });
+  for (const result of [honest, denied]) {
+    assert.equal(result.social.pendingPerson, null);
+    assert.equal(romanceFor(result, discoverer)?.status, 'broken-up');
+    assert.deepEqual(activeRomances(result).map(({ person }) => person), [other]);
+    assert.deepEqual(decodeLife(JSON.stringify(result)), result);
+  }
+  assert.ok(findContact(denied, discoverer)!.bond.trust < findContact(honest, discoverer)!.bond.trust);
+});
+
+test('discovery by a spouse preserves the other partner and records the divorce settlement', () => {
+  const { life, id } = marry();
+  const both = acceptMatch(life, 'app');
+  const other = activeRomances(both).find(({ person }) => person !== id)!.person;
+  const proposal = { type: 'romance', person: other, action: 'propose' } as const;
+  assert.match(loveIssue(both, proposal) ?? '', /existing engagement or marriage/);
+  let discovered: Life | undefined;
+  for (let offset = 0; offset < 60; offset++) {
+    const candidate = act({ ...both, seed: both.seed + offset }, { type: 'age' });
+    if (candidate.pending === 'social-affair' && candidate.social.pendingPerson === id) {
+      discovered = candidate;
+      break;
+    }
+  }
+  assert.ok(discovered);
+  const amount = Math.min(5000, Math.floor(discovered.character.bank * .08));
+  const divorced = act(discovered, { type: 'choose', event: 'social-affair', choice: 'apologize' });
+  assert.equal(romanceFor(divorced, id)?.status, 'divorced');
+  assert.equal(romanceFor(divorced, other)?.status, 'dating');
+  assert.equal(divorced.character.bank, discovered.character.bank - amount);
+  assert.equal(divorced.transactions.reduce((sum, entry) => sum + entry.amount, 0), divorced.character.bank);
+  assert.deepEqual(decodeLife(JSON.stringify(divorced)), divorced);
+});
 
 test('V6 migration preserves old NPCs, illnesses, homes and decisions, with reproducible personality', () => {
   let life = adult();

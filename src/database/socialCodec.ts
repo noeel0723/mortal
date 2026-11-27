@@ -1,6 +1,7 @@
 import { jobById } from '../data/jobs.ts';
 import { cities, genders } from '../data/veyra.ts';
 import { allContacts, newPeopleLimit } from '../engine/npcs.ts';
+import { isActiveRomance } from '../engine/love.ts';
 import { employment, npcEducation, romanceStatuses, socialEvents, traits } from '../engine/socialTypes.ts';
 import type { Life } from '../engine/types.ts';
 
@@ -62,7 +63,7 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
   const relatives = new Set([...social.parents.self, ...social.parents.self.flatMap((id) => social.parents[id] ?? []),
     ...social.people.filter(({ role }) => role !== 'Acquaintance').map(({ id }) => id)]);
   const seen = new Set<string>();
-  let active = 0;
+  let commitments = 0;
   for (const entry of social.romances) {
     if (!record(entry) || !ids.has(entry.person) || relatives.has(entry.person) || seen.has(entry.person) || !romanceStatuses.includes(entry.status) ||
       !date(entry.started) || entry.started < character.birthYear + 18 || entry.started < born(entry.person) + 18 ||
@@ -72,8 +73,22 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
       (entry.status === 'married' && entry.wedding === null) || (entry.status === 'engaged' && entry.engagement === null) ||
       (['broken-up', 'divorced', 'widowed'].includes(entry.status) !== (entry.ended !== null))) return false;
     seen.add(entry.person);
-    if (entry.ended === null && entry.status !== 'interest' && ++active > 1) return false;
+    if ((entry.status === 'engaged' || entry.status === 'married') && ++commitments > 1) return false;
   }
-  const contextual = socialEvents.some((event) => event === life.pending);
-  return contextual ? typeof social.pendingPerson === 'string' && contacts.some(({ id, alive }) => id === social.pendingPerson && alive) : social.pendingPerson === null;
+  if (!socialEvents.some((event) => event === life.pending)) return social.pendingPerson === null;
+  const participant = contacts.find(({ id, alive }) => id === social.pendingPerson && alive);
+  if (!participant) return false;
+  if (life.pending === 'social-affair') {
+    const partners = social.romances.filter(isActiveRomance);
+    return partners.some(({ person }) => person === participant.id) &&
+      contacts.some(({ id, alive }) => alive && id !== participant.id && partners.some(({ person }) => person === id));
+  }
+  if (life.pending === 'social-dating-match' || life.pending === 'social-casual-match') {
+    return character.age >= 18 && participant.age >= 18 && participant.id === `npc-dating-${year}` &&
+      !seen.has(participant.id) && social.profiles[participant.id]!.preferences.includes(character.gender);
+  }
+  if (life.pending === 'social-proposal') {
+    return commitments === 0 && social.romances.some(({ person, status }) => person === participant.id && status === 'dating');
+  }
+  return true;
 }
