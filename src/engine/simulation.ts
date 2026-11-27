@@ -8,7 +8,9 @@ import { developChildInterests } from './childSkills.ts';
 import { recordContactDeath, recordPlayerDeath, respondToDeath } from './death.ts';
 import { annualFinance } from './finance.ts';
 import { enqueueNotice, eventTitle, recordNotice, resultMeter } from './eventNotices.ts';
-import { ageFamilyOpportunities, applyFamily } from './familyLife.ts';
+import { applyFamilyDriving, offerFirstDrivingLessons } from './familyDriving.ts';
+import { ageFamilyOpportunities, applyFamily, deliverPregnancies } from './familyLife.ts';
+import { respondToSurname } from './familyNames.ts';
 import { advanceIllnesses, startIllness, visitHealthcare } from './health.ts';
 import { playerPatient } from './healthTypes.ts';
 import { sharedHobbies, spendTimeOnHobby } from './hobbies.ts';
@@ -123,12 +125,15 @@ function ageUp(life: Life) {
     life.academic.gapUntil = null;
     life.scheduled = [];
     endEmployment(life, 'died');
+    deliverPregnancies(life);
     recordPlayerDeath(life, character.causeOfDeath);
     recordValuation(life);
     life.random = random.state;
     return;
   }
   studyWorkload(life);
+  deliverPregnancies(life);
+  offerFirstDrivingLessons(life);
   ageFamilyOpportunities(life);
   const graduated = advanceAcademics(life, random);
   advanceCareer(life, random);
@@ -220,6 +225,27 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
   switch (action.type) {
     case 'respond-death': {
       const issue = respondToDeath(life, action.entry, action.response);
+      if (issue) return { error: issue };
+      break;
+    }
+    case 'respond-family': {
+      const notice = life.notices[0];
+      const detail = notice?.details;
+      if (notice?.entry !== action.entry || !detail) return { error: 'This family event is no longer available.' };
+      if (detail.kind === 'birth' || detail.kind === 'wedding-names') {
+        const issue = respondToSurname(life, detail.kind, detail.person, action.response);
+        if (issue) return { error: issue };
+      } else if (detail.kind === 'driving-lesson') {
+        if (action.response === 'teach') {
+          const issue = applyFamilyDriving(life, { type: 'family-driving', mode: 'teach', person: detail.person, asset: detail.asset }, true);
+          if (issue) return { error: issue };
+        } else if (action.response !== 'later') return { error: 'Choose whether to give a lesson.' };
+      } else return { error: 'This family event is no longer available.' };
+      life.notices.shift();
+      break;
+    }
+    case 'family-driving': {
+      const issue = applyFamilyDriving(life, action);
       if (issue) return { error: issue };
       break;
     }

@@ -47,6 +47,7 @@ export type Character = ProfileInput & {
 export type Person<Role = 'Mother' | 'Father'> = {
   id: string;
   name: string;
+  lastName?: string;
   gender: Gender;
   appearance: Appearance;
   age: number;
@@ -74,7 +75,12 @@ export type JournalEntry = {
 export type ResultMeter = { label: string; value: number; change: number };
 export type DeathDetails = { kind: 'death'; person: string; age: number; role: string; cause: string };
 export type EnjoymentDetails = { kind: 'enjoyment'; scores: { person: string; value: number }[] };
-export type LifeNotice = { entry: number; title: string; meter?: ResultMeter; details?: DeathDetails | EnjoymentDetails };
+export type FamilyDetails =
+  | { kind: 'wedding-names'; person: string }
+  | { kind: 'birth'; person: string }
+  | { kind: 'driving-lesson'; person: string; asset: string };
+export type FamilyResponse = 'keep' | 'first' | 'second' | 'teach' | 'later';
+export type LifeNotice = { entry: number; title: string; meter?: ResultMeter; details?: DeathDetails | EnjoymentDetails | FamilyDetails };
 export type DeathResponse = 'honor' | 'skip' | 'surprise';
 export type EventChoice = {
   id: string;
@@ -133,6 +139,8 @@ export type Action =
   | { type: 'choose'; event: string; choice: string }
   | { type: 'acknowledge-event'; entry: number }
   | { type: 'respond-death'; entry: number; response: DeathResponse }
+  | { type: 'respond-family'; entry: number; response: FamilyResponse }
+  | { type: 'family-driving'; person: string; asset: string; mode: 'teach' | 'lend' }
   | { type: 'healthcare'; visit: HealthVisit }
   | { type: 'activity'; activity: 'go-to-library' | 'rest' | 'walk' | 'study' | 'library' | 'socialize' | 'extracurricular' | 'academic-talk' | 'exams' }
   | { type: 'talk'; person: string }

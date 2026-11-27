@@ -43,6 +43,8 @@ function savedPerson(person: unknown, withAppearance: boolean): person is Record
   if (!record(person)) return false;
   const bond = person.bond;
   return typeof person.id === 'string' && typeof person.name === 'string' && integer(person.age, 0, maxAge) &&
+    (person.lastName === undefined || (typeof person.lastName === 'string' && person.lastName.length > 0 &&
+      person.name.endsWith(` ${person.lastName}`))) &&
     typeof person.occupation === 'string' && cities.some((city) => city === person.city) &&
     bounded(person.health) && typeof person.alive === 'boolean' &&
     record(bond) && bondKeys.every((key) => bounded(bond[key])) &&
@@ -62,6 +64,14 @@ function validHealthAndNotices(life: Life) {
       if (details.person === 'self') return life.character.causeOfDeath === details.cause && details.age === life.character.age;
       const contact = contacts.get(details.person);
       return contact?.alive === false && contact.age === details.age;
+    }
+    if (details.kind === 'birth' || details.kind === 'wedding-names' || details.kind === 'driving-lesson') {
+      if (typeof details.person !== 'string' || !contacts.has(details.person)) return false;
+      if (details.kind === 'wedding-names') return life.social.romances.some(({ person, wedding }) => person === details.person && wedding !== null);
+      const child = life.social.children[details.person];
+      if (details.kind === 'birth') return !!child && !child.adopted;
+      return !!child && typeof details.asset === 'string' && life.property.owned.some(({ ownershipId, reliability }) =>
+        ownershipId === details.asset && reliability !== null);
     }
     if (details.kind !== 'enjoyment' || !Array.isArray(details.scores) || details.scores.length < 2 || details.scores.length > 3 ||
       life.character.age < 18) return false;

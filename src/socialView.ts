@@ -176,7 +176,7 @@ export function datingControls(life: Life) {
   return [
     love(life, { type: 'dating-match', source: 'date' }, 'Find a Date', 'health', 'Meet someone at a singles event.'),
     ...datingAppControls(life),
-    intimacy(life, { type: 'intimacy', encounter: 'hookup' }, 'Hook Up', 'night', 'Meet an adult interested in a one-night stand.'),
+    intimacy(life, { type: 'intimacy', encounter: 'hookup' }, 'Hook Up', 'blackHeart', 'Meet an adult interested in a one-night stand.'),
   ];
 }
 

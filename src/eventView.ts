@@ -1,12 +1,15 @@
 import { eventById } from './data/events.ts';
+import { genderLabels } from './data/veyra.ts';
 import { eventTitle } from './engine/eventNotices.ts';
+import { drivingIssue } from './engine/familyDriving.ts';
+import { birthParents, surname } from './engine/familyNames.ts';
 import { eventStory } from './engine/library.ts';
 import { npcLooks, npcNetWorth } from './engine/dating.ts';
 import { isSocialEvent, socialEventText } from './engine/socialEvents.ts';
 import { visibleConcerns } from './engine/relationships.ts';
 import { findContact } from './engine/school.ts';
 import type { Appearance } from './engine/appearance.ts';
-import type { Action, Category, Life, ResultMeter } from './engine/types.ts';
+import type { Action, Category, FamilyResponse, Life, ResultMeter } from './engine/types.ts';
 import type { Emoji } from './theme/tokens.ts';
 import { en, money } from './i18n/en.ts';
 
@@ -25,7 +28,7 @@ type EventPopup = {
   actions: { label: string; icon: Emoji; action: Action; tone?: 'primary' | 'quiet'; destination?: 'summary' | 'journal' }[];
   dismiss?: Action;
   meter?: ResultMeter;
-  special?: 'enjoyment' | 'death' | 'match';
+  special?: 'enjoyment' | 'death' | 'match' | 'family';
   enjoyment?: { key: string; label: string; value: number }[];
   portrait?: { appearance: Appearance; name: string; age: number; role: string };
   cause?: string;
@@ -90,6 +93,47 @@ export function eventPopup(life: Life): EventPopup | undefined {
         label: person === 'self' ? 'Your Enjoyment' : `${findContact(life, person)?.name ?? 'Guest'}’s Enjoyment` })),
       dismiss, actions: [{ label: 'Continue', icon: 'next', tone: 'primary', action: dismiss }],
     };
+  }
+  if (detail?.kind === 'birth' || detail?.kind === 'wedding-names' || detail?.kind === 'driving-lesson') {
+    const person = findContact(life, detail.person);
+    if (person) {
+      const select = (label: string, icon: Emoji, response: FamilyResponse, tone?: 'primary' | 'quiet') =>
+        ({ label, icon, action: { type: 'respond-family', entry: notice.entry, response } as const, tone });
+      const actions: EventPopup['actions'] = [];
+      let text = entry.text;
+      let role = en.age(person.age);
+      let icon: Emoji = 'car';
+      if (detail.kind === 'birth') {
+        icon = 'baby';
+        role = `Newborn · ${genderLabels[person.gender]}`;
+        text = 'Choose which parent’s surname the baby will take.';
+        for (const [index, parent] of birthParents(life, person.id).entries()) {
+          const owner = parent.label === 'You' ? 'Your' : `${parent.label}’s`;
+          actions.push(select(`${owner} Surname · ${surname(life, parent.id)}`, 'custom', index === 0 ? 'first' : 'second', index === 0 ? 'primary' : undefined));
+        }
+      } else if (detail.kind === 'wedding-names') {
+        icon = 'ring';
+        role = 'Spouse';
+        text += ' What surnames will we use after the wedding?';
+        if (surname(life, person.id) !== life.character.lastName) {
+          actions.push(select(`Take Their Surname · ${surname(life, person.id)}`, 'ring', 'first', 'primary'),
+            select(`They Take My Surname · ${life.character.lastName}`, 'custom', 'second'));
+        }
+        actions.push(select('Keep Our Names', 'accept', 'keep', actions.length ? 'quiet' : 'primary'));
+      } else {
+        const issue = drivingIssue(life, { type: 'family-driving', mode: 'teach', person: person.id, asset: detail.asset }, true);
+        if (issue) text += ` ${issue}`;
+        else actions.push(select('Teach Them', 'car', 'teach', 'primary'));
+        actions.push(select('Maybe Later', 'decline', 'later', 'quiet'));
+      }
+      return { key: `notice-${notice.entry}`, title: notice.title, text, special: 'family', category: { label: 'Family', icon },
+        portrait: { appearance: person.appearance, name: person.name, age: detail.kind === 'birth' ? 0 : person.age, role },
+        actions: life.character.causeOfDeath ? [{ label: 'Continue', icon: 'next', action: dismiss, tone: 'primary' }] : actions };
+    }
+  }
+  if (notice.title === 'Pregnancy') {
+    return { key: `notice-${notice.entry}`, title: notice.title, text: entry.text, special: 'family',
+      category: { label: 'Family', icon: 'pregnancy' }, dismiss, actions: [{ label: 'Continue', icon: 'next', tone: 'primary', action: dismiss }] };
   }
   return { key: `notice-${notice.entry}`, title: notice.title, text: entry.text, category: categories[entry.category],
     meter: notice.meter, dismiss, actions: [{ label: 'Continue', icon: 'next', action: dismiss }] };

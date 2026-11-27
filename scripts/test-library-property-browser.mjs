@@ -3,6 +3,7 @@ import { eventById } from '../src/data/events.ts';
 import { assetById } from '../src/data/shops.ts';
 import { createLife } from '../src/engine/create.ts';
 import { postTransaction } from '../src/engine/journal.ts';
+import { ensureNpc, makeNpc, npcRandom } from '../src/engine/npcs.ts';
 import { advance } from '../src/engine/simulation.ts';
 import { acknowledgeEvents, saveSlot, startBrowser, url } from './browserTestSupport.mjs';
 
@@ -145,8 +146,74 @@ try {
   assert.equal(own.property.owned.length, 3);
   assert.equal(own.character.bank, own.transactions.reduce((sum, { amount }) => sum + amount, 0));
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth === innerWidth), true);
+
+  const family = atAge(35);
+  family.character.gender = 'man';
+  family.character.lastName = 'Aster';
+  postTransaction(family, 'Savings', 200000, 'other');
+  const spouse = makeNpc(family, 'npc-spouse', 34, 'Acquaintance', 'Mira Lennox');
+  spouse.gender = 'woman';
+  Object.assign(spouse.bond, { affection: 94, trust: 96, familiarity: 90, compatibility: 92 });
+  const teen = makeNpc(family, 'npc-teen', 14, 'Child', 'Niko Aster');
+  family.social.people.push(spouse, teen);
+  ensureNpc(family, spouse).preferences = ['man'];
+  ensureNpc(family, teen);
+  family.social.romances.push({ person: spouse.id, status: 'married', started: family.year, engagement: family.year, wedding: family.year, ended: null, history: [] });
+  family.social.parents[teen.id] = ['self', spouse.id];
+  family.social.children[teen.id] = { year: family.year - 14, adopted: false, wellbeing: 85, learning: 70, confidence: 75, supportEnded: false };
+  let visiting = advance(family, { type: 'buy-asset', id: 'toyota-yaris' }).life;
+  visiting = { ...visiting, notices: [] };
+  for (;; visiting.seed++) {
+    const invited = advance(visiting, { type: 'intimacy', encounter: 'make-love', person: spouse.id }).life;
+    assert.ok(invited);
+    if (npcRandom(invited, `intimacy:${spouse.id}:private`, invited.year).next() < .25 &&
+      npcRandom(invited, `pregnancy:${spouse.id}:${invited.journal.length + 1}`, invited.year).next() < .22) break;
+  }
+  await page.setViewportSize({ width: 320, height: 740 });
+  await open('family-test', visiting);
+  await click('Family');
+  await click(spouse.name);
+  await click('Make Love');
+  await click('Ask Them');
+  await dialog('A Private Evening').waitFor();
+  await acknowledgeEvents(page, false, 'Pregnancy');
+  await dialog('Pregnancy').getByText(/due in nine months/).waitFor();
+  await page.reload();
+  await dialog('Pregnancy').waitFor();
+  assert.equal(Object.keys((await read('family-test')).social.children).length, 1);
+  await acknowledgeEvents(page);
+  await page.goto(new URL('#play/family-test/journal', url).href);
+  await click('Age Up');
+  await page.locator('dialog[data-life-event][open]').waitFor();
+  await acknowledgeEvents(page, true, 'A New Arrival');
+  const birth = dialog('A New Arrival');
+  const infant = (await read('family-test')).social.people.find(({ role, age }) => role === 'Child' && age === 0);
+  assert.ok(infant);
+  await birth.getByRole('img', { name: `Portrait of ${infant.name}` }).waitFor();
+  await birth.getByText(/Newborn/).waitFor();
+  await birth.getByRole('button', { name: 'Father’s Surname · Aster' }).waitFor();
+  const birthBox = await birth.boundingBox();
+  assert.ok(birthBox && birthBox.x >= 0 && birthBox.x + birthBox.width <= 321);
+  await click('Mother’s Surname · Lennox');
+  await dialog('Driving Lesson').waitFor();
+  await click('Teach Them');
+  await dialog('Lesson Complete').waitFor();
+  await acknowledgeEvents(page, true);
+  await click('Assets');
+  await click('Owned Assets');
+  await click('Toyota Yaris');
+  await click(`Lend to ${teen.name}`);
+  await click('Confirm');
+  await dialog('Vehicle Returned').waitFor();
+  await acknowledgeEvents(page);
+  const familySaved = await read('family-test');
+  assert.match(familySaved.social.people.find(({ id }) => id === infant.id).name, / Lennox$/);
+  assert.deepEqual(familySaved.social.children[teen.id].driving, ['cars']);
+  assert.equal(familySaved.property.owned[0].history.at(-1).action, 'borrow');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth === innerWidth), true);
+
   assert.deepEqual(errors, []);
-  console.log('Library friendships and shopping passed at 320px and 390px, including all 30 illustrations, owning, moving, and reload.');
+  console.log('Library, shopping, pregnancy, birth, and family driving passed at 320px and 390px.');
 } finally {
   await browser.close();
 }

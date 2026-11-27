@@ -46,6 +46,18 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
   }
   const exists = (id: string) => id === 'self' || ids.has(id);
   const born = (id: string) => id === 'self' ? character.birthYear : social.profiles[id]!.born;
+  const gender = (id: string) => id === 'self' ? character.gender : contacts.find((person) => person.id === id)?.gender;
+  const mothers = new Set<string>();
+  const pregnancies = social.pregnancies;
+  if (pregnancies !== undefined && (!Array.isArray(pregnancies) || pregnancies.length + Object.keys(social.children).length > 4 ||
+    pregnancies.length + social.people.length > newPeopleLimit || !pregnancies.every((item) => {
+      if (!record(item) || typeof item.mother !== 'string' || typeof item.father !== 'string' ||
+        (item.mother === 'self') === (item.father === 'self') || gender(item.mother) !== 'woman' || gender(item.father) !== 'man' ||
+        year - born(item.mother) < 18 || year - born(item.mother) > 45 || year - born(item.father) < 18 ||
+        item.dueYear !== year + 1 || mothers.has(item.mother) || character.causeOfDeath) return false;
+      mothers.add(item.mother);
+      return true;
+    }))) return false;
   if (!Array.isArray(social.parents.self) || social.parents.self.length !== life.family.length ||
     !life.family.every(({ id }) => social.parents.self!.includes(id))) return false;
   for (const [child, parents] of Object.entries(social.parents)) {
@@ -56,6 +68,8 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
     if (!social.people.some((person) => person.id === id && person.role === 'Child') ||
       !record(child) || !date(child.year) || child.year < born(id) || typeof child.adopted !== 'boolean' || typeof child.supportEnded !== 'boolean' ||
       ![child.wellbeing, child.learning, child.confidence].every((value) => integer(value, 0, 100)) ||
+      (child.driving !== undefined && (!Array.isArray(child.driving) || new Set(child.driving).size !== child.driving.length ||
+        child.driving.some((kind) => kind !== 'cars' && kind !== 'motorcycles') || year - born(id) < 15)) ||
       !social.parents[id]?.includes('self') || social.parents[id]?.length !== 2) return false;
   }
   for (const person of social.people) {

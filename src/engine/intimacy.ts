@@ -1,4 +1,5 @@
 import { recordNotice } from './eventNotices.ts';
+import { chanceOfPregnancy } from './familyLife.ts';
 import { clamp, record } from './journal.ts';
 import { isActiveRomance, romanceFor, romanceHistory } from './love.ts';
 import { allContacts, ensureNpc, isFamily, makeNpc, newPeopleLimit, npcProfile, npcRandom, remember } from './npcs.ts';
@@ -159,4 +160,5 @@ export function answerIntimacy(life: Life, event: IntimacyEvent, person: Contact
   const titles = { 'social-hookup': 'A Night Together', 'social-make-love': 'A Private Evening', 'social-threesome': 'Just the Three of Us' };
   const notice = recordNotice(life, 'community', titles[event], story, benefit ? { happiness: 3, stress: -2 } : undefined);
   notice.details = { kind: 'enjoyment', scores };
+  if (event === 'social-make-love' && isPartner(life, person)) chanceOfPregnancy(life, person);
 }

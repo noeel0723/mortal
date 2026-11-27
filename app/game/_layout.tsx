@@ -72,7 +72,8 @@ export default function GameLayout() {
         <View style={styles.identityBody}><Text style={styles.identityName}>{popup.portrait.name}</Text>
           <Text style={styles.identityRole}>{popup.portrait.role}</Text></View>
       </View>} onDismiss={dismiss ? () => { if (!busy) void dispatch(dismiss); } : undefined}>
-        {!popup.special && <Text style={styles.eventCategory}>{emoji[popup.category.icon]} {popup.meter ? 'Activity result' : popup.category.label}</Text>}
+        {(!popup.special || (popup.special === 'family' && !popup.portrait)) &&
+          <Text style={styles.eventCategory}>{emoji[popup.category.icon]} {popup.meter ? 'Activity result' : popup.category.label}</Text>}
         <Text style={[styles.eventStory, !!popup.special && styles.center]}>{popup.text}</Text>
         {popup.cause && <View style={styles.deathCause}><Text style={[styles.identityRole, styles.center]}>Cause of death</Text>
           <Text style={[styles.identityName, styles.center]}>{popup.cause}</Text></View>}

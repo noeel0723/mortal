@@ -31,7 +31,8 @@ export function validateOwnership(life: Life) {
     let previousYear = asset.year;
     for (const event of asset.history) {
       if (!obj(event) || !integer(event.year, previousYear, asset.sale?.year ?? life.year) ||
-        (event.action !== 'wear' && !assetOperations.includes(event.action)) || !signed(event.amount) || !score(event.condition)) return false;
+        (event.action !== 'wear' && event.action !== 'borrow' && !assetOperations.includes(event.action)) ||
+        (event.action === 'borrow' && (home || event.amount !== 0)) || !signed(event.amount) || !score(event.condition)) return false;
       previousYear = event.year;
     }
     if (home) {

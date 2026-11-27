@@ -6,9 +6,10 @@ import { DetailModal } from '../../src/components/detailModal';
 import { assetKinds } from '../../src/data/shops';
 import type { AssetKind, AssetListing } from '../../src/data/shops';
 import { propertyIssue, propertyQuote } from '../../src/engine/property';
+import type { Action } from '../../src/engine/types';
 import { money } from '../../src/i18n/en';
 import { assetArt } from '../../src/portraits/assetArt';
-import { assetDetails, housingControls, listingsFor, ownedListings, ownershipDetail, propertyCategories, residenceLabel } from '../../src/propertyView';
+import { assetDetails, householdRows, housingControls, listingsFor, ownedListings, ownershipDetail, propertyCategories, residenceLabel } from '../../src/propertyView';
 import { useGame } from '../../src/stores/game';
 import { radius } from '../../src/theme/tokens';
 
@@ -22,7 +23,7 @@ export default function Property() {
   const { slot, busy, dispatch } = useGame();
   const [category, setCategory] = useState<AssetKind>();
   const [selected, setSelected] = useState<AssetListing>();
-  const [confirm, setConfirm] = useState<ReturnType<typeof assetDetails>['controls'][number] | null>(null);
+  const [confirm, setConfirm] = useState<{ label: string; detail?: string; action: Action } | null>(null);
   if (!slot) return null;
   const { life } = slot;
   const assets = () => router.dismissTo('/game/assets');
@@ -34,6 +35,13 @@ export default function Property() {
       <Heading title={holding.listing.name} back={() => router.canGoBack() ? router.back() : assets()} />
       <Artwork listing={holding.listing} large />
       <Section title="Asset Details">{details.displayRows.map((row) => <DataRow key={row.label} {...row} />)}</Section>
+      {details.household.length > 0 && <Section title="Household">
+        {details.household.map(({ key, ...row }) => <DataRow key={key} {...row} />)}
+      </Section>}
+      {details.driving.length > 0 && <Section title="Family Drivers">
+        {details.driving.map((item) => <ActionButton key={item.action.person} icon={item.icon} label={item.label} detail={item.issue ?? item.detail}
+          disabled={busy || !!item.issue} onPress={() => item.action.mode === 'teach' ? void dispatch(item.action) : setConfirm(item)} />)}
+      </Section>}
       {details.rentalRows.length > 0 && <Section title="Rental">{details.rentalRows.map((row) => <DataRow key={row.label} {...row} />)}</Section>}
       {details.controls.length > 0 && <Section title="Manage">
         {details.controls.map((item) => <ActionButton key={item.label} icon={item.icon} label={item.label} detail={item.issue ?? item.detail}
@@ -52,9 +60,13 @@ export default function Property() {
     </Page>;
   }
 
+  const household = householdRows(life);
   if (mode === 'housing') return <Page inGame>
     <Heading title="Housing" back={assets} />
     <DataRow label="Where you live" value={residenceLabel(life)} />
+    {household.length > 0 && <Section title="Household">
+      {household.map(({ key, ...row }) => <DataRow key={key} {...row} />)}
+    </Section>}
     <Section title="Moving Out">
       {housingControls(life).map((item) => <ActionButton key={item.label} label={item.label} icon={item.icon}
         detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onPress={() => void dispatch(item.action)} />)}

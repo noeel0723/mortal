@@ -184,7 +184,7 @@ test('market contracts validate using the original band and pay elapsed salary a
   assert.ok(quote.salary >= salaryBand(quote.job, quote.factor)[0]);
 });
 
-test('relocation updates the household and keeps homes, vehicle records, and historical prices', () => {
+test('relocation moves the household and local vehicles while preserving homes and acquisition prices', () => {
   let life = adult(32);
   postTransaction(life, 'Savings', 250000, 'other');
   const origin = life.character.city;
@@ -192,7 +192,7 @@ test('relocation updates the household and keeps homes, vehicle records, and his
   const spouse = makeNpc(life, 'npc-spouse', 32, 'Acquaintance');
   const child = makeNpc(life, 'npc-child', 6, 'Child');
   life.social.people.push(spouse, child);
-  spouse.bond.trust = 80;
+  spouse.bond.trust = 20;
   ensureNpc(life, spouse);
   ensureNpc(life, child);
   life.social.romances.push({ person: spouse.id, status: 'married', started: life.year, engagement: life.year, wedding: life.year, ended: null, history: [] });
@@ -208,7 +208,9 @@ test('relocation updates the household and keeps homes, vehicle records, and his
   assert.equal(relocated.character.city, destination);
   assert.equal(relocated.character.birthCity, origin);
   assert.equal(relocated.property.residence, 'rent');
-  assert.deepEqual(relocated.property.owned, life.property.owned);
+  assert.deepEqual(relocated.property.owned[0], life.property.owned[0]);
+  assert.deepEqual(relocated.property.owned[1], { ...life.property.owned[1], city: destination });
+  assert.equal(life.property.owned[1]?.city, origin);
   assert.equal(findContact(relocated, spouse.id)?.city, destination);
   assert.equal(findContact(relocated, child.id)?.city, destination);
   assert.equal(relocated.family[0]?.city, origin);

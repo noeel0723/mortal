@@ -22,6 +22,7 @@ import { offerSocialEvent } from '../src/engine/socialEvents.ts';
 import { datingSources } from '../src/engine/socialTypes.ts';
 import type { Action, CommunityFriend, Life } from '../src/engine/types.ts';
 import { eventPopup } from '../src/eventView.ts';
+import { assetDetails, householdRows, ownedListings } from '../src/propertyView.ts';
 import { familyTreeGroups, friendshipLabel, relationshipControls, relationshipGroups } from '../src/socialView.ts';
 
 function act(life: Life, action: Action) {
@@ -86,6 +87,114 @@ function marry() {
   return { life, id: friend.id };
 }
 
+function openNotice(life: Life, title: string) {
+  while (life.notices[0]?.title !== title) {
+    const notice = life.notices[0];
+    assert.ok(notice, `Missing ${title}`);
+    life = act(life, notice.details?.kind === 'death' && !life.character.causeOfDeath
+      ? { type: 'respond-death', entry: notice.entry, response: 'skip' }
+      : { type: 'acknowledge-event', entry: notice.entry });
+  }
+  return life;
+}
+
+test('a wedding lets either spouse adopt the other surname without changing portraits or identity', () => {
+  const { life, id } = marry();
+  const spouse = findContact(life, id)!;
+  const surname = life.character.lastName = 'De la Cruz';
+  let wedding = openNotice(life, 'Wedding Day');
+  const popup = eventPopup(wedding)!;
+  assert.equal(popup.portrait?.name, spouse.name);
+  assert.match(popup.actions[0]!.label, /Take Their Surname/);
+  assert.match(popup.actions[1]!.label, /They Take My Surname/);
+  const renamed = act(wedding, popup.actions[1]!.action);
+  const person = findContact(renamed, id)!;
+  assert.equal(person.lastName, surname);
+  assert.equal(person.id, id);
+  assert.deepEqual(person.appearance, spouse.appearance);
+  assert.equal(findContact(wedding, id)!.name, spouse.name);
+  assert.deepEqual(decodeLife(JSON.stringify(renamed)), renamed);
+  wedding = act(wedding, popup.actions[0]!.action);
+  assert.equal(wedding.character.lastName, spouse.name.split(' ').at(-1));
+});
+
+test('pregnancy from Make Love persists until the next age up, followed by a newborn surname choice', () => {
+  for (const playerGender of ['man', 'woman'] as const) {
+    const initial = adult();
+    initial.character.gender = playerGender;
+    initial.character.lastName = 'De la Cruz';
+    const partner = knownFriend(initial);
+    partner.gender = playerGender === 'man' ? 'woman' : 'man';
+    initial.social.romances.push({ person: partner.id, status: 'dating', started: initial.year,
+      engagement: null, wedding: null, ended: null, history: [] });
+    const invite = { type: 'intimacy', encounter: 'make-love', person: partner.id } as const;
+    const choice = { type: 'choose', event: 'social-make-love', choice: 'accept' } as const;
+    let life = act(initial, invite);
+    for (;; life.seed++) {
+      if (npcRandom(life, `intimacy:${partner.id}:private`, life.year).next() < .25 &&
+        npcRandom(life, `pregnancy:${partner.id}:${life.journal.length + 1}`, life.year).next() < .22) break;
+    }
+    life = act(life, choice);
+    const expected = { mother: playerGender === 'woman' ? 'self' : partner.id, father: playerGender === 'man' ? 'self' : partner.id, dueYear: life.year + 1 };
+    assert.deepEqual(life.social.pregnancies, [expected]);
+    assert.equal(Object.keys(life.social.children).length, 0);
+    assert.deepEqual(act(act(life, invite), choice).social.pregnancies, [expected]);
+    life = openNotice(decodeLife(JSON.stringify(life)), 'Pregnancy');
+    assert.match(eventPopup(life)!.text, /nine months/);
+    life = act(life, eventPopup(life)!.actions[0]!.action);
+    life = openNotice(age(life), 'A New Arrival');
+    assert.equal(life.year, expected.dueYear);
+    assert.equal(life.social.pregnancies, undefined);
+    const child = life.social.people.find(({ role }) => role === 'Child')!;
+    const popup = eventPopup(decodeLife(JSON.stringify(life)))!;
+    assert.equal(popup.portrait?.age, 0);
+    assert.deepEqual(popup.portrait?.appearance, child.appearance);
+    assert.match(popup.actions[0]!.label, /^Mother’s Surname/);
+    assert.match(popup.actions[1]!.label, /^Father’s Surname/);
+    life = act(life, popup.actions[playerGender === 'man' ? 0 : 1]!.action);
+    const named = findContact(life, child.id)!;
+    assert.equal(named.name, `${child.name.replace(/ De la Cruz$/, '')} ${partner.name.split(' ').at(-1)}`);
+    assert.deepEqual(life.social.parents[child.id], ['self', partner.id]);
+    assert.equal(Object.keys(age(life).social.children).length, 1);
+  }
+});
+
+test('a 15-year-old learns to drive before borrowing and returning an owned vehicle', () => {
+  const initial = adult();
+  initial.character.age += 9;
+  initial.year += 9;
+  initial.world = newWorld(initial.seed, initial.year, true);
+  for (const parent of initial.family) parent.age += 9;
+  const spouse = knownFriend(initial);
+  spouse.age = initial.character.age;
+  initial.social.profiles[spouse.id]!.born = initial.character.birthYear;
+  const child = makeNpc(initial, 'npc-teen', 14, 'Child');
+  initial.social.people.push(child);
+  ensureNpc(initial, child);
+  initial.social.parents[child.id] = ['self', spouse.id];
+  initial.social.children[child.id] = { year: initial.year - child.age, adopted: false, wellbeing: 80, learning: 45, confidence: 60, supportEnded: false };
+  let life = act(initial, { type: 'buy-asset', id: 'toyota-yaris' });
+  const asset = ownedListings(life)[0]!;
+  const action = { type: 'family-driving', person: child.id, asset: asset.ownershipId, mode: 'lend' } as const;
+  assert.match(advance(life, action).error ?? '', /age 15/);
+  assert.ok(householdRows(life).some(({ key }) => key === child.id));
+  assert.equal(assetDetails(life, asset).driving.length, 0);
+  life = openNotice(age(life), 'Driving Lesson');
+  assert.match(advance(life, action).error ?? '', /Teach them/);
+  const lesson = eventPopup(decodeLife(JSON.stringify(life)))!;
+  assert.match(lesson.text, /Toyota Yaris/);
+  assert.match(lesson.actions[0]!.label, /Teach Them/);
+  life = act(life, lesson.actions[0]!.action);
+  assert.deepEqual(life.social.children[child.id]!.driving, ['cars']);
+  const before = life.property.owned[0]!;
+  life = act(life, action);
+  assert.equal(life.notices.at(-1)?.title, 'Vehicle Returned');
+  assert.equal(life.property.owned[0]!.condition, before.condition - 2);
+  assert.equal(life.property.owned[0]!.history.at(-1)?.action, 'borrow');
+  assert.match(advance(life, action).error ?? '', /next year/);
+  assert.deepEqual(decodeLife(JSON.stringify(life)), life);
+});
+
 function acceptMatch(life: Life, source: 'date' | 'app') {
   const matched = act(life, { type: 'dating-match', source });
   return act(matched, { type: 'choose', event: 'social-dating-match', choice: 'accept' });
@@ -111,13 +220,14 @@ test('Make Love works with a current partner or adult friend and respects a refu
   assert.equal(second.notices.at(-1)?.title, 'A Private Evening');
   assert.notEqual(first.journal.at(-1)?.text, second.journal.at(-1)?.text);
   assert.deepEqual(second.social.romances, []);
+  assert.equal(second.social.pregnancies, undefined);
 
   const { life, id } = marry();
   const spouse = findContact(life, id)!;
   assert.ok(relationshipControls(life, spouse).some((item) => item.label === 'Make Love'));
   forceRoll(life, `intimacy:${id}:private`);
   const together = act(act(life, { ...action, person: id }), choice);
-  assert.equal(together.notices.at(-1)?.title, 'A Private Evening');
+  assert.ok(together.notices.some(({ title }) => title === 'A Private Evening'));
   assert.equal(romanceFor(together, id)?.status, 'married');
 
   ensureNpc(single, friend).preferences = [single.character.gender === 'man' ? 'woman' : 'man'];

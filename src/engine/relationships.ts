@@ -301,15 +301,6 @@ export function applyRelationshipCare(life: Life, action: RelationshipCareAction
   return null;
 }
 
-export function agreesToMove(life: Life, person: Contact) {
-  const state = relationshipState(life, person.id);
-  if ((state?.apartUntil ?? 0) > life.year || person.city !== life.character.city) return false;
-  if (state?.move?.year === life.year && !state.move.city) return true;
-  const profile = npcProfile(life, person);
-  return person.bond.trust >= 68 && person.bond.resentment < 24 && profile.status !== 'employed' &&
-    visibleConcerns(life, person.id).every((entry) => entry.severity < 38);
-}
-
 export function advanceRelationships(life: Life) {
   for (const [id, state] of Object.entries(life.social.relationships)) {
     const person = findContact(life, id);

@@ -1,5 +1,6 @@
 import { recordNotice, resultMeter } from './eventNotices.ts';
 import { supportChildHobby } from './childSkills.ts';
+import { setSurname } from './familyNames.ts';
 import { clamp } from './journal.ts';
 import { romanceFor } from './love.ts';
 import { inPersonIssue } from './relationships.ts';
@@ -7,7 +8,7 @@ import { ensureNpc, makeNpc, newPeopleLimit, npcRandom, remember } from './npcs.
 import { findContact } from './school.ts';
 import { pickStory } from './stories.ts';
 import type { SocialAction } from './socialTypes.ts';
-import type { Life } from './types.ts';
+import type { Contact, Life } from './types.ts';
 
 export const parenting = {
   care: { label: 'Care for Child', age: 0, health: 5, trust: 2, cost: 0 },
@@ -48,6 +49,63 @@ export function annualChildcare(life: Life) {
   return children.reduce((total, child) => total + (child.age <= 5 ? 7600 : 5300), 0);
 }
 
+function roomForChild(life: Life) {
+  const expected = life.social.pregnancies?.length ?? 0;
+  return Object.keys(life.social.children).length + expected < 4 && life.social.people.length + expected < newPeopleLimit;
+}
+
+function welcomeChild(life: Life, partner: Contact, age: number, adopted: boolean, name?: string) {
+  const id = `npc-child-${life.year}-${Object.keys(life.social.children).length + 1}`;
+  const surname = life.character.lastName;
+  const child = makeNpc(life, id, age, 'Child', name ? `${name} ${surname}` : undefined);
+  if (name) child.lastName = surname;
+  else setSurname(child, surname);
+  life.social.people.push(child);
+  life.social.parents[child.id] = ['self', partner.id];
+  life.social.children[child.id] = {
+    year: life.year, adopted, wellbeing: child.health, learning: 15 + age * 3, confidence: 30 + age * 2, supportEnded: false,
+  };
+  ensureNpc(life, partner).commitments += 2000;
+  const story = adopted ? `${partner.name} and I adopted ${child.name}.` : `${partner.name} and I welcomed ${child.name} into our family.`;
+  remember(life, partner, story);
+  remember(life, child, adopted ? 'Joined the family through adoption.' : 'Born into the family.');
+  const notice = recordNotice(life, 'family', adopted ? 'Adoption Day' : 'A New Arrival', story,
+    { happiness: 8, bank: adopted ? -adoptionCost : 0 }, 'personal');
+  if (!adopted) notice.details = { kind: 'birth', person: child.id };
+}
+
+export function chanceOfPregnancy(life: Life, partner: Contact) {
+  const player = life.character;
+  const mother = player.gender === 'woman' && partner.gender === 'man' ? 'self' :
+    player.gender === 'man' && partner.gender === 'woman' ? partner.id : undefined;
+  if (!mother || player.age < 18 || partner.age < 18 || !partner.alive ||
+    (mother === 'self' ? player.age : partner.age) > 45 || !roomForChild(life) ||
+    life.social.pregnancies?.some((entry) => entry.mother === mother)) return;
+  const random = npcRandom(life, `pregnancy:${partner.id}:${life.journal.length}`, life.year);
+  if (random.next() >= .22) return;
+  const father = mother === 'self' ? partner.id : 'self';
+  life.social.pregnancies = [...(life.social.pregnancies ?? []), { mother, father, dueYear: life.year + 1 }];
+  const news = mother === 'self' ? 'I found out I’m pregnant.' : `${partner.name} told me she’s pregnant.`;
+  recordNotice(life, 'family', 'Pregnancy', `${news} The baby is due in nine months. The birth will happen the next time I age up.`);
+}
+
+export function deliverPregnancies(life: Life) {
+  const pregnancies = life.social.pregnancies;
+  if (!pregnancies?.length) return;
+  const remaining = pregnancies.filter(({ dueYear }) => dueYear > life.year);
+  if (remaining.length) life.social.pregnancies = remaining;
+  else delete life.social.pregnancies;
+  if (life.character.causeOfDeath) return;
+  for (const { mother, father, dueYear } of pregnancies) {
+    if (dueYear > life.year) continue;
+    const partner = findContact(life, mother === 'self' ? father : mother);
+    if (!partner) continue;
+    if (mother !== 'self' && !partner.alive) {
+      recordNotice(life, 'family', 'Pregnancy Loss', `After ${partner.name} died, I learned that we had lost the pregnancy as well.`);
+    } else welcomeChild(life, partner, 0, false);
+  }
+}
+
 export function familyIssue(life: Life, action: FamilyAction): string | null {
   if (life.character.causeOfDeath || life.pending) return 'Resolve the current life event first.';
   const person = findContact(life, action.person);
@@ -56,7 +114,7 @@ export function familyIssue(life: Life, action: FamilyAction): string | null {
     if (life.character.age < 18 || person.age < 18 || romanceFor(life, person.id)?.status !== 'married') return 'Available to adult spouses.';
     const meeting = inPersonIssue(life, person);
     if (meeting) return meeting;
-    if (Object.keys(life.social.children).length >= 4 || life.social.people.length >= newPeopleLimit) return 'Your household is full.';
+    if (!roomForChild(life)) return 'Your household is full.';
     if (life.usedActions.includes('family-planning')) return 'You already discussed family planning this year.';
     if (action.name !== undefined && (!/^\p{L}[\p{L}\p{M} '’.-]{0,27}$/u.test(action.name.trim()))) return 'Enter a name using 1–28 letters.';
     return action.method === 'adoption' && life.character.bank < adoptionCost ? 'Your balance does not cover adoption.' : null;
@@ -89,18 +147,7 @@ export function applyFamily(life: Life, action: FamilyAction) {
     }
     const adopted = action.method === 'adoption';
     const age = adopted ? random.integer(0, Math.min(7, life.character.age - 18, person.age - 18)) : 0;
-    const child = makeNpc(life, `npc-child-${life.year}`, age, 'Child',
-      action.name ? `${action.name.trim()} ${life.character.lastName}` : undefined);
-    life.social.people.push(child);
-    life.social.parents[child.id] = ['self', person.id];
-    life.social.children[child.id] = {
-      year: life.year, adopted, wellbeing: child.health, learning: 15 + age * 3, confidence: 30 + age * 2, supportEnded: false,
-    };
-    profile.commitments += 2000;
-    const story = adopted ? `${name} and I adopted ${child.name}.` : `${name} and I welcomed ${child.name} into our family.`;
-    remember(life, person, story);
-    remember(life, child, adopted ? 'Joined the family through adoption.' : 'Born into the family.');
-    recordNotice(life, 'family', adopted ? 'Adoption Day' : 'A New Child', story, { happiness: 8, bank: adopted ? -adoptionCost : 0 }, 'personal');
+    welcomeChild(life, person, age, adopted, action.name?.trim());
     return null;
   }
   const item = parenting[action.action];

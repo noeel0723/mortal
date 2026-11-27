@@ -25,11 +25,14 @@ export const socialEvents = ['social-dinner', 'social-time', 'social-proposal', 
 export type SocialEventId = typeof socialEvents[number];
 export const datingSources = ['spotlight', 'date', 'app', 'lgbtq', 'casual', 'matchmaking'] as const;
 export type DatingSource = typeof datingSources[number];
-export type ChildRecord = { year: number; adopted: boolean; wellbeing: number; learning: number; confidence: number; supportEnded: boolean };
+export type VehicleKind = 'cars' | 'motorcycles';
+export type ChildRecord = { year: number; adopted: boolean; wellbeing: number; learning: number; confidence: number; supportEnded: boolean; driving?: VehicleKind[] };
+export type Pregnancy = { mother: string; father: string; dueYear: number };
 export type SocialState = {
   people: SocialPerson[]; profiles: Record<string, NpcProfile>;
   parents: Record<string, string[]>; children: Record<string, ChildRecord>;
   romances: Romance[]; relationships: Record<string, RelationshipState>; pendingPerson: string | null; pendingGuest?: string;
+  pregnancies?: Pregnancy[];
 };
 export const romanticActivities = ['date', 'gift', 'dinner', 'movie', 'support', 'future', 'apologize'] as const;
 export const parentingActivities = ['care', 'read', 'school', 'hobby', 'lesson', 'gift', 'support', 'future'] as const;

@@ -1,4 +1,5 @@
 import { recordNotice, resultMeter } from './eventNotices.ts';
+import { moveHousehold } from './household.ts';
 import { isDatingApp, validDatingPreferences } from './dating.ts';
 import { skills } from '../data/skills.ts';
 import { hobbyGroupContact, sharedHobbies } from './hobbies.ts';
@@ -206,6 +207,7 @@ export function applyLove(life: Life, action: Exclude<LoveAction, { type: 'datin
     title = 'Wedding Day';
     story = `I married ${person.name} at our ${plan.label.toLowerCase()}.`;
     changeRomance(life, person.id, 'married', story);
+    moveHousehold(life, life.character.city);
     person.bond.affection = clamp(previous + 6);
     effect = { bank: -plan.cost, happiness: 8 };
   } else if (action.action === 'interest') {
@@ -257,6 +259,7 @@ export function applyLove(life: Life, action: Exclude<LoveAction, { type: 'datin
   }
   remember(life, person, story);
   const notice = recordNotice(life, 'community', title, story, effect, 'relationships');
-  notice.meter = resultMeter('Affection', previous, person.bond.affection);
+  if (action.type === 'wedding') notice.details = { kind: 'wedding-names', person: person.id };
+  else notice.meter = resultMeter('Affection', previous, person.bond.affection);
   return null;
 }

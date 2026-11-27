@@ -1,8 +1,10 @@
 import { assetById, assetCatalog, assetKinds, starterHome } from './data/shops.ts';
 import type { AssetKind } from './data/shops.ts';
+import { drivingIssue } from './engine/familyDriving.ts';
+import { householdMembers } from './engine/household.ts';
 import { assetActionLabels, assetSaleQuote, currentAssetValue, isHouse, ownedAssets, propertyIssue, propertyQuote, rentalQuote, rentMovingFee, upkeepQuote } from './engine/property.ts';
 import type { AssetOperation, OwnedAsset, PropertyAction } from './engine/property.ts';
-import type { Life } from './engine/types.ts';
+import type { Action, Life } from './engine/types.ts';
 import { money } from './i18n/en.ts';
 import type { Emoji } from './theme/tokens.ts';
 
@@ -24,9 +26,8 @@ export function ownedListings(life: Life, includeSold = false) {
 }
 
 export function ownershipDetail(item: ReturnType<typeof ownedListings>[number], residence: string) {
-  const origin = item.listing.kind === 'houses' ? item.city : `Acquired in ${item.city}`;
   const price = item.acquisition ? money(item.acquisition.price) : 'Price unknown';
-  return `${item.source === 'gift' ? 'Gifted' : 'Purchased'} in ${item.year} · ${origin} · ${price}` +
+  return `${item.source === 'gift' ? 'Gifted' : 'Purchased'} in ${item.year} · ${item.city} · ${price}` +
     (item.sale ? ` · Sold in ${item.sale.year}` : residence === item.ownershipId ? ' · Current home' : '');
 }
 
@@ -36,6 +37,25 @@ export function residenceLabel(life: Life) {
   if (residence === 'rent') return 'Rented home';
   const asset = life.property.owned.find(({ ownershipId }) => ownershipId === residence);
   return (asset && assetById.get(asset.id)?.name) ?? 'Home';
+}
+
+export function householdRows(life: Life) {
+  return householdMembers(life).filter(({ person }) => person.city === life.character.city)
+    .map(({ person, role }) => ({ key: person.id, label: person.name, value: role }));
+}
+
+type DrivingAction = Extract<Action, { type: 'family-driving' }>;
+function drivingControls(life: Life, asset: OwnedAsset) {
+  const kind = assetById.get(asset.id)?.kind;
+  if (asset.sale || kind === undefined || kind === 'houses') return [];
+  return life.social.people.filter((person) => person.alive && person.age >= 15 && life.social.children[person.id]).map((person) => {
+    const trained = life.social.children[person.id]!.driving?.includes(kind);
+    const action: DrivingAction = { type: 'family-driving', person: person.id, asset: asset.ownershipId, mode: trained ? 'lend' : 'teach' };
+    return { action, icon: kind === 'cars' ? 'car' as const : 'motorcycle' as const,
+      label: trained ? `Lend to ${person.name}` : `Teach ${person.name} to Drive`,
+      detail: trained ? 'Lend the vehicle for a short outing.' : `Age ${person.age} · Practice together before lending.`,
+      issue: drivingIssue(life, action) };
+  });
 }
 
 export function housingControls(life: Life) {
@@ -87,8 +107,9 @@ export function assetDetails(life: Life, asset: OwnedAsset) {
     controls.unshift({ action, label: 'Move Into Property', icon: 'key', detail: asset.city, issue: propertyIssue(life, action) });
   }
   const history = [...asset.history].reverse().map(({ year, action, amount, condition }, index) => ({
-    key: `${year}-${action}-${index}`, label: `${year} · ${action === 'wear' ? 'Unexpected wear' : assetActionLabels[action]}`,
+    key: `${year}-${action}-${index}`, label: `${year} · ${action === 'wear' ? 'Unexpected wear' : action === 'borrow' ? 'Family loan' : assetActionLabels[action]}`,
     value: `${amount ? `${money(amount)} · ` : ''}${condition}% condition`,
   }));
-  return { displayRows, rentalRows, controls, history };
+  return { displayRows, rentalRows, controls, history, driving: drivingControls(life, asset),
+    household: life.property.residence === asset.ownershipId ? householdRows(life) : [] };
 }

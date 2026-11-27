@@ -151,7 +151,8 @@ export function Play({ life, page, personId, go, home, newLife }: {
           <div><strong>{popup.portrait.name}</strong><span>{popup.portrait.role}</span></div>
         </div>}
         onDismiss={dismiss ? () => { if (!busy) void dispatch(dismiss); } : undefined}>
-        {!popup.special && <div className="event-category"><Icon name={popup.category.icon} />{popup.meter ? 'Activity result' : popup.category.label}</div>}
+        {(!popup.special || (popup.special === 'family' && !popup.portrait)) &&
+          <div className="event-category"><Icon name={popup.category.icon} />{popup.meter ? 'Activity result' : popup.category.label}</div>}
         <p className="event-story">{popup.text}</p>
         {popup.cause && <p className="event-death-cause"><span>Cause of death</span><strong>{popup.cause}</strong></p>}
         {popup.match?.netWorth && <div className="event-match-stat">

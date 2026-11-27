@@ -17,7 +17,7 @@ export function ActionButton({ icon, label, onPress, variant = 'secondary', disa
       style={({ pressed }) => [styles.button, styles[variant], selected && styles.selected, compact && styles.compact,
         pressed && (variant === 'primary' ? styles.primaryPressed : styles.pressed), disabled && styles.disabled, style]}
     >
-      {leading ?? <Text accessibilityElementsHidden importantForAccessibility="no" style={styles.emoji}>{emoji[icon]}</Text>}
+      {leading ?? <Text accessibilityElementsHidden importantForAccessibility="no" style={[styles.emoji, compact && styles.compactEmoji]}>{emoji[icon]}</Text>}
       {!compact && (detail ? <View style={styles.buttonText}>
         <Text style={[labelStyle, styles.rowLabel]}>{label}</Text><Text style={shared.small}>{detail}</Text>
       </View> : <Text style={labelStyle}>{label}</Text>)}
@@ -113,7 +113,8 @@ const styles = StyleSheet.create({
   compact: { width: 48, paddingHorizontal: 0 },
   pressed: { backgroundColor: colors.softBlue },
   disabled: { opacity: .5 },
-  emoji: { fontSize: 19, lineHeight: 25 },
+  emoji: { fontSize: 23, lineHeight: 28 },
+  compactEmoji: { fontSize: 19, lineHeight: 25 },
   buttonLabel: { color: colors.ink, fontSize: 14, textAlign: 'center', fontWeight: '600', flexShrink: 1 },
   buttonText: { flex: 1, gap: 2 },
   rowLabel: { textAlign: 'left' },

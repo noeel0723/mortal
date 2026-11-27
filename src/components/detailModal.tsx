@@ -5,7 +5,7 @@ import { shared } from './ui';
 
 export function DetailModal({ title, open, onDismiss, children, special, identity }: {
   title: string; open: boolean; onDismiss?: () => void; children: ReactNode;
-  special?: 'enjoyment' | 'death' | 'match'; identity?: ReactNode;
+  special?: 'enjoyment' | 'death' | 'match' | 'family'; identity?: ReactNode;
 }) {
   return <Modal visible={open} transparent animationType="fade" onRequestClose={() => onDismiss?.()}>
     <View style={styles.overlay}>

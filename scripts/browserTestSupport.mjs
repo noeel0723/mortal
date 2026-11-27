@@ -10,14 +10,16 @@ const executablePath = process.env.MORTAL_BROWSER_PATH || (existsSync(edge) ? ed
 export const url = process.env.MORTAL_WEB_URL || 'http://127.0.0.1:5173/';
 export const startBrowser = () => chromium.launch({ executablePath, headless: true });
 
-export async function acknowledgeEvents(page, chooseFirst = false) {
+export async function acknowledgeEvents(page, chooseFirst = false, untilTitle) {
   const popup = page.locator('dialog[data-life-event][open]');
   while (await popup.isVisible()) {
+    if (untilTitle && await popup.getByRole('heading', { name: untilTitle, exact: true }).count()) return;
     const key = await popup.getAttribute('data-life-event');
     if (key.startsWith('decision-') && !chooseFirst) return;
-    const death = await popup.getAttribute('data-event-kind') === 'death';
+    const kind = await popup.getAttribute('data-event-kind');
     const button = key.startsWith('decision-') ? popup.locator('.event-options button').first() :
-      death ? popup.getByRole('button', { name: /^(Skip Funeral|Continue|View Life Summary)$/ }) :
+      kind === 'death' ? popup.getByRole('button', { name: /^(Skip Funeral|Continue|View Life Summary)$/ }) :
+        kind === 'family' ? popup.getByRole('button', { name: /^(Continue$|Keep Our Names$|Maybe Later$|Mother’s Surname|Your Surname)/ }).first() :
         popup.getByRole('button', { name: 'Continue', exact: true });
     await button.click();
     await page.locator(`dialog[data-life-event="${key}"]`).waitFor({ state: 'hidden' });

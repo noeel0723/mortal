@@ -26,7 +26,7 @@ import { childParents, datingCandidates, datingControls, datingSummary, familyTr
 import { canEditFace } from '../src/engine/appearance';
 import { propertyIssue, propertyQuote } from '../src/engine/property';
 import { assetArt } from '../src/portraits/assetArt';
-import { assetDetails, housingControls, listingsFor, ownedListings, ownershipDetail, propertyCategories, residenceLabel, shoppingCategory } from '../src/propertyView';
+import { assetDetails, householdRows, housingControls, listingsFor, ownedListings, ownershipDetail, propertyCategories, residenceLabel, shoppingCategory } from '../src/propertyView';
 import { estate } from '../src/engine/wealth';
 import { instrumentNames } from '../src/engine/investments';
 import { estateHistory, estateRows, familyMilestoneRows, finalAssetRows, finalSkillRows, findFund, funds, fundView, loanView, parseCashAmount, retirementView, savingsControls, savingsHistory, savingsRows } from '../src/wealthView';
@@ -479,7 +479,7 @@ function WealthPage({ life, page, detail, go }: { life: Life; page: 'banking' | 
 
 function OwnedDetail({ life, id }: { life: Life; id?: string }) {
   const [selected, select] = useState<{ label: string; detail?: string; action: Action } | null>(null);
-  const busy = useGame((state) => state.busy);
+  const { busy, dispatch } = useGame();
   const item = ownedListings(life, true).find(({ ownershipId }) => ownershipId === id);
   if (!item) return <p className="play-empty">This ownership record is unavailable.</p>;
   const details = assetDetails(life, item);
@@ -487,6 +487,10 @@ function OwnedDetail({ life, id }: { life: Life; id?: string }) {
     <PageGroup title={item.listing.name}>
       <div className="asset-preview"><AssetImage listing={item.listing} large /></div><Rows items={details.displayRows} />
     </PageGroup>
+    {!!details.household.length && <PageGroup title="Household"><Rows items={details.household} /></PageGroup>}
+    {!!details.driving.length && <PageGroup title="Family Drivers">{details.driving.map((control) => <MenuRow key={control.action.person}
+      title={control.label} icon={control.icon} detail={control.issue ?? control.detail} disabled={busy || !!control.issue}
+      opensDialog onClick={() => control.action.mode === 'teach' ? void dispatch(control.action) : select(control)} />)}</PageGroup>}
     {!!details.rentalRows.length && <PageGroup title="Rental"><Rows items={details.rentalRows} /></PageGroup>}
     {!!details.controls.length && <PageGroup title="Manage">{details.controls.map((control) => <MenuRow key={control.label} title={control.label} icon={control.icon}
       detail={control.issue ?? control.detail} disabled={busy || !!control.issue} opensDialog onClick={() => select(control)} />)}</PageGroup>}
@@ -847,13 +851,16 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           <MenuRow icon="harder" title="Investments" onClick={() => go('investments')} />
         </PageGroup>
       </>;
-    case 'housing':
+    case 'housing': {
+      const household = householdRows(life);
       return <>
         <PageGroup title="Where you live"><MenuRow icon="home" title={residenceLabel(life)} /></PageGroup>
+        {!!household.length && <PageGroup title="Household"><Rows items={household} /></PageGroup>}
         <PageGroup title="Moving Out">{housingControls(life).map((item) => <MenuRow key={item.label} icon={item.icon}
           title={item.label} detail={item.issue ?? item.detail} disabled={busy || !!item.issue}
           onClick={() => void dispatch(item.action)} />)}</PageGroup>
       </>;
+    }
     case 'shopping':
       return <PageGroup title="Browse">{assetKinds.map((kind) => <MenuRow key={kind} icon={propertyCategories[kind].icon}
         title={propertyCategories[kind].label} value={String(listingsFor(kind).length)} onClick={() => go('shop-category', kind)} />)}</PageGroup>;

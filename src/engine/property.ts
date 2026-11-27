@@ -1,6 +1,7 @@
 import { assetById, starterHome } from '../data/shops.ts';
 import type { AssetListing } from '../data/shops.ts';
 import { recordNotice } from './eventNotices.ts';
+import { moveHousehold } from './household.ts';
 import { clamp, postTransaction } from './journal.ts';
 import { seededRandom } from './random.ts';
 import { ensureNpc, isParent, npcProfile } from './npcs.ts';
@@ -12,7 +13,7 @@ import type { City, Life } from './types.ts';
 export type OwnedAsset = { id: string; year: number; source: 'purchase' | 'gift'; city: City;
   acquisition: { price: number; priceIndex: number; marketIndex: number } | null; ownershipId: string;
   condition: number; reliability: number | null; improvements: number;
-  history: { year: number; action: AssetOperation | 'wear'; amount: number; condition: number }[];
+  history: { year: number; action: AssetOperation | 'wear' | 'borrow'; amount: number; condition: number }[];
   sale: { year: number; proceeds: number; fee: number } | null;
   rental: { offered: boolean; occupied: boolean; income: number; expenses: number; vacancies: number; lastYear: number | null; lastRent: number } | null };
 export type PropertyState = { residence: string; owned: OwnedAsset[] };
@@ -200,6 +201,7 @@ export function propertyIssue(life: Life, action: PropertyAction) {
 export function applyPropertyAction(life: Life, action: PropertyAction) {
   const issue = propertyIssue(life, action);
   if (issue) return issue;
+  const familyMove = () => moveHousehold(life, life.character.city) ? ' My family moved in with me.' : '';
   switch (action.type) {
     case 'buy-asset': {
       const listing = assetById.get(action.id)!;
@@ -210,12 +212,12 @@ export function applyPropertyAction(life: Life, action: PropertyAction) {
     }
     case 'rent-home':
       life.property.residence = 'rent';
-      recordNotice(life, 'life', 'A Place of My Own', 'I moved into a rented place.', { bank: -rentMovingFee(life), happiness: 3 }, 'housing');
+      recordNotice(life, 'life', 'A Place of My Own', `I moved into a rented place.${familyMove()}`, { bank: -rentMovingFee(life), happiness: 3 }, 'housing');
       break;
     case 'move-into-home': {
       const asset = activeAsset(life, action.id)!;
       life.property.residence = asset.ownershipId;
-      recordNotice(life, 'life', 'New Home', `I moved into ${assetById.get(asset.id)!.name}.`, { happiness: 3 });
+      recordNotice(life, 'life', 'New Home', `I moved into ${assetById.get(asset.id)!.name}.${familyMove()}`, { happiness: 3 });
       break;
     }
     case 'ask-for-home': {
@@ -233,7 +235,7 @@ export function applyPropertyAction(life: Life, action: PropertyAction) {
         life.property.residence = asset.ownershipId;
       }
       recordNotice(life, 'family', approved ? 'A Home from Family' : 'Housing Request Declined', approved ?
-        `${parent.name} agreed to buy me ${starterHome.name}, and I moved in.` : `${parent.name} was able to afford a home but decided against buying me one.`,
+        `${parent.name} agreed to buy me ${starterHome.name}, and I moved in.${familyMove()}` : `${parent.name} was able to afford a home but decided against buying me one.`,
       { happiness: approved ? 6 : -2 });
       break;
     }
