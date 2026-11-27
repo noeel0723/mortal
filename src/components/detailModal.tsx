@@ -4,17 +4,17 @@ import { colors, radius, space } from '../theme/tokens';
 import { shared } from './ui';
 
 export function DetailModal({ title, open, onDismiss, children }: {
-  title: string; open: boolean; onDismiss: () => void; children: ReactNode;
+  title: string; open: boolean; onDismiss?: () => void; children: ReactNode;
 }) {
-  return <Modal visible={open} transparent animationType="fade" onRequestClose={onDismiss}>
+  return <Modal visible={open} transparent animationType="fade" onRequestClose={() => onDismiss?.()}>
     <View style={styles.overlay}>
-      <Pressable style={StyleSheet.absoluteFill} onPress={onDismiss} accessible={false} />
+      {onDismiss && <Pressable style={StyleSheet.absoluteFill} onPress={onDismiss} accessible={false} />}
       <View style={styles.card} accessibilityViewIsModal onAccessibilityEscape={onDismiss}>
         <View style={styles.header}>
           <Text accessibilityRole="header" style={styles.heading}>{title}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onDismiss} style={styles.close}>
+          {onDismiss && <Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onDismiss} style={styles.close}>
             <Text style={styles.closeText}>×</Text>
-          </Pressable>
+          </Pressable>}
         </View>
         <ScrollView contentContainerStyle={styles.content} bounces={false}>{children}</ScrollView>
       </View>
@@ -35,7 +35,7 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: '#142943A6', alignItems: 'center', justifyContent: 'center', padding: space.xl },
   card: { width: '100%', maxWidth: 390, maxHeight: '90%', flexShrink: 1, backgroundColor: colors.white,
     borderColor: colors.blueRule, borderWidth: 1, borderRadius: radius.lg, overflow: 'hidden' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: space.lg,
+  header: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: space.lg,
     paddingRight: space.xs, backgroundColor: colors.softBlue, borderBottomColor: colors.line, borderBottomWidth: 1 },
   heading: { flex: 1, color: colors.action, fontSize: 17, fontWeight: '700' },
   close: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center' },

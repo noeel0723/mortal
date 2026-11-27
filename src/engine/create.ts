@@ -85,7 +85,7 @@ export function createLife(seed: number, profile?: ProfileInput): Life {
   const personality = random.pick(['curious', 'steady', 'outgoing', 'thoughtful'] as const);
   const appearance = input.appearance ? mergeAppearance(creationAppearance, input.appearance) : generateAppearance(seed, 'player');
   return {
-    version: 4,
+    version: 5,
     seed: seed >>> 0,
     random: random.state,
     character: { ...input, appearance, firstName, lastName, age: 0, attributes, bank, personality, education: 'early', causeOfDeath: null },
@@ -98,6 +98,8 @@ export function createLife(seed: number, profile?: ProfileInput): Life {
     journal: [{ age: 0, category: 'life', text: `I was born in ${input.city}, Veyra.`, changes: {} }],
     seen: [],
     pending: null,
+    notices: [],
+    illnesses: [],
     scheduled: [],
     usedActions: [],
     transactions: bank ? [{ year: input.birthYear, label: 'Birth savings', amount: bank }] : [],

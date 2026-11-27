@@ -33,7 +33,10 @@ export default function Activities() {
     <Page inGame>
       <Heading title="Activities" back={() => router.dismissTo('/game')} />
       <DataRow label="Energy" value={`${life.character.attributes.energy}%`} />
-      <Section title="Health">{items.slice(0, 2).map(action)}</Section>
+      <Section title="Health">
+        <ActionButton icon="medical" label="Doctor" detail="See active illnesses and arrange treatment." onPress={() => router.push('/game/doctor')} />
+        {items.slice(0, 2).map(action)}
+      </Section>
       <Section title="Personal Development">{items.slice(2).map(action)}</Section>
       {!life.character.causeOfDeath && <Section title="Appearance">
         <ActionButton icon="hair" label={canEditFace(life.character.age) ? 'Customize Appearance' : 'Change Hairstyle'}

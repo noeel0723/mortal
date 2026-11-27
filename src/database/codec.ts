@@ -4,6 +4,7 @@ import { academicLevels } from '../engine/academicTypes.ts';
 import { initialCareer } from '../engine/career.ts';
 import { initialFinance } from '../engine/finance.ts';
 import { transactionCategories } from '../engine/financeTypes.ts';
+import { illnessLevels, illnesses, playerPatient } from '../engine/healthTypes.ts';
 import { contactIdentity, generateAppearance, validAppearance } from '../engine/appearance.ts';
 import { validateProfile } from '../engine/create.ts';
 import { advanceContactOccupation, createSchoolClass, isSchoolStage } from '../engine/school.ts';
@@ -35,6 +36,22 @@ function savedPerson(person: unknown, withAppearance: boolean): person is Record
     (!withAppearance || (genders.some((gender) => gender === person.gender) && validAppearance(person.appearance)));
 }
 
+function validHealthAndNotices(life: Life) {
+  const patients = new Set([...life.family, ...life.schoolContacts, ...life.career.contacts]
+    .filter((person) => person.alive).map((person) => person.id));
+  if (!life.character.causeOfDeath) patients.add(playerPatient);
+  return Array.isArray(life.notices) && life.notices.every((notice, index) => record(notice) &&
+    integer(notice.entry, 0, life.journal.length - 1) && (index === 0 || notice.entry > life.notices[index - 1]!.entry) &&
+    typeof notice.title === 'string' && notice.title.trim().length > 0) &&
+    Array.isArray(life.illnesses) && life.illnesses.every((condition) => {
+      if (!record(condition) || typeof condition.patient !== 'string' || !patients.delete(condition.patient) ||
+        !integer(condition.started, life.character.birthYear, life.year)) return false;
+      const definition = Object.entries(illnesses).find(([id]) => id === condition.illness)?.[1];
+      const level = illnessLevels.indexOf(condition.level);
+      return !!definition && level >= 0 && level <= illnessLevels.indexOf(definition.max);
+    });
+}
+
 export function decodeLife(json: string): Life {
   let value: unknown;
   try {
@@ -44,7 +61,7 @@ export function decodeLife(json: string): Life {
   }
   if (!record(value)) throw new Error('This saved life is damaged.');
   const version = value.version;
-  if (version !== 1 && version !== 2 && version !== 3 && version !== 4) throw new Error('This saved life uses an unsupported version.');
+  if (version !== 1 && version !== 2 && version !== 3 && version !== 4 && version !== 5) throw new Error('This saved life uses an unsupported version.');
   const { character, family, schoolContacts, journal, pending, scheduled, seen, usedActions, transactions, year } = value;
   if (!record(character) || typeof character.firstName !== 'string' || typeof character.lastName !== 'string' ||
     validateProfile(character as ProfileInput) || (version >= 3 && !validAppearance(character.appearance)) || !integer(character.age, 0, maxAge) ||
@@ -101,13 +118,19 @@ export function decodeLife(json: string): Life {
     }
   }
   if (version < 4) {
-    life.version = 4;
     life.career = initialCareer();
     life.finance = initialFinance();
   } else if (!validateCareer(value.career, year, Number(character.birthYear), !!life.academic.enrollment,
     !!character.causeOfDeath, (person): person is Record<string, unknown> => savedPerson(person, true)) ||
     !validateFinance(value.finance, year, Number(character.birthYear))) {
     throw new Error('This saved life has invalid career or finance data.');
+  }
+  if (version < 5) {
+    life.version = 5;
+    life.notices = [];
+    life.illnesses = [];
+  } else if (!validHealthAndNotices(life)) {
+    throw new Error('This saved life has invalid health or event data.');
   }
   return life;
 }

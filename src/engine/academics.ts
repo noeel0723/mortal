@@ -4,6 +4,7 @@ import type { Program } from '../data/academics.ts';
 import { educationLabels } from '../data/veyra.ts';
 import { clamp, record } from './journal.ts';
 import { seededRandom } from './random.ts';
+import { recordNotice } from './eventNotices.ts';
 import { createProgramClass, createSchoolClass, educationAt, isSchoolStage } from './school.ts';
 import type { AcademicAction, AcademicRecord, AcademicState, Enrollment, GraduationPath, QualificationLevel } from './academicTypes.ts';
 import type { Character, Life, SchoolStage } from './types.ts';
@@ -123,7 +124,7 @@ export function termCost(life: Life, enrollment: Enrollment) {
 
 export function academicActionIssue(life: Life, action: AcademicAction): string | null {
   if (life.character.causeOfDeath) return 'This life has already ended.';
-  if (life.pending) return 'Resolve your pending decision in the journal first.';
+  if (life.pending) return 'Resolve the pending decision first.';
   const enrollment = life.academic.enrollment;
   if (action.type === 'drop-out') return enrollment ? null : 'You are not enrolled.';
   if (action.type === 'pay-tuition') {
@@ -202,7 +203,8 @@ export function performAcademicAction(life: Life, action: AcademicAction) {
         id: `${program.id}-${life.year}`, programId: program.id, year: life.year, score,
         result: accepted ? 'accepted' : 'rejected',
       });
-      record(life, 'school', accepted ? `I was offered a place in ${program.title}.` : `My application for ${program.title} was declined.`);
+      recordNotice(life, 'school', accepted ? 'Admission Offer' : 'Admission Decision',
+        accepted ? `I was offered a place in ${program.title}.` : `My application for ${program.title} was declined.`);
     } else if (action.type === 'apply-scholarship') {
       const id = life.academic.enrollment?.programId === program.id ? life.academic.enrollment.id : availableOffer(life, program.id)!.id;
       life.academic.scholarships.push({ applicationId: id, programId: program.id, awardedYear: life.year, annualAmount: program.tuition, receivedTotal: 0 });

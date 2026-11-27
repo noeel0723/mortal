@@ -10,6 +10,18 @@ const executablePath = process.env.MORTAL_BROWSER_PATH || (existsSync(edge) ? ed
 export const url = process.env.MORTAL_WEB_URL || 'http://127.0.0.1:5173/';
 export const startBrowser = () => chromium.launch({ executablePath, headless: true });
 
+export async function acknowledgeEvents(page, chooseFirst = false) {
+  const popup = page.locator('dialog[data-life-event][open]');
+  while (await popup.isVisible()) {
+    const key = await popup.getAttribute('data-life-event');
+    if (key.startsWith('decision-') && !chooseFirst) return;
+    const button = key.startsWith('decision-') ? popup.locator('.event-options button').first() :
+      popup.getByRole('button', { name: 'Continue', exact: true });
+    await button.click();
+    await page.locator(`dialog[data-life-event="${key}"]`).waitFor({ state: 'hidden' });
+  }
+}
+
 export function saveSlot({ id, entry }) {
   return new Promise((resolve, reject) => {
     const opening = indexedDB.open('mortal-web', 1);

@@ -16,6 +16,7 @@ import { currentClass, isPeer, isSchoolStage } from '../src/engine/school';
 import { canEditFace } from '../src/engine/appearance';
 import { activities, activityIssue } from '../src/engine/simulation';
 import { activeCoworkers } from '../src/engine/workplace';
+import { patientRows, profileHealthRows } from '../src/healthView';
 import {
   academicActivities, academicControl, academicRecordGroups, availableProgramGroups, educationOverview, enrollmentControls,
   enrollmentRows, gradeLabel, institutionCard, programControls, programRows,
@@ -60,6 +61,7 @@ export const pageTitles = {
   assets: 'Assets',
   finances: 'Finances',
   activities: 'Activities',
+  doctor: 'Doctor',
   appearance: 'Appearance',
   statistics: 'Life Statistics',
   world: 'World',
@@ -101,6 +103,7 @@ const parentPages: Partial<Record<DetailPage, GamePage>> = {
   'family-tree': 'relationships',
   finances: 'assets',
   appearance: 'activities',
+  doctor: 'activities',
   settings: 'menu',
   achievements: 'menu',
 };
@@ -243,7 +246,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
 }) {
   const { busy, dispatch, save } = useGame();
   const { character, family } = life;
-  const blocked = life.pending ? 'Resolve the open decision in your journal.' : character.causeOfDeath ? 'This life has ended.' : null;
+  const blocked = life.pending ? 'Resolve the pending decision first.' : character.causeOfDeath ? 'This life has ended.' : null;
   const energy = `${character.attributes.energy}%`;
   const job = life.career.current;
   const canFindJob = character.age >= workAge && !character.causeOfDeath && life.career.retiredYear === null;
@@ -430,6 +433,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           { label: character.causeOfDeath ? 'Age at death' : 'Age', value: character.age },
           { label: 'Gender identity', value: genderLabels[character.gender] },
           { label: 'Birth city', value: character.city }, { label: 'Education', value: educationStatus(life) },
+          ...profileHealthRows(life),
         ]} />
       </PageGroup>;
     case 'person':
@@ -455,7 +459,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           <div className="detail-identity"><Portrait appearance={contact.appearance} age={contact.age} label={`Portrait of ${contact.name}`} />
             <div><strong>{contact.name}</strong><p>{contactRole(contact)}</p></div>
           </div>
-          <Rows items={contactProfileRows(contact)} />
+          <Rows items={contactProfileRows(life, contact)} />
           <section className="detail-bond"><h3>Your bond</h3>
             {contactBondRows(contact).map((row) => <PageMeter key={row.label} {...row} />)}
           </section>
@@ -473,6 +477,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       return <>
         <PageGroup title="Energy"><MenuRow icon="health" title="Current energy" value={energy} /></PageGroup>
         <PageGroup title="Wellbeing">
+          <MenuRow icon="medical" title="Doctor" detail="See active illnesses and arrange treatment." onClick={() => go('doctor')} />
           {activityOptions.map((item) => {
             const issue = blocked ?? activityIssue(life, item.id);
             const cost = activities[item.id].energy;
@@ -486,6 +491,16 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
             onClick={() => go('appearance')} />
         </PageGroup>}
       </>;
+    case 'doctor': {
+      const patients = patientRows(life);
+      return <PageGroup title="Patients">
+        {patients.length ? patients.map((patient) => <MenuRow key={patient.id} icon="medical"
+          title={patient.self ? 'Treat Yourself' : `Take ${patient.name} to the Doctor`}
+          detail={`${patient.condition}${patient.issue ? ` · ${patient.issue}` : ''}`} value={patient.fee}
+          disabled={busy || !!patient.issue} onClick={() => void dispatch({ type: 'doctor', patient: patient.id })} />) :
+          <p className="play-empty">You and your family and friends have no active illnesses.</p>}
+      </PageGroup>;
+    }
     case 'appearance':
       return <AppearancePage life={life} back={() => go('activities')} />;
     case 'statistics':

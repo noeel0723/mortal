@@ -53,12 +53,13 @@ test('version 2 saves gain stable portraits and preserve existing contacts, frie
   life = act(life, { type: 'choose', event: 'first-classroom', choice: 'join' });
   const contact = currentClass(life).find(({ role }) => role === 'Classmate')!;
   life = act(life, { type: 'befriend', person: contact.id });
-  const snapshot = JSON.stringify({ ...life, version: 2, character: { ...life.character, appearance: undefined },
+  const snapshot = JSON.stringify({ ...life, version: 2, illnesses: undefined, notices: undefined,
+    character: { ...life.character, appearance: undefined },
     family: life.family.map((person) => ({ ...person, appearance: undefined, gender: undefined })),
     schoolContacts: life.schoolContacts.map((person) => ({ ...person, appearance: undefined, gender: undefined })),
   });
   const restored = decodeLife(snapshot);
-  assert.deepEqual(restored, life);
+  assert.deepEqual(restored, { ...life, illnesses: [], notices: [] });
   assert.equal(restored.schoolContacts.find(({ id }) => id === contact.id)?.friend, true);
   assert.ok(restored.schoolContacts.every((person) => genders.includes(person.gender)));
   const signatures = new Set(restored.schoolContacts.map((person) => portraitSrc(person.appearance, person.age)));

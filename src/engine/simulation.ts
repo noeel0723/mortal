@@ -3,6 +3,9 @@ import { advanceAcademics, chooseEducationPath, isTuitionDue, performAcademicAct
 import { appearanceChanged, appearanceIssue, mergeAppearance, validFace, validHair } from './appearance.ts';
 import { advanceCareer, applyCareerEffect, closeCareerYear, endEmployment, performCareerAction, studyWorkload } from './career.ts';
 import { annualFinance } from './finance.ts';
+import { eventTitle, recordNotice } from './eventNotices.ts';
+import { advanceIllnesses, startIllness, visitDoctor } from './health.ts';
+import { playerPatient } from './healthTypes.ts';
 import { contactIssue, performRelationshipActivity } from './interactions.ts';
 import { clamp, record } from './journal.ts';
 import { seededRandom } from './random.ts';
@@ -61,7 +64,7 @@ function ageUp(life: Life) {
     if (person.age > 55) person.health = clamp(person.health - random.integer(0, 3));
     if (person.age > 70 && (person.health === 0 || person.age >= maxAge || random.next() < (person.age - 70) / 500)) {
       person.alive = false;
-      record(life, 'family', `My ${person.role.toLowerCase()}, ${person.name}, died at age ${person.age}.`, { happiness: -10, stress: 10 });
+      recordNotice(life, 'family', 'A Loss in the Family', `My ${person.role.toLowerCase()}, ${person.name}, died at age ${person.age}.`, { happiness: -10, stress: 10 });
     }
   }
   for (const person of life.schoolContacts) {
@@ -74,14 +77,16 @@ function ageUp(life: Life) {
   ageWorkplace(life, maxAge);
   annualFinance(life, elapsedAge);
   closeCareerYear(life);
+  advanceIllnesses(life);
   const dies = character.attributes.health === 0 || age >= maxAge ||
     (age >= 72 && random.next() < (age - 69) / 650 + (100 - character.attributes.health) / 1800);
   if (dies) {
     character.causeOfDeath = character.attributes.health === 0 ? 'Declining health' : 'Natural causes';
+    life.illnesses = life.illnesses.filter(({ patient }) => patient !== playerPatient);
     life.academic.gapUntil = null;
     life.scheduled = [];
     endEmployment(life, 'died');
-    record(life, 'life', `My life ended at age ${age}.`);
+    recordNotice(life, 'life', 'End of Life', `My life ended at age ${age}.`);
     life.random = random.state;
     return;
   }
@@ -89,13 +94,13 @@ function ageUp(life: Life) {
   const graduated = advanceAcademics(life, random);
   advanceCareer(life, random);
   for (const consequence of life.scheduled) {
-    if (consequence.year === life.year) record(life, 'decision', consequence.text, consequence.effects);
+    if (consequence.year === life.year) recordNotice(life, 'decision', 'An Earlier Choice', consequence.text, consequence.effects);
   }
   life.scheduled = life.scheduled.filter(({ year }) => year > life.year);
   if (graduated && age === 18) {
     const photo = eventById.get('graduation-photo')!;
     life.seen.push(photo.id);
-    record(life, photo.category, photo.text, photo.effects);
+    recordNotice(life, photo.category, eventTitle(photo.id), photo.text, photo.effects);
   }
   const eligible = events.filter((event) => age >= event.ages[0] && age <= event.ages[1] &&
     !life.seen.includes(event.id) && !(life.academic.leftSchool && age < 18 && event.category === 'school') &&
@@ -106,9 +111,12 @@ function ageUp(life: Life) {
       .map((event) => ({ event, order: random.next() })).sort((a, b) => a.order - b.order)[0]?.event;
   if (triggered) {
     life.seen.push(triggered.id);
-    record(life, triggered.category, triggered.text, triggered.effects);
+    if (triggered.illness) startIllness(life, triggered.illness);
+    else if (triggered.choices) {
+      record(life, triggered.category, triggered.text, triggered.effects);
+      life.pending = triggered.id;
+    } else recordNotice(life, triggered.category, eventTitle(triggered.id), triggered.text, triggered.effects);
     if (triggered.careerEffects) applyCareerEffect(life, triggered.careerEffects);
-    if (triggered.choices) life.pending = triggered.id;
   }
   life.random = random.state;
 }
@@ -151,13 +159,22 @@ export function befriendIssue(life: Life, id: string) {
 }
 
 export function advance(previous: Life, action: Action): { life: Life; error?: never } | { error: string; life?: never } {
+  if (action.type === 'acknowledge-event') {
+    if (previous.pending || previous.notices[0]?.entry !== action.entry) return { error: 'This event is no longer available.' };
+    return { life: { ...previous, notices: previous.notices.slice(1) } };
+  }
   if (previous.character.causeOfDeath) return { error: 'This life has already ended.' };
-  if (previous.pending && action.type !== 'choose') return { error: 'Resolve your pending decision in the journal first.' };
+  if (previous.pending && action.type !== 'choose') return { error: 'Resolve the pending decision first.' };
   const life = structuredCloneLife(previous);
   switch (action.type) {
     case 'age':
       ageUp(life);
       break;
+    case 'doctor': {
+      const issue = visitDoctor(life, action.patient);
+      if (issue) return { error: issue };
+      break;
+    }
     case 'choose': {
       const choice = eventById.get(action.event)?.choices?.find(({ id }) => id === action.choice);
       if (life.pending !== action.event || !choice) return { error: 'This decision is no longer available.' };
@@ -273,6 +290,8 @@ function structuredCloneLife(life: Life): Life {
       scholarships: life.academic.scholarships.map((item) => ({ ...item })),
     },
     journal: [...life.journal],
+    notices: [...life.notices],
+    illnesses: life.illnesses.map((condition) => ({ ...condition })),
     seen: [...life.seen],
     scheduled: [...life.scheduled],
     usedActions: [...life.usedActions],

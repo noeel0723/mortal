@@ -1,4 +1,5 @@
 import type { LifeEvent } from '../engine/types.ts';
+import { playerPatient } from '../engine/healthTypes.ts';
 import { careerEvents } from './careerEvents.ts';
 
 export const events: readonly LifeEvent[] = [
@@ -68,7 +69,8 @@ export const events: readonly LifeEvent[] = [
   { id: 'class-reunion', ages: [23, 35], category: 'school', probability: .26, text: 'I went to a class reunion and learned what my old classmates had been doing.', effects: { charisma: 3, happiness: 3 } },
   { id: 'open-mic', ages: [20, 40], category: 'community', probability: .25, eligible: (life) => life.character.attributes.creativity >= 50, text: 'I read a short story at a neighborhood open mic and got through it without rushing.', effects: { creativity: 4, charisma: 4 } },
   { id: 'community-run', ages: [21, 45], category: 'health', probability: .23, eligible: (life) => life.character.attributes.athleticism >= 45, text: 'I trained for a local fun run and finished with enough breath to talk.', effects: { athleticism: 4, health: 3 } },
-  { id: 'cold-season', ages: [20, 48], category: 'health', probability: .24, text: 'I caught a cold and spent a few days recovering at home.', effects: { health: -3, energy: -10 } },
+  { id: 'cold-season', ages: [20, 48], category: 'health', probability: .24, text: 'I caught a cold.', illness: 'cold',
+    eligible: (life) => !life.illnesses.some(({ patient }) => patient === playerPatient) },
   { id: 'recipe', ages: [24, 49], category: 'family', probability: .28, eligible: (life) => life.family.some((person) => person.alive), text: 'A parent showed me how to make a family recipe from memory. I wrote down the measurements.', effects: { happiness: 4, creativity: 3 } },
   { id: 'flooded-street', ages: [25, 53], category: 'community', probability: .19, text: 'Heavy rain flooded the nearest bus stop. Our street shared updates until the water subsided.', effects: { stress: 4, reputation: 1 } },
   { id: 'old-injury', ages: [31, 57], category: 'health', probability: .24, modifier: (life) => life.character.attributes.athleticism >= 65 ? 1.4 : 1, text: 'A sore knee made me slow down and change how I exercise.', effects: { athleticism: -3, health: -3 } },

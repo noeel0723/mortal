@@ -175,6 +175,7 @@ export function financeOverview(life: Life, year: number) {
     { label: 'Income tax', value: money(Math.abs(totals.get('tax') ?? 0)) },
     { label: 'Living expenses paid', value: money(Math.abs(livingCategories.reduce((sum, category) => sum + (totals.get(category) ?? 0), 0))) },
     { label: 'Tuition paid', value: money(Math.abs(totals.get('tuition') ?? 0)) },
+    ...(totals.has('medical') ? [{ label: 'Doctor visits', value: money(Math.abs(totals.get('medical')!)) }] : []),
     { label: 'Scholarships', value: money(totals.get('scholarship') ?? 0) },
     { label: 'Net savings', value: money(net) },
     { label: 'Outstanding living bills', value: money(outstanding(life)) },

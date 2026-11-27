@@ -3,7 +3,7 @@ import { eventById } from '../src/data/events.ts';
 import { createLife } from '../src/engine/create.ts';
 import { incomeTax } from '../src/engine/finance.ts';
 import { advance } from '../src/engine/simulation.ts';
-import { saveSlot, startBrowser, url } from './browserTestSupport.mjs';
+import { acknowledgeEvents, saveSlot, startBrowser, url } from './browserTestSupport.mjs';
 
 const slotId = 'career-browser-test';
 
@@ -17,7 +17,7 @@ function olderStudent() {
     life = result.life;
   }
   Object.assign(life.character.attributes, { smarts: 95, discipline: 95, charisma: 95, health: 95 });
-  return { ...life, version: 3, career: undefined, finance: undefined };
+  return { ...life, version: 3, career: undefined, finance: undefined, illnesses: undefined, notices: undefined };
 }
 
 const browser = await startBrowser();
@@ -43,8 +43,10 @@ try {
   await click('Continue Life');
   await click('Age Up');
   await click('Enter the Workforce');
+  await page.locator('dialog[data-life-event="decision-graduation-plan"]').waitFor({ state: 'hidden' });
+  await acknowledgeEvents(page);
   const migrated = await read();
-  assert.equal(migrated.version, 4);
+  assert.equal(migrated.version, 5);
   assert.deepEqual(migrated.character.appearance, appearance);
   assert.ok(migrated.academic.qualifications.some(({ level }) => level === 'high-school'));
   await click('Career');
@@ -60,6 +62,8 @@ try {
   await click('Records Clerk');
   await page.getByText('high-school', { exact: true }).waitFor();
   await click('Apply for Job');
+  await page.getByRole('dialog', { name: 'Job Offer' }).waitFor();
+  await acknowledgeEvents(page);
   await click('Accept Offer');
   await button('Records Clerk').waitFor();
   assert.equal(await page.getByText('Annual gross salary', { exact: true }).count(), 0);
@@ -98,8 +102,7 @@ try {
   await click('Close Career');
   await click('Age Up');
   await page.locator('.profile-identity p').filter({ hasText: 'Age 19 ·' }).waitFor();
-  const decision = page.locator('.decision button').first();
-  if (await decision.count()) await decision.click();
+  await acknowledgeEvents(page, true);
   life = await read();
   assert.deepEqual(life.transactions.filter(({ category }) => category === 'salary').map(({ amount }) => amount), [gross]);
   assert.equal(life.transactions.find(({ category }) => category === 'tax').amount, -incomeTax(gross));

@@ -6,6 +6,7 @@ import { befriendIssue, friendshipEnergyCost, talkIssue } from './engine/simulat
 import { canMakeFriend, isWorkContact } from './engine/workplace.ts';
 import type { Action, Contact, Life } from './engine/types.ts';
 import { money } from './i18n/en.ts';
+import { profileHealthRows } from './healthView.ts';
 import type { Emoji } from './theme/tokens.ts';
 
 const presentation: Record<RelationshipActivity, { label: string; icon: Emoji; detail: string }> = {
@@ -30,7 +31,7 @@ export function contactRole(person: Contact) {
   return 'friend' in person && person.friend ? 'Friend' : person.role;
 }
 
-export function contactProfileRows(person: Contact) {
+export function contactProfileRows(life: Life, person: Contact) {
   return [
     { label: 'Relationship', value: contactRole(person) },
     { label: person.alive ? 'Age' : 'Age at death', value: person.age },
@@ -39,6 +40,7 @@ export function contactProfileRows(person: Contact) {
     { label: 'Occupation', value: person.occupation },
     ...(isWorkContact(person) ? [{ label: 'Employer', value: employerById.get(person.employerId)?.name ?? person.employerId }] : []),
     { label: 'Health', value: `${person.health}%` },
+    ...profileHealthRows(life, person.id),
   ];
 }
 
@@ -51,7 +53,7 @@ type InteractionRow = { label: string; icon: Emoji; detail: string; issue: strin
 export function contactInteractions(life: Life, person: Contact) {
   const group = contactGroup(person);
   const blocked = life.character.causeOfDeath ? 'This life has already ended.' :
-    life.pending ? 'Resolve the open decision in your journal.' : null;
+    life.pending ? 'Resolve the pending decision first.' : null;
   const rows: InteractionRow[] = [];
   if ('friend' in person && canMakeFriend(person) && !person.friend) {
     rows.push({ label: 'Become Friends', icon: 'relationships', detail: `Uses ${friendshipEnergyCost} energy. Adds them to Relationships.`,

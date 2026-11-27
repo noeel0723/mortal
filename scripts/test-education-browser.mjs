@@ -3,7 +3,7 @@ import { eventById } from '../src/data/events.ts';
 import { createLife } from '../src/engine/create.ts';
 import { currentClass } from '../src/engine/school.ts';
 import { advance } from '../src/engine/simulation.ts';
-import { saveSlot, startBrowser, url } from './browserTestSupport.mjs';
+import { acknowledgeEvents, saveSlot, startBrowser, url } from './browserTestSupport.mjs';
 const slotId = 'education-browser-test';
 
 function act(life, action) {
@@ -22,7 +22,7 @@ function olderSave() {
     if (age >= 6) life = act(life, { type: 'activity', activity: 'study' });
     if (age === 6) life = act(life, { type: 'befriend', person: currentClass(life).find(({ role }) => role === 'Classmate').id });
   }
-  return { ...life, academic: undefined, career: undefined, finance: undefined, version: 1 };
+  return { ...life, academic: undefined, career: undefined, finance: undefined, illnesses: undefined, notices: undefined, version: 1 };
 }
 
 const browser = await startBrowser();
@@ -65,16 +65,20 @@ try {
   await page.reload();
   await button('Apply to University').waitFor();
   const migrated = await read();
-  assert.equal(migrated.version, 4);
+  assert.equal(migrated.version, 5);
   assert.equal(migrated.pending, 'graduation-plan');
   assert.equal(migrated.academic.qualifications[0].title, 'High School Diploma');
   assert.equal(migrated.schoolContacts.find(({ friend }) => friend).id, oldFriend.id);
   await click('Apply to University');
+  await page.locator('dialog[data-life-event="decision-graduation-plan"]').waitFor({ state: 'hidden' });
+  await acknowledgeEvents(page);
   await click('Career');
   await click('View Education');
   await click('Browse Programs');
   await click('Education');
   await click('Apply to Program');
+  await page.getByRole('dialog', { name: 'Admission Offer' }).waitFor();
+  await acknowledgeEvents(page);
   await click('Apply for Scholarship');
   await click('Enroll in Program');
   await heading('University').waitFor();
@@ -111,8 +115,7 @@ try {
   for (let years = 1; years <= 3; years++) {
     await click('Age Up');
     await page.locator('.profile-identity p').filter({ hasText: `Age ${18 + years} ·` }).waitFor();
-    const decision = page.locator('.decision button').first();
-    if (await decision.count()) await decision.click();
+    await acknowledgeEvents(page, true);
     if (years < 3) await new Promise((resolve) => setTimeout(resolve, 375));
   }
   await click('Family');

@@ -1,7 +1,9 @@
 import { useEffect, useId, useRef } from 'react';
 import type { ReactNode } from 'react';
 
-export function DetailDialog({ title, onDismiss, children }: { title: string; onDismiss: () => void; children: ReactNode }) {
+export function DetailDialog({ title, onDismiss, children, eventKey }: {
+  title: string; onDismiss?: () => void; children: ReactNode; eventKey?: string;
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const id = useId();
@@ -18,16 +20,16 @@ export function DetailDialog({ title, onDismiss, children }: { title: string; on
     };
   }, []);
 
-  return <dialog ref={dialog} className="detail-dialog" aria-labelledby={id}
-    onCancel={(event) => { event.preventDefault(); onDismiss(); }}
+  return <dialog ref={dialog} className={`detail-dialog${eventKey ? ' event-dialog' : ''}`} data-life-event={eventKey} aria-labelledby={id}
+    onCancel={(event) => { event.preventDefault(); onDismiss?.(); }}
     onClick={(event) => {
       if (event.target !== event.currentTarget) return;
       const { left, right, top, bottom } = event.currentTarget.getBoundingClientRect();
-      if (event.clientX < left || event.clientX > right || event.clientY < top || event.clientY > bottom) onDismiss();
+      if (event.clientX < left || event.clientX > right || event.clientY < top || event.clientY > bottom) onDismiss?.();
     }}>
     <header className="detail-dialog-header">
       <h2 id={id} ref={heading} tabIndex={-1}>{title}</h2>
-      <button type="button" aria-label={`Close ${title}`} onClick={onDismiss}>×</button>
+      {onDismiss && <button type="button" aria-label={`Close ${title}`} onClick={onDismiss}>×</button>}
     </header>
     <div className="detail-dialog-body">{children}</div>
   </dialog>;

@@ -8,6 +8,7 @@ import { contactBondRows, contactInteractions, contactProfileRows, contactRole }
 import { genderLabels } from '../../src/data/veyra';
 import { educationStatus } from '../../src/engine/academics';
 import { findContact } from '../../src/engine/school';
+import { profileHealthRows } from '../../src/healthView';
 import { useGame } from '../../src/stores/game';
 import { space } from '../../src/theme/tokens';
 
@@ -29,6 +30,7 @@ export default function Person() {
       <DataRow label="Gender identity" value={genderLabels[character.gender]} />
       <DataRow label="Birth city" value={character.city} />
       <DataRow label="Education" value={educationStatus(life)} />
+      {profileHealthRows(life).map((row) => <DataRow key={row.label} {...row} />)}
     </Section>
   </Page>;
   const person = findContact(life, id);
@@ -51,7 +53,7 @@ export default function Person() {
             <Portrait appearance={person.appearance} age={person.age} size={52} label={`Portrait of ${person.name}`} />
             <View style={styles.name}><Text style={shared.strong}>{person.name}</Text><Text style={shared.small}>{contactRole(person)}</Text></View>
           </View>
-          {contactProfileRows(person).map((row) => <DataRow key={row.label} {...row} />)}
+          {contactProfileRows(life, person).map((row) => <DataRow key={row.label} {...row} />)}
           <Section title="Your bond">{contactBondRows(person).map((row) => <DetailMeter key={row.label} {...row} />)}</Section>
         </DetailModal>
       </> : <Text style={shared.body}>This person couldn’t be found.</Text>}

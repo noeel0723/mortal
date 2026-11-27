@@ -1,6 +1,7 @@
 import { employerById, employers } from '../data/employers.ts';
 import { jobById, jobs } from '../data/jobs.ts';
 import type { Job } from '../data/jobs.ts';
+import { recordNotice } from './eventNotices.ts';
 import { clamp, record } from './journal.ts';
 import { seededRandom } from './random.ts';
 import { ensureWorkplace } from './workplace.ts';
@@ -71,7 +72,7 @@ export function careerActionIssue(life: Life, action: CareerAction) {
   const { career, character } = life;
   const current = career.current;
   if (character.causeOfDeath) return 'This life has already ended.';
-  if (life.pending) return 'Resolve the open decision in your journal.';
+  if (life.pending) return 'Resolve the pending decision first.';
   if (character.age < workAge) return `Work becomes available at age ${workAge}.`;
   if (career.retiredYear !== null) return 'You have retired.';
   if (action.type === 'retire') return character.age < retirementAge ? `Retirement opens at age ${retirementAge}.` : null;
@@ -146,7 +147,7 @@ function requestRaise(life: Life, current: CurrentJob) {
     current.performance >= 55 && random.next() * 100 < chance;
   life.random = random.state;
   if (approved) salaryChange(current, life.year, Math.min(job.salary[1], current.salary + Math.max(100, Math.round(current.salary * .055))), 'raise');
-  record(life, 'career', approved ? `My raise request at ${employer.name} was approved.` : `My raise request at ${employer.name} was declined.`,
+  recordNotice(life, 'career', 'Raise Request', approved ? `My raise request at ${employer.name} was approved.` : `My raise request at ${employer.name} was declined.`,
     { happiness: approved ? 3 : -2 });
 }
 
@@ -175,7 +176,7 @@ export function performCareerAction(life: Life, action: CareerAction) {
       if (!career.current) career.seeking = true;
       career.applications.push({ id: vacancy.id, jobId: vacancy.job.id, employerId: vacancy.employer.id,
         salary: vacancy.salary, year: life.year, result: reason ? 'ineligible' : accepted ? 'offered' : 'rejected', ...(reason ? { reason } : {}) });
-      record(life, 'career', reason ? `I was ineligible for ${vacancy.job.title}. ${reason}` :
+      recordNotice(life, 'career', accepted ? 'Job Offer' : 'Job Application', reason ? `I was ineligible for ${vacancy.job.title}. ${reason}` :
         accepted ? `I received an offer for ${vacancy.job.title} at ${vacancy.employer.name}.` :
           `My application for ${vacancy.job.title} at ${vacancy.employer.name} was declined.`);
     } else {
@@ -237,8 +238,8 @@ export function advanceCareer(life: Life, random: ReturnType<typeof seededRandom
     current.review = 'warning';
     if (current.warnings >= 2) {
       endEmployment(life, 'dismissed');
-      record(life, 'career', `I was dismissed from ${employer.name} after poor performance reviews.`, { happiness: -8, stress: 8 });
-    } else record(life, 'career', `I received a performance warning at ${employer.name}.`, { stress: 4 });
+      recordNotice(life, 'career', 'Dismissal', `I was dismissed from ${employer.name} after poor performance reviews.`, { happiness: -8, stress: 8 });
+    } else recordNotice(life, 'career', 'Performance Warning', `I received a performance warning at ${employer.name}.`, { stress: 4 });
     return;
   }
   current.warnings = 0;
@@ -250,7 +251,7 @@ export function advanceCareer(life: Life, random: ReturnType<typeof seededRandom
     current.hours = promotion.hours;
     current.review = 'promoted';
     salaryChange(current, life.year, Math.min(promotion.salary[1], Math.max(promotion.salary[0], Math.round(current.salary * 1.10))), 'promotion');
-    record(life, 'career', `I was promoted to ${promotion.title} at ${employer.name}.`, { happiness: 6 });
+    recordNotice(life, 'career', 'Promotion', `I was promoted to ${promotion.title} at ${employer.name}.`, { happiness: 6 });
   } else record(life, 'career', `My performance review at ${employer.name} was ${current.review === 'strong' ? 'strong' : 'steady'}.`);
 }
 

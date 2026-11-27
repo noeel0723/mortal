@@ -3,12 +3,11 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { FlatList, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { BrandMark } from '../../src/components/brand';
 import { CharacterCard } from '../../src/components/character';
-import { ActionButton, shared } from '../../src/components/ui';
-import { eventById } from '../../src/data/events';
+import { ActionButton } from '../../src/components/ui';
 import type { JournalEntry } from '../../src/engine/types';
 import { en, money, statLabels } from '../../src/i18n/en';
 import { useGame } from '../../src/stores/game';
-import { colors, radius, space } from '../../src/theme/tokens';
+import { colors, space } from '../../src/theme/tokens';
 
 function groupJournal(journal: readonly JournalEntry[]) {
   const groups: { age: number; events: JournalEntry[] }[] = [];
@@ -23,7 +22,7 @@ function groupJournal(journal: readonly JournalEntry[]) {
 const emptyJournal: JournalEntry[] = [];
 
 export default function Journal() {
-  const { slot, busy, dispatch, clearMessage } = useGame();
+  const { slot, clearMessage } = useGame();
   const { fontScale, height } = useWindowDimensions();
   const scrollHeader = fontScale >= 1.4 || height < 550;
   const groups = useMemo(() => groupJournal(slot?.life.journal ?? emptyJournal), [slot?.life.journal]);
@@ -45,7 +44,6 @@ export default function Journal() {
   if (!slot) return null;
   const life = slot.life;
   const ending = !!life.character.causeOfDeath;
-  const pending = life.pending ? eventById.get(life.pending) : undefined;
   const header = (
     <>
       <CharacterCard life={life} openProfile={() => router.push({ pathname: '/game/person', params: { id: 'self' } })} />
@@ -93,18 +91,7 @@ export default function Journal() {
             </View>
           </View>
         )}
-        ListFooterComponent={
-          pending?.choices ? (
-            <View style={styles.decision}>
-              <Text accessibilityRole="header" style={shared.strong}>What will you do?</Text>
-              <Text style={shared.body}>{pending.text}</Text>
-              {pending.choices.map((choice) => (
-                <ActionButton key={choice.id} icon={choice.emoji} label={choice.label} disabled={busy}
-                  onPress={() => void dispatch({ type: 'choose', event: pending.id, choice: choice.id })} testID={`choice-${choice.id}`} />
-              ))}
-            </View>
-          ) : ending ? <ActionButton icon="history" label="Life Summary" onPress={() => router.push('/game/summary')} /> : undefined
-        }
+        ListFooterComponent={ending ? <ActionButton icon="history" label="Life Summary" onPress={() => router.push('/game/summary')} /> : undefined}
       />
     </View>
   );
@@ -128,5 +115,4 @@ const styles = StyleSheet.create({
   entry: { gap: 3 },
   entryText: { color: colors.ink, fontSize: 14, lineHeight: 21 },
   changes: { color: colors.muted, fontSize: 12, lineHeight: 18, fontVariant: ['tabular-nums'] },
-  decision: { gap: space.sm, padding: space.md, borderWidth: 1, borderRadius: radius.md, borderColor: colors.blueRule, backgroundColor: colors.softBlue },
 });

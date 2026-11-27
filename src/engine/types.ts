@@ -3,6 +3,7 @@ import type { Appearance, AppearanceChoices, HairChoice } from './appearance.ts'
 import type { RelationshipActivity } from './interactions.ts';
 import type { CareerAction, CareerEffect, CareerState, WorkContact } from './careerTypes.ts';
 import type { FinanceState, Transaction } from './financeTypes.ts';
+import type { IllnessCase, IllnessId } from './healthTypes.ts';
 
 export const stats = ['health', 'happiness', 'smarts', 'looks', 'charisma', 'discipline', 'athleticism', 'creativity', 'stress', 'energy', 'reputation'] as const;
 export type Stat = typeof stats[number];
@@ -78,6 +79,7 @@ export type LifeEvent = {
   ages: readonly [number, number];
   probability: number;
   text: string;
+  illness?: IllnessId;
   effects?: Effect;
   careerEffects?: CareerEffect;
   eligible?: (life: Life) => boolean;
@@ -86,7 +88,7 @@ export type LifeEvent = {
 };
 
 export type Life = {
-  version: 4;
+  version: 5;
   seed: number;
   random: number;
   character: Character;
@@ -97,6 +99,8 @@ export type Life = {
   career: CareerState;
   finance: FinanceState;
   journal: JournalEntry[];
+  notices: { entry: number; title: string }[];
+  illnesses: IllnessCase[];
   seen: string[];
   pending: string | null;
   scheduled: { year: number; text: string; effects: Effect }[];
@@ -107,6 +111,8 @@ export type Life = {
 export type Action =
   | { type: 'age' }
   | { type: 'choose'; event: string; choice: string }
+  | { type: 'acknowledge-event'; entry: number }
+  | { type: 'doctor'; patient: string }
   | { type: 'activity'; activity: 'read' | 'rest' | 'walk' | 'study' | 'library' | 'socialize' | 'extracurricular' | 'academic-talk' | 'exams' }
   | { type: 'talk'; person: string }
   | { type: 'befriend'; person: string }

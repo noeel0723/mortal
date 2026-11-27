@@ -7,6 +7,7 @@ import { academicActionIssue, isTuitionDue, latestApplication } from '../src/eng
 import { careerActionIssue, jobRequirementsIssue, vacancies } from '../src/engine/career.ts';
 import { createLife } from '../src/engine/create.ts';
 import { incomeTax, outstanding } from '../src/engine/finance.ts';
+import { doctorIssue } from '../src/engine/health.ts';
 import { relationshipIssue } from '../src/engine/interactions.ts';
 import { isSchoolStage } from '../src/engine/school.ts';
 import { activityIssue, advance, maxAge } from '../src/engine/simulation.ts';
@@ -36,6 +37,8 @@ let professionalHires = 0;
 let vocationalHires = 0;
 let promotions = 0;
 let dismissals = 0;
+let treatedCases = 0;
+let noticesReviewed = 0;
 const plans: Record<string, number> = {};
 const qualifications: Record<string, number> = {};
 const schoolwork = ['study', 'exams', 'socialize'] as const;
@@ -147,6 +150,17 @@ for (let seed = 1; seed <= count; seed++) {
       decisions++;
     }
     if (!life.character.causeOfDeath) life = employmentChoice(educationChoice(life, seed), seed);
+    if (!life.character.causeOfDeath && seed % 2 === 0) {
+      const patient = life.illnesses.find(({ patient }) => !doctorIssue(life, patient));
+      if (patient) {
+        life = apply(life, { type: 'doctor', patient: patient.patient });
+        treatedCases++;
+      }
+    }
+    for (const notice of life.notices) {
+      life = apply(life, { type: 'acknowledge-event', entry: notice.entry });
+      noticesReviewed++;
+    }
     assert.equal(life.year, life.character.birthYear + life.character.age);
     assert.ok(Object.values(life.character.attributes).every((value) => Number.isInteger(value) && value >= 0 && value <= 100));
     assert.ok(life.family.every((person) => person.age <= maxAge && Object.values(person.bond).every((value) => value >= 0 && value <= 100)));
@@ -161,7 +175,8 @@ for (let seed = 1; seed <= count; seed++) {
       assert.ok(Object.values(life.finance.arrears).every((amount) => Number.isSafeInteger(amount) && amount >= 0));
     }
     if (seed % 47 === 0 && life.character.age === 17) {
-      assert.deepEqual(decodeLife(JSON.stringify({ ...life, version: 3, career: undefined, finance: undefined })), life);
+      const legacy = { ...life, version: 3, career: undefined, finance: undefined, illnesses: undefined, notices: undefined };
+      assert.deepEqual(decodeLife(JSON.stringify(legacy)), { ...life, illnesses: [], notices: [] });
     }
     const enrollment = life.academic.enrollment;
     if (enrollment) {
@@ -245,4 +260,6 @@ console.log(JSON.stringify({
   vocationalHires,
   promotions,
   dismissals,
+  treatedCases,
+  noticesReviewed,
 }, null, 2));

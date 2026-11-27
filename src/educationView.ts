@@ -92,7 +92,7 @@ export function academicActivities(life: Life): EducationControl[] {
   ] as const;
   return entries.filter(({ activity }) => school || (activity !== 'library' && activity !== 'extracurricular')).map(({ activity, label, icon, detail }) => ({
     label, icon, action: { type: 'activity', activity },
-    issue: life.pending ? 'Resolve your pending decision in the journal first.' :
+    issue: life.pending ? 'Resolve the pending decision first.' :
       life.character.causeOfDeath ? 'This life has already ended.' : activityIssue(life, activity),
     detail: `${activities[activity].energy} energy · ${detail}`,
   }));

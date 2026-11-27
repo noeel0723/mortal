@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
-import { eventById } from '../src/data/events';
+import { eventPopup } from '../src/eventView';
 import { educationStatus } from '../src/engine/academics';
 import { findContact, isSchoolStage } from '../src/engine/school';
 import type { Character, JournalEntry, Life, Stat } from '../src/engine/types';
@@ -9,7 +9,8 @@ import type { Emoji } from '../src/theme/tokens';
 import { useGame } from './browserStore';
 import { PlayPage, PlayPageHeader, backgroundPage } from './playPages';
 import type { GamePage, Navigate } from './playPages';
-import { Button, Feedback } from './ui';
+import { Button, Feedback, Icon } from './ui';
+import { DetailDialog } from './detailDialog';
 import { Portrait } from './portraits';
 
 const primaryStats = ['happiness', 'health', 'smarts', 'looks'] as const;
@@ -54,15 +55,12 @@ function LifeStats({ character, go }: { character: Character; go: Navigate }) {
 }
 
 function Journal({ life, go }: { life: Life; go: Navigate }) {
-  const { busy, dispatch } = useGame();
   const groups = new Map<number, JournalEntry[]>();
   for (const entry of life.journal) {
     const entries = groups.get(entry.age);
     if (entries) entries.push(entry);
     else groups.set(entry.age, [entry]);
   }
-  const latestId = life.pending;
-  const pending = latestId ? eventById.get(latestId) : undefined;
   return (
     <section className="journal" aria-labelledby="journal-heading">
       <header className="journal-header">
@@ -79,7 +77,7 @@ function Journal({ life, go }: { life: Life; go: Navigate }) {
             {entries.map((entry, index) => {
               const changes = Object.entries(entry.changes);
               return <article className="timeline-event" key={index}>
-                <p id={pending?.text === entry.text ? 'pending-event' : undefined}>{entry.text}</p>
+                <p>{entry.text}</p>
                 {changes.length > 0 && <div className="event-changes">{changes.map(([stat, amount]) =>
                   <span key={stat}>{stat === 'bank' ? `${amount > 0 ? '+' : ''}${money(amount)}` : `${statLabels[stat as Stat]} ${amount > 0 ? '+' : ''}${amount}`}</span>
                 )}</div>}
@@ -88,11 +86,6 @@ function Journal({ life, go }: { life: Life; go: Navigate }) {
           </section>
         ))}
       </div>
-      {pending && pending.choices && <section className="decision" aria-labelledby="decision-heading" aria-describedby="pending-event">
-        <h2 id="decision-heading">What will you do?</h2>
-        <div className="decision-actions">{pending.choices.map((choice) => <Button key={choice.id} icon={choice.emoji} disabled={busy}
-          onClick={() => void dispatch({ type: 'choose', event: pending.id, choice: choice.id })}>{choice.label}</Button>)}</div>
-      </section>}
       {life.character.causeOfDeath && <div className="journal-footer">
         <Button icon="history" onClick={() => go('summary')}>Life Summary</Button>
       </div>}
@@ -131,6 +124,8 @@ export function Play({ life, page, personId, go, home, newLife }: {
   const isJournal = page === 'journal';
   const schoolTitle = life.academic.enrollment ? educationTab(life) : undefined;
   const person = findContact(life, personId);
+  const popup = eventPopup(life);
+  const dismiss = popup?.dismiss;
   return (
     <main className="game" id="main">
       <Profile life={life} open={() => go('player-profile')} />
@@ -139,13 +134,12 @@ export function Play({ life, page, personId, go, home, newLife }: {
         aria-label={isJournal ? 'Journal entries' : undefined} aria-labelledby={isJournal ? undefined : 'play-page-title'}>
         {isJournal ? <Journal life={life} go={go} /> :
           <PlayPage life={life} page={page} person={person} detail={personId} go={go} home={home} newLife={newLife} />}
-        {life.pending && !isJournal && <Button className="game-message" icon="life" onClick={() => go('journal')}>Resolve decision in journal</Button>}
-        {page !== 'settings' && <Feedback error={problem} notice={notice} />}
+        {page !== 'settings' && !popup && <Feedback error={problem} notice={notice} />}
       </div>
       {isJournal && !life.character.causeOfDeath && <nav className="bottom-nav" aria-label="Life actions">
         {navigation.map((item) => {
           if (item.page === 'age') return <Button key={item.page} icon={item.icon} kind="primary" className="age-button"
-            disabled={busy || !!life.pending} onClick={() => void age()}>{item.label}</Button>;
+            disabled={busy || !!popup} onClick={() => void age()}>{item.label}</Button>;
           const isSchool = item.page === 'career' && !!schoolTitle;
           const destination = isSchool ? 'education' : item.page;
           return <Button key={item.page} icon={isSchool ? 'school' : item.icon} kind="quiet"
@@ -153,6 +147,17 @@ export function Play({ life, page, personId, go, home, newLife }: {
         })}
       </nav>}
       {isJournal && <LifeStats character={life.character} go={go} />}
+      {popup && <DetailDialog key={popup.key} eventKey={popup.key} title={popup.title}
+        onDismiss={dismiss ? () => { if (!busy) void dispatch(dismiss); } : undefined}>
+        <div className="event-category"><Icon name={popup.category.icon} />{popup.category.label}</div>
+        <p className="event-story">{popup.text}</p>
+        {!dismiss && <p className="event-question">What will you do?</p>}
+        <div className="event-options">{popup.actions.map(({ label, icon, action }) =>
+          <Button key={label} icon={icon} kind={dismiss ? 'primary' : 'plain'} disabled={busy}
+            onClick={() => void dispatch(action)}>{label}</Button>)}
+        </div>
+        <Feedback error={problem} />
+      </DetailDialog>}
     </main>
   );
 }

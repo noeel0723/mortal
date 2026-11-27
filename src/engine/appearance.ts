@@ -73,7 +73,7 @@ export function canEditFace(age: number) {
 
 export function appearanceIssue(life: Life, hairOnly: boolean) {
   if (life.character.causeOfDeath) return 'This life has already ended.';
-  if (life.pending) return 'Resolve your pending decision in the journal first.';
+  if (life.pending) return 'Resolve the pending decision first.';
   if (!hairOnly && !canEditFace(life.character.age)) return 'Facial features can only be edited before the first Age Up.';
   return null;
 }
