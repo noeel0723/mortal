@@ -1,4 +1,5 @@
 import type { LifeEvent } from '../engine/types.ts';
+import { libraryEvents } from './libraryEvents.ts';
 import { playerPatient } from '../engine/healthTypes.ts';
 import { careerEvents } from './careerEvents.ts';
 
@@ -100,4 +101,4 @@ export const events: readonly LifeEvent[] = [
   ...careerEvents,
 ];
 
-export const eventById = new Map(events.map((event) => [event.id, event]));
+export const eventById = new Map([...events, ...libraryEvents].map((event) => [event.id, event]));

@@ -6,7 +6,7 @@ import { useGame } from '../../src/stores/game';
 export default function Relationships() {
   const life = useGame((state) => state.slot?.life);
   if (!life) return null;
-  const friends = [...life.schoolContacts, ...life.career.contacts].filter((person) => person.friend);
+  const friends = [...life.communityFriends, ...life.schoolContacts, ...life.career.contacts].filter((person) => person.friend);
   return (
     <Page inGame>
       <Heading title="Relationships" back={() => router.dismissTo('/game')} />

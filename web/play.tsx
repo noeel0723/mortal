@@ -129,7 +129,7 @@ export function Play({ life, page, personId, go, home, newLife }: {
   return (
     <main className="game" id="main">
       <Profile life={life} open={() => go('player-profile')} />
-      {visiblePage !== 'journal' && <PlayPageHeader page={visiblePage} person={person} schoolTitle={schoolTitle} go={go} />}
+      {visiblePage !== 'journal' && <PlayPageHeader page={visiblePage} person={person} schoolTitle={schoolTitle} detail={personId} go={go} />}
       <div className={`game-content${isJournal ? '' : ' game-content--page'}`} ref={viewport} tabIndex={0} role="region"
         aria-label={isJournal ? 'Journal entries' : undefined} aria-labelledby={isJournal ? undefined : 'play-page-title'}>
         {isJournal ? <Journal life={life} go={go} /> :

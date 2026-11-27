@@ -46,7 +46,7 @@ test('player illnesses persist with severity and paid visits reconcile without c
   assert.equal(treated.transactions.at(-1)?.category, 'medical');
   assert.equal(activeIllness(treated)?.level, 'moderate');
   assert.equal(activeIllness(restored)?.level, 'severe');
-  assert.match(healthcareQuote(treated, communityVisit()).issue ?? '', /already had a visit/);
+  assert.match(healthcareQuote(treated, communityVisit()).issue ?? '', /balance/);
   assert.equal(treated.notices.at(-1)?.title, 'Doctor Visit');
 });
 
@@ -82,7 +82,7 @@ test('minors receive free self care while accompanying relatives or friends requ
   assert.equal(treatedParent.character.bank, 350);
 });
 
-test('an NPC can seek care alone and cannot be treated twice in the same year', () => {
+test('an NPC can seek care alone and can receive follow-up care that year', () => {
   const life = atAge(30);
   const parent = life.family[0]!;
   startIllness(life, 'pneumonia', parent);
@@ -95,7 +95,7 @@ test('an NPC can seek care alone and cannot be treated twice in the same year', 
   assert.equal(life.character.bank, balance);
   assert.match(life.journal[life.notices.find(({ title }) => title === 'Doctor Visit')!.entry]?.text ?? '', /on their own/);
   postTransaction(life, 'Wages', 2000, 'salary');
-  assert.match(healthcareQuote(life, communityVisit(parent.id)).issue ?? '', /already had a visit/);
+  assert.equal(healthcareQuote(life, communityVisit(parent.id)).issue, null);
 });
 
 test('doctor reputation increases both the fee and the actual chance of improvement', () => {
@@ -114,7 +114,7 @@ test('doctor reputation increases both the fee and the actual chance of improvem
   assert.equal(activeIllness(low)?.level, 'severe');
   assert.match(low.journal.at(-1)!.text, /remained unchanged/);
   assert.equal(low.transactions.at(-1)?.amount, -1600);
-  assert.match(healthcareQuote(low, options[2]!.visit).issue ?? '', /already had a visit/);
+  assert.match(healthcareQuote(low, options[2]!.visit).issue ?? '', /balance/);
   assert.equal(activeIllness(high)?.level, 'moderate');
   assert.equal(high.transactions.at(-1)?.amount, -3200);
   assert.equal(low.random, high.random);
@@ -148,10 +148,12 @@ test('psychiatry and donations apply service-specific conditions, effects, and f
   assert.equal(session.character.attributes.stress, 27);
   assert.equal(session.character.bank, 0);
   const donated = apply(session, { type: 'healthcare', visit: { service: 'donate-plasma' } });
-  assert.equal(donated.character.attributes.energy, 80);
+  assert.equal(donated.character.attributes.energy, 100);
   assert.equal(donated.character.bank, 400);
   assert.equal(donated.transactions.at(-1)?.category, 'other');
-  assert.match(healthcareQuote(donated, { service: 'donate-blood' }).issue ?? '', /already made a donation/);
+  const repeated = apply(donated, { type: 'healthcare', visit: { service: 'donate-plasma' } });
+  assert.equal(repeated.character.bank, donated.character.bank);
+  assert.equal(repeated.character.attributes.energy, donated.character.attributes.energy);
   startIllness(session, 'cold');
   assert.match(healthcareQuote(session, { service: 'donate-blood' }).issue ?? '', /no active illness/);
 });
@@ -175,7 +177,7 @@ test('choice popups precede queued notices after reload and dismissing a notice 
   assert.match(advance(acknowledged, notice.actions[0]!.action).error ?? '', /no longer available/);
 });
 
-test('legacy V4 games preserve existing decisions and journal, and V5 rejects invalid references', () => {
+test('legacy V4 games preserve existing decisions and journal, and V6 rejects invalid references', () => {
   const life = apply(atAge(5), { type: 'age' });
   const restored = decodeLife(JSON.stringify({ ...life, version: 4, illnesses: undefined, notices: undefined }));
   assert.deepEqual(restored, { ...life, notices: [], illnesses: [] });

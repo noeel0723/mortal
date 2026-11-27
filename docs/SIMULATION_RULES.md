@@ -4,7 +4,7 @@
 - Age Up advances the year, ages living parents, resets energy and annual action usage, applies school and health progression, processes delayed effects, and checks contextual events. At most one new contextual event is triggered per year.
 - A mandatory decision blocks other simulation actions until resolved. Each contextual event can trigger once per life. Some events have guaranteed age milestones, and optional events use seeded probability with contextual conditions and modifiers.
 - Attributes and each relationship dimension stay between 0 and 100. The journal records the applied change after clamping. Balances use integer cents. Transactions account for every change to the bank balance.
-- Study, personal activities, and family conversations have age and energy requirements. Each eligible action can be used once per year. Parents age independently of these interactions.
+- School, career, and relationship actions retain their own requirements and annual limits. Personal activities can be repeated without spending energy. Parents age independently of these interactions.
 - Natural decline and seeded mortality can end a life in later years. The maximum age is 115. The final state retains its journal and can be opened from Saved Lives.
 
 ## Education
@@ -30,8 +30,14 @@
 
 - Age and health influence the seeded chance of new illness. One active case per patient can improve, persist, or worsen over later years. Untreated illness can lower health and the player's energy.
 - Each city has three doctors. Higher reputation carries a higher fee and a higher probability of successful treatment. Severity lowers that probability. Successful treatment clears a mild or moderate case and stabilizes a severe case to moderate. The selected fee is charged for the visit even if the case persists.
-- A physical care visit uses one annual slot per patient. Emergency care guarantees stabilization for a severe illness, and the optometrist treats eye strain. For players under 18, the community doctor, emergency care, and the optometrist are free. To accompany a living family member or friend, the player must have received salary and have enough cash. Visits that NPCs arrange independently do not charge the player.
-- Psychiatry reduces stress and improves happiness. Blood and plasma donations use energy and share one annual donation slot. Plasma pays a fixed amount that counts as other income in the ledger.
+- Health visits can repeat if the patient and balance still qualify. Emergency care guarantees stabilization for a severe illness, and the optometrist treats eye strain. For players under 18, the community doctor, emergency care, and the optometrist are free. To accompany a living family member or friend, the player must have received salary and have enough cash. Visits that NPCs arrange independently do not charge the player.
+- Psychiatry reduces stress and improves happiness. Eligible players can repeat blood and plasma donations without spending energy. The first plasma donation each year adds compensation to other income in the ledger.
 - Decisions block gameplay until answered. Informational pop-ups wait behind any decision and are acknowledged in journal order. Their journal entries remain available afterward.
 
 The headless runner varies education, employment, and doctor visits across seeded lives. It checks salary bounds, contract eligibility, ledger and tax reconciliation, unique payments, graduation dates, save round-trips, and termination.
+
+## Library and property
+
+- The first three library visits in a year can roll for an encounter, with at most one encounter that year. Shared-hobby encounters can add a friend and can happen again in a later year.
+- Renting, asking a parent for a home, and buying assets become available at 18. A housing request checks the parent's available funds and uses the relationship and seeded roll to determine consent. A gifted starter home becomes the player's residence automatically.
+- Each purchase debits the full in-game price and creates one owned item. Players can move into any house they own. The annual housing bill uses the current residence, from a family contribution or rent to maintenance for an owned home.

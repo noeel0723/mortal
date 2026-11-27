@@ -76,7 +76,7 @@ test('one turn advances the calendar and living parents without changing the pre
 });
 
 test('school progresses in order, and age limits govern activities', () => {
-  assert.match(advance(createLife(1), { type: 'activity', activity: 'read' }).error ?? '', /age 5/);
+  assert.match(advance(createLife(1), { type: 'activity', activity: 'go-to-library' }).error ?? '', /age 5/);
   assert.equal(ageTo(6).character.education, 'primary');
   assert.equal(ageTo(12).character.education, 'secondary');
   assert.equal(ageTo(15).character.education, 'high');
@@ -127,7 +127,7 @@ test('opening a legacy student save generates the current roster without losing 
   const life = ageTo(7);
   const legacy = JSON.stringify({ ...life, version: 1, academic: undefined, schoolContacts: undefined });
   const restored = decodeLife(legacy);
-  assert.equal(restored.version, 5);
+  assert.equal(restored.version, 6);
   assert.deepEqual(restored.schoolContacts, life.schoolContacts);
   assert.deepEqual(restored.character, life.character);
   assert.deepEqual(restored.journal, life.journal);
@@ -162,16 +162,18 @@ test('delayed consequences apply once in their scheduled year', () => {
 
 test('contextual events have unique IDs and honor city requirements', () => {
   assert.ok(events.length >= 50);
-  assert.equal(eventById.size, events.length);
+  assert.equal(new Set(events.map(({ id }) => id)).size, events.length);
+  assert.ok(events.every((event) => eventById.get(event.id) === event));
   assert.equal(eventById.get('harbor-walk')?.eligible?.(createLife(1, custom)), false);
   assert.equal(eventById.get('market-stall')?.eligible?.(createLife(1, custom)), true);
 });
 
-test('activity use is limited per year and energy resets on Age Up', () => {
+test('personal activities can repeat at zero energy, while energy still resets on Age Up', () => {
   const life = ageTo(5);
-  const after = apply(life, { type: 'activity', activity: 'read' });
-  assert.equal(after.character.attributes.energy, 90);
-  assert.match(advance(after, { type: 'activity', activity: 'read' }).error ?? '', /already done/i);
+  life.character.attributes.energy = 0;
+  const walk = { type: 'activity', activity: 'walk' } as const;
+  const after = apply(apply(life, walk), walk);
+  assert.equal(after.character.attributes.energy, 0);
   assert.equal(apply(after, { type: 'age' }).character.attributes.energy, 100);
 });
 

@@ -36,7 +36,7 @@ Use `npm run android` with a connected Android device or emulator. Use `npm run 
 
 1. Select **New Life** and choose **Random Life** or **Custom Life**.
 2. Tap **Age Up**. Answer any decision pop-up before advancing again.
-3. Try reading, resting, taking a walk, studying while in school, or talking to your family when those activities become available.
+3. Try visiting the library, resting, taking a walk, studying while in school, or talking to your family when those activities become available.
 4. Return to the welcome screen from the Life Menu. **Continue Life** opens the most recently saved slot. **Saved Lives** opens other slots and completed lives.
 
 Mortal saves successful turns and decisions before showing them. **Save Life** in the Life Menu also writes the current state manually.
@@ -54,7 +54,7 @@ Earlier academic grades from version 1 saves are unavailable. Qualifications now
 
 Use **Custom Life → Appearance** to choose a hairstyle, hair color, eyes, nose, and mouth. Random lives can use **Activities → Customize Appearance** at age zero. After the first **Age Up**, use **Activities → Change Hairstyle** to edit your hair. Tap your portrait in the journal for **My Profile**. When you open a contact from **Relationships** or **Class**, tap their name or portrait to see their profile and bond. Available interactions depend on the contact’s role and your age.
 
-Version 1 and 2 saves get stable portraits when they open. Saves from versions 1–4 retain their progress and upgrade on the next successful save. Adults coming from versions 1–3 start with a neutral career record.
+Version 1 and 2 saves get stable portraits when they open. Saves from versions 1–5 retain their progress and upgrade on the next successful save. Adults coming from versions 1–3 start with a neutral career record.
 
 ### Work and money
 
@@ -73,6 +73,12 @@ Veyra uses a fictional currency scale. Retirement living costs are funded from s
 - Successful treatment improves severe cases to moderate and clears mild and moderate cases. Emergency care guarantees stabilization for severe cases. The community doctor is free for players under 18. You can pay for a family member or friend after earning a salary if your balance covers the fee. NPCs can seek care independently.
 - Life events show as pop-ups and stay in the journal. Choose a response when an event calls for a decision. Use **Continue** to dismiss informational pop-ups. Open decisions and unread pop-ups persist when you reload.
 
+## Library, housing, and shopping
+
+- **Activities → Go to Library** is repeatable and can present an interactive encounter. Choose **Become Friends** at a shared-hobby encounter to add the character to **Relationships**. Personal activities and healthcare visits have no energy fee or yearly visit limit. The first plasma donation of the year is compensated.
+- From age 18, use **Assets → Housing** to rent, ask a parent for a starter home, or move into a house you own. A parent must be able to afford the home and agree to buy it.
+- **Assets → Shopping** offers ten houses, ten cars, and ten motorcycles with original pixel illustrations. Purchases use the in-game balance and appear in **Owned Assets** and **Finances**.
+
 ## Verify
 
 ```sh
@@ -86,7 +92,7 @@ npx expo install --check
 
 For a native smoke test, begin a random life, age to six, and exit with the first-day-of-school decision open. Force close and reopen the app, choose **Continue Life**, and verify the character, year, journal, and pending choice. Resolve the decision and confirm that Age Up becomes available. Repeat with a packaged build in airplane mode to verify offline use independently of Metro.
 
-For browser smoke tests, keep `npm run preview:web` running after building and install Playwright Core in the ignored tool directory with `npm install --prefix .expo/web-qa playwright-core`. Run `npm run test:web:education`, `npm run test:web:career`, and `npm run test:web:health` in another terminal. The tests use fresh browser contexts and Edge on Windows by default. Set `MORTAL_BROWSER_PATH` for a different Chromium executable.
+For browser smoke tests, keep `npm run preview:web` running after building and install Playwright Core in the ignored tool directory with `npm install --prefix .expo/web-qa playwright-core`. Run `npm run test:web:education`, `npm run test:web:career`, `npm run test:web:health`, and `npm run test:web:library-property` in another terminal. The tests use fresh browser contexts and Edge on Windows by default. Set `MORTAL_BROWSER_PATH` for a different Chromium executable.
 
 - [Game design](docs/GAME_DESIGN.md)
 - [Architecture](docs/ARCHITECTURE.md)

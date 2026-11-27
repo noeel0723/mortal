@@ -1,5 +1,6 @@
 import { eventById } from './data/events.ts';
 import { eventTitle } from './engine/eventNotices.ts';
+import { eventStory } from './engine/library.ts';
 import type { Action, Category, Life } from './engine/types.ts';
 import type { Emoji } from './theme/tokens.ts';
 
@@ -22,7 +23,7 @@ type EventPopup = {
 export function eventPopup(life: Life): EventPopup | undefined {
   const event = life.pending ? eventById.get(life.pending) : undefined;
   if (event?.choices?.length) return {
-    key: `decision-${event.id}`, title: eventTitle(event.id), text: event.text, category: categories[event.category],
+    key: `decision-${event.id}`, title: eventTitle(event.id), text: eventStory(life, event), category: categories[event.category],
     actions: event.choices.map((choice) => ({ label: choice.label, icon: choice.emoji,
       action: { type: 'choose', event: event.id, choice: choice.id } })),
   };

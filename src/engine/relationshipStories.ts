@@ -75,7 +75,12 @@ export function conversationStory(life: Life, person: Contact) {
       'the funniest thing we remember from our old break room',
     ];
     stories = topics.map((topic) => `I talked with ${person.name} about ${topic}.`);
-  } else if (!('stage' in person)) stories = parentConversation(life, person);
+  } else if ('hobby' in person) stories = [
+    `I talked with ${person.name} about ${person.hobby}, the hobby we bonded over at the library.`,
+    `I asked ${person.name} what they had been reading since we last met.`,
+    `I swapped library recommendations with ${person.name}.`,
+  ];
+  else if (!('stage' in person)) stories = parentConversation(life, person);
   else if (person.role === 'Teacher' || person.role === 'Professor') stories = teacherConversation(person);
   else {
     const topics = life.character.age < 12 ? [
@@ -111,7 +116,7 @@ export function timeTogetherStory(life: Life, person: Contact) {
       `I went for a walk with ${name} and we caught up on life since our days as co-workers.`,
       `I shared a picnic with ${name} and talked about the things we do outside work now.`,
     ];
-  } else if (!('stage' in person)) {
+  } else if (!('stage' in person) && !('hobby' in person)) {
     const parent = `my ${person.role.toLowerCase()}, ${name},`;
     stories = age < 6 ? [
       `I built a blanket fort with ${parent} and we read a story inside it.`,
@@ -140,5 +145,6 @@ export function timeTogetherStory(life: Life, person: Contact) {
       ...(age >= 18 ? [`I joined ${name} at a local café for a long catch-up.`] : []),
     ];
   }
+  if ('hobby' in person) stories.push(`I spent an afternoon ${person.hobby} with ${name}.`);
   return pickStory(life, person, 'together', stories);
 }

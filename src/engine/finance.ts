@@ -7,7 +7,7 @@ import type { Life } from './types.ts';
 
 export const financeLabels: Record<TransactionCategory, string> = {
   salary: 'Salary', tax: 'Income Tax', housing: 'Housing', 'food-utilities': 'Food & Utilities',
-  transport: 'Transportation', personal: 'Personal Expenses', tuition: 'Tuition', scholarship: 'Scholarships', medical: 'Doctor Visits', other: 'Other',
+  transport: 'Transportation', personal: 'Personal Expenses', tuition: 'Tuition', scholarship: 'Scholarships', medical: 'Doctor Visits', shopping: 'Asset Purchases', other: 'Other',
 };
 
 const housingCosts = { 'Alder Bay': 16400, Bellmere: 14500, Northwick: 12900 };
@@ -42,7 +42,8 @@ export function annualFinance(life: Life, elapsedAge: number) {
     if (tax) record(life, 'finance', 'I paid income tax on the year’s salary.', { bank: -tax }, 'tax');
   }
   const bills: Record<LivingCategory, number> = {
-    housing: housingCosts[life.character.city], 'food-utilities': 9600,
+    housing: Math.round(housingCosts[life.character.city] * (life.property.residence === 'family' ? .65 : life.property.residence === 'rent' ? 1 : .25)),
+    'food-utilities': 9600,
     transport: job ? 4000 : 2800, personal: 3200,
   };
   for (const category of livingCategories) {

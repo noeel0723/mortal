@@ -3,6 +3,7 @@ import { decodeLife } from '../src/database/codec.ts';
 import { programById, programs } from '../src/data/academics.ts';
 import { eventById } from '../src/data/events.ts';
 import { jobById } from '../src/data/jobs.ts';
+import { starterHome } from '../src/data/shops.ts';
 import { academicActionIssue, isTuitionDue, latestApplication } from '../src/engine/academics.ts';
 import { careerActionIssue, jobRequirementsIssue, vacancies } from '../src/engine/career.ts';
 import { createLife } from '../src/engine/create.ts';
@@ -10,6 +11,7 @@ import { incomeTax, outstanding } from '../src/engine/finance.ts';
 import { doctors } from '../src/data/doctors.ts';
 import { healthcareQuote } from '../src/engine/health.ts';
 import { relationshipIssue } from '../src/engine/interactions.ts';
+import { propertyIssue } from '../src/engine/property.ts';
 import { isSchoolStage } from '../src/engine/school.ts';
 import { activityIssue, advance, maxAge } from '../src/engine/simulation.ts';
 import { activeCoworkers } from '../src/engine/workplace.ts';
@@ -151,6 +153,22 @@ for (let seed = 1; seed <= count; seed++) {
       decisions++;
     }
     if (!life.character.causeOfDeath) life = employmentChoice(educationChoice(life, seed), seed);
+    if (!life.character.causeOfDeath && life.character.age >= 5 && life.character.age <= 25 && (seed + life.year) % 6 === 0) {
+      life = apply(life, { type: 'activity', activity: 'go-to-library' });
+      if (life.pending) {
+        const choice = eventById.get(life.pending)?.choices?.[0];
+        assert.ok(choice);
+        life = apply(life, { type: 'choose', event: life.pending, choice: choice.id });
+        decisions++;
+      }
+    }
+    if (life.character.age >= 18 && seed % 5 === 1) {
+      const buy = { type: 'buy-asset', id: starterHome.id } as const;
+      if (!propertyIssue(life, buy)) {
+        life = apply(life, buy);
+        life = apply(life, { type: 'move-into-home', id: starterHome.id });
+      }
+    }
     if (!life.character.causeOfDeath && seed % 2 === 0) {
       const provider = doctors[seed % doctors.length]!.id;
       const visit = life.illnesses.map(({ patient }) => ({ service: 'doctor', patient, provider }) as const)
@@ -178,8 +196,9 @@ for (let seed = 1; seed <= count; seed++) {
       assert.ok(Object.values(life.finance.arrears).every((amount) => Number.isSafeInteger(amount) && amount >= 0));
     }
     if (seed % 47 === 0 && life.character.age === 17) {
-      const legacy = { ...life, version: 3, career: undefined, finance: undefined, illnesses: undefined, notices: undefined };
-      assert.deepEqual(decodeLife(JSON.stringify(legacy)), { ...life, illnesses: [], notices: [] });
+      const legacy = { ...life, version: 3, career: undefined, finance: undefined, illnesses: undefined, notices: undefined,
+        property: undefined, communityFriends: undefined };
+      assert.deepEqual(decodeLife(JSON.stringify(legacy)), { ...life, illnesses: [], notices: [], communityFriends: [] });
     }
     const enrollment = life.academic.enrollment;
     if (enrollment) {

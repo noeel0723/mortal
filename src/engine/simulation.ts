@@ -1,4 +1,5 @@
 import { eventById, events } from '../data/events.ts';
+import { libraryFriendEvent } from '../data/libraryEvents.ts';
 import { advanceAcademics, chooseEducationPath, isTuitionDue, performAcademicAction } from './academics.ts';
 import { appearanceChanged, appearanceIssue, mergeAppearance, validFace, validHair } from './appearance.ts';
 import { advanceCareer, applyCareerEffect, closeCareerYear, endEmployment, performCareerAction, studyWorkload } from './career.ts';
@@ -8,6 +9,8 @@ import { advanceIllnesses, startIllness, visitHealthcare } from './health.ts';
 import { playerPatient } from './healthTypes.ts';
 import { contactIssue, performRelationshipActivity } from './interactions.ts';
 import { clamp, record } from './journal.ts';
+import { befriendLibraryGuest, visitLibrary } from './library.ts';
+import { applyPropertyAction, movingAge } from './property.ts';
 import { seededRandom } from './random.ts';
 import { conversationStory } from './relationshipStories.ts';
 import { advanceContactOccupation, currentClass, findContact, isPeer, isSchoolStage } from './school.ts';
@@ -18,9 +21,9 @@ export const maxAge = 115;
 export const friendshipEnergyCost = 6;
 
 export const activities = {
-  read: { age: 5, energy: 10, effects: { smarts: 3, happiness: 2 }, text: 'I spent an afternoon with a good book.' },
+  'go-to-library': { age: 5, effects: { smarts: 2, happiness: 1 }, text: 'I visited the public library and spent time browsing the shelves.' },
   rest: { age: 4, energy: 0, effects: { energy: 20, stress: -8 }, text: 'I cleared my schedule and gave myself time to rest.' },
-  walk: { age: 4, energy: 9, effects: { health: 3, stress: -3 }, text: 'I went for a long walk around my neighborhood.' },
+  walk: { age: 4, effects: { health: 3, stress: -3 }, text: 'I went for a long walk around my neighborhood.' },
   study: { age: 6, energy: 16, effects: { smarts: 4, discipline: 3, stress: 3 }, text: 'I spent extra time reviewing my schoolwork.' },
   library: { age: 6, energy: 8, effects: { smarts: 1 }, text: 'I reviewed material at the school library.' },
   socialize: { age: 6, energy: 8, effects: { happiness: 3 }, text: 'I got to know my classmates outside lessons.' },
@@ -74,6 +77,16 @@ function ageUp(life: Life) {
     if (person.age >= maxAge || person.health === 0) person.alive = false;
     if (person.alive) advanceContactOccupation(person);
   }
+  for (const person of life.communityFriends) {
+    if (!person.alive) continue;
+    person.age += 1;
+    if (person.age === 18) person.occupation = 'Library member';
+    if (person.age > 60) person.health = clamp(person.health - 2);
+    if (person.age >= maxAge || person.health === 0) {
+      person.alive = false;
+      recordNotice(life, 'community', 'A Friend Remembered', `${person.name}, my friend from the library, died at age ${person.age}.`, { happiness: -5 });
+    }
+  }
   ageWorkplace(life, maxAge);
   annualFinance(life, elapsedAge);
   closeCareerYear(life);
@@ -93,6 +106,8 @@ function ageUp(life: Life) {
   studyWorkload(life);
   const graduated = advanceAcademics(life, random);
   advanceCareer(life, random);
+  if (age === movingAge) recordNotice(life, 'life', 'Moving Out',
+    'I can stay with family, rent a place, or ask a parent to help buy my first home. My options are in Assets under Housing.');
   for (const consequence of life.scheduled) {
     if (consequence.year === life.year) recordNotice(life, 'decision', 'An Earlier Choice', consequence.text, consequence.effects);
   }
@@ -131,9 +146,9 @@ export function activityIssue(life: Life, activity: Activity) {
     if (!isSchoolStage(enrollment.level) && (activity === 'library' || activity === 'extracurricular')) return 'Only offered in school.';
     if (activity === 'academic-talk' && !currentClass(life).some((person) => person.alive && !isPeer(person))) return 'Your adviser is unavailable.';
     if (activity === 'socialize' && !currentClass(life).some((person) => person.alive && isPeer(person))) return 'No classmates are available.';
+    if (life.usedActions.includes(activity)) return 'Already done this year.';
+    if (life.character.attributes.energy < activities[activity].energy) return 'You need more energy.';
   }
-  if (life.usedActions.includes(activity)) return 'Already done this year.';
-  if (life.character.attributes.energy < entry.energy) return 'You need more energy.';
   return null;
 }
 
@@ -175,6 +190,11 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       if (issue) return { error: issue };
       break;
     }
+    case 'buy-asset': case 'rent-home': case 'ask-for-home': case 'move-into-home': {
+      const issue = applyPropertyAction(life, action);
+      if (issue) return { error: issue };
+      break;
+    }
     case 'choose': {
       const choice = eventById.get(action.event)?.choices?.find(({ id }) => id === action.choice);
       if (life.pending !== action.event || !choice) return { error: 'This decision is no longer available.' };
@@ -182,7 +202,8 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       if (choice.academicPath) chooseEducationPath(life, choice.academicPath);
       if (choice.academicPath === 'workforce' && !life.career.current && life.career.retiredYear === null) life.career.seeking = true;
       if (choice.careerEffects) applyCareerEffect(life, choice.careerEffects);
-      record(life, 'decision', choice.outcome, choice.effects);
+      const outcome = action.event === libraryFriendEvent && choice.id === 'befriend' ? befriendLibraryGuest(life) : choice.outcome;
+      record(life, 'decision', outcome, choice.effects);
       if (choice.delayed) {
         life.scheduled.push({ year: life.year + choice.delayed.years, text: choice.delayed.text, effects: choice.delayed.effects });
       }
@@ -193,9 +214,9 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       if (issue) return { error: issue };
       const { activity } = action;
       const item = activities[activity];
-      life.usedActions.push(activity);
       const academic = isAcademicActivity(activity);
       if (academic && life.academic.enrollment) {
+        life.usedActions.push(activity);
         const effect = academicEffects[activity];
         const enrollment = life.academic.enrollment;
         enrollment.performance = clamp(enrollment.performance + effect.performance);
@@ -206,7 +227,8 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       const adviser = action.activity === 'academic-talk' ?
         currentClass(life).find((person) => person.alive && (person.role === 'Teacher' || person.role === 'Professor')) : undefined;
       record(life, academic ? 'school' : 'life', adviser ? `I asked ${adviser.name} for academic feedback.` : item.text,
-        { energy: -item.energy, ...item.effects });
+        academic ? { energy: -activities[activity].energy, ...item.effects } : item.effects);
+      if (activity === 'go-to-library') visitLibrary(life);
       break;
     }
     case 'talk': {
@@ -217,7 +239,7 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       person.bond.affection = clamp(person.bond.affection + 3);
       person.bond.trust = clamp(person.bond.trust + 2);
       person.bond.familiarity = clamp(person.bond.familiarity + 4);
-      record(life, isWorkContact(person) ? 'career' : 'stage' in person ? 'community' : 'family',
+      record(life, isWorkContact(person) ? 'career' : 'friend' in person ? 'community' : 'family',
         conversationStory(life, person), { energy: -8, happiness: 3 });
       break;
     }
@@ -273,6 +295,8 @@ function structuredCloneLife(life: Life): Life {
     character: { ...life.character, attributes: { ...life.character.attributes } },
     family: life.family.map((person) => ({ ...person, bond: { ...person.bond } })),
     schoolContacts: life.schoolContacts.map((person) => ({ ...person, bond: { ...person.bond } })),
+    communityFriends: life.communityFriends.map((person) => ({ ...person, bond: { ...person.bond } })),
+    property: { ...life.property, owned: [...life.property.owned] },
     career: {
       ...life.career,
       current: life.career.current ? { ...life.career.current, salaryHistory: [...life.career.current.salaryHistory], promotions: [...life.career.current.promotions] } : null,

@@ -97,7 +97,7 @@ try {
   await dialog('Donate Blood').getByText('You need at least 65% health and no active illness.').waitFor();
   await page.keyboard.press('Escape');
   await button('Donate Plasma').click();
-  await dialog('Donate Plasma').getByText('A donation uses 20 energy and pays $4.00.').waitFor();
+  await dialog('Donate Plasma').getByText('The first plasma donation each year pays $4.00.').waitFor();
   await page.keyboard.press('Escape');
 
   await button('Doctor').click();
@@ -118,7 +118,7 @@ try {
   await acknowledgeEvents(page);
   await button('Doctor').click();
   await clinic.getByText('Pneumonia · Moderate', { exact: true }).waitFor();
-  assert.ok(await clinic.getByRole('button', { name: names[0], exact: true }).isDisabled());
+  assert.ok(await clinic.getByRole('button', { name: names[0], exact: true }).isEnabled());
   await clinic.getByRole('combobox', { name: 'Patient' }).selectOption(parent.id);
   await clinic.getByText('Common cold · Mild', { exact: true }).waitFor();
   await clinic.getByRole('button', { name: names[0], exact: true }).click();

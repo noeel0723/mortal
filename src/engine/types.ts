@@ -4,6 +4,8 @@ import type { RelationshipActivity } from './interactions.ts';
 import type { CareerAction, CareerEffect, CareerState, WorkContact } from './careerTypes.ts';
 import type { FinanceState, Transaction } from './financeTypes.ts';
 import type { HealthVisit, IllnessCase, IllnessId } from './healthTypes.ts';
+import type { libraryHobbies } from '../data/libraryEvents.ts';
+import type { PropertyAction, PropertyState } from './property.ts';
 
 export const stats = ['health', 'happiness', 'smarts', 'looks', 'charisma', 'discipline', 'athleticism', 'creativity', 'stress', 'energy', 'reputation'] as const;
 export type Stat = typeof stats[number];
@@ -54,7 +56,8 @@ export type Person<Role = 'Mother' | 'Father'> = {
 export type SchoolContact = Person<'Teacher' | 'Classmate' | 'Professor' | 'Student'> & {
   stage: AcademicLevel; friend: boolean; cohortId?: string; graduationAge?: number;
 };
-export type Contact = Person | SchoolContact | WorkContact;
+export type CommunityFriend = Person<'Friend'> & { friend: true; hobby: typeof libraryHobbies[number] };
+export type Contact = Person | SchoolContact | WorkContact | CommunityFriend;
 
 export type Effect = Partial<Record<Stat | 'bank', number>>;
 export type JournalEntry = {
@@ -88,13 +91,15 @@ export type LifeEvent = {
 };
 
 export type Life = {
-  version: 5;
+  version: 6;
   seed: number;
   random: number;
   character: Character;
   year: number;
   family: Person[];
   schoolContacts: SchoolContact[];
+  communityFriends: CommunityFriend[];
+  property: PropertyState;
   academic: AcademicState;
   career: CareerState;
   finance: FinanceState;
@@ -113,11 +118,12 @@ export type Action =
   | { type: 'choose'; event: string; choice: string }
   | { type: 'acknowledge-event'; entry: number }
   | { type: 'healthcare'; visit: HealthVisit }
-  | { type: 'activity'; activity: 'read' | 'rest' | 'walk' | 'study' | 'library' | 'socialize' | 'extracurricular' | 'academic-talk' | 'exams' }
+  | { type: 'activity'; activity: 'go-to-library' | 'rest' | 'walk' | 'study' | 'library' | 'socialize' | 'extracurricular' | 'academic-talk' | 'exams' }
   | { type: 'talk'; person: string }
   | { type: 'befriend'; person: string }
   | { type: 'interact'; person: string; activity: RelationshipActivity }
   | { type: 'change-appearance'; choices: AppearanceChoices }
   | { type: 'change-hair'; choices: HairChoice }
   | AcademicAction
+  | PropertyAction
   | CareerAction;

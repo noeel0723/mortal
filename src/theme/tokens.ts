@@ -24,5 +24,6 @@ export const emoji = {
   laptop: '💻', computer: '🖥️', medical: '🩺', blueprint: '📐', files: '🗃️', calculator: '🧮',
   ambulance: '🚑', eye: '👁️', thoughts: '🧠', blood: '🩸', syringe: '💉',
   court: '⚖️', restaurant: '🍽️', cooking: '🍳', cart: '🛒', camera: '🎥',
+  car: '🚗', motorcycle: '🏍️',
 } as const;
 export type Emoji = keyof typeof emoji;

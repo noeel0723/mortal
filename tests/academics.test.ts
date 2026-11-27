@@ -210,7 +210,7 @@ test('a version 1 graduate gets a migration credential with no invented grades o
     schoolContacts: life.schoolContacts.map((person) => person.role === 'Classmate' ? { ...person, occupation: 'Student' } : person),
   };
   const restored = decodeLife(JSON.stringify(legacy));
-  assert.equal(restored.version, 5);
+  assert.equal(restored.version, 6);
   assert.deepEqual(restored.academic.history, []);
   assert.equal(highestQualification(restored)?.performance, null);
   assert.equal(highestQualification(restored)?.year, life.year);

@@ -1,4 +1,6 @@
 import { eventById } from '../data/events.ts';
+import { libraryHobbies } from '../data/libraryEvents.ts';
+import { assetById, starterHome } from '../data/shops.ts';
 import { academicStateAtBirth, migrateAcademics } from '../engine/academics.ts';
 import { academicLevels } from '../engine/academicTypes.ts';
 import { initialCareer } from '../engine/career.ts';
@@ -9,6 +11,7 @@ import { contactIdentity, generateAppearance, validAppearance } from '../engine/
 import { validateProfile } from '../engine/create.ts';
 import { advanceContactOccupation, createSchoolClass, isSchoolStage } from '../engine/school.ts';
 import { maxAge } from '../engine/simulation.ts';
+import { initialProperty, movingAge } from '../engine/property.ts';
 import { stats } from '../engine/types.ts';
 import type { Life, ProfileInput } from '../engine/types.ts';
 import { cities, genders } from '../data/veyra.ts';
@@ -37,7 +40,7 @@ function savedPerson(person: unknown, withAppearance: boolean): person is Record
 }
 
 function validHealthAndNotices(life: Life) {
-  const patients = new Set([...life.family, ...life.schoolContacts, ...life.career.contacts]
+  const patients = new Set([...life.family, ...life.schoolContacts, ...life.career.contacts, ...life.communityFriends]
     .filter((person) => person.alive).map((person) => person.id));
   if (!life.character.causeOfDeath) patients.add(playerPatient);
   return Array.isArray(life.notices) && life.notices.every((notice, index) => record(notice) &&
@@ -52,6 +55,29 @@ function validHealthAndNotices(life: Life) {
     });
 }
 
+function validAssetsAndFriends(life: Life) {
+  const { property, communityFriends } = life;
+  if (!record(property) || typeof property.residence !== 'string' || !Array.isArray(property.owned)) return false;
+  const owned = new Set<string>();
+  for (const item of property.owned) {
+    if (!record(item) || typeof item.id !== 'string' || !assetById.has(item.id) || owned.has(item.id) ||
+      !integer(item.year, life.character.birthYear + movingAge, life.year) ||
+      (item.source !== 'purchase' && (item.source !== 'gift' || item.id !== starterHome.id))) return false;
+    owned.add(item.id);
+  }
+  if (property.residence !== 'family' && (life.character.age < movingAge || (property.residence !== 'rent' &&
+    (!owned.has(property.residence) || assetById.get(property.residence)?.kind !== 'houses')))) return false;
+
+  const contacts = new Set([...life.family, ...life.schoolContacts, ...life.career.contacts].map(({ id }) => id));
+  return Array.isArray(communityFriends) && communityFriends.every((person) => {
+    if (!savedPerson(person, true) || typeof person.id !== 'string' || !/^library-\d{4}$/.test(person.id) ||
+      person.role !== 'Friend' || person.friend !== true || !libraryHobbies.some((hobby) => hobby === person.hobby) ||
+      contacts.has(person.id)) return false;
+    contacts.add(person.id);
+    return true;
+  });
+}
+
 export function decodeLife(json: string): Life {
   let value: unknown;
   try {
@@ -61,7 +87,7 @@ export function decodeLife(json: string): Life {
   }
   if (!record(value)) throw new Error('This saved life is damaged.');
   const version = value.version;
-  if (version !== 1 && version !== 2 && version !== 3 && version !== 4 && version !== 5) throw new Error('This saved life uses an unsupported version.');
+  if (version !== 1 && version !== 2 && version !== 3 && version !== 4 && version !== 5 && version !== 6) throw new Error('This saved life uses an unsupported version.');
   const { character, family, schoolContacts, journal, pending, scheduled, seen, usedActions, transactions, year } = value;
   if (!record(character) || typeof character.firstName !== 'string' || typeof character.lastName !== 'string' ||
     validateProfile(character as ProfileInput) || (version >= 3 && !validAppearance(character.appearance)) || !integer(character.age, 0, maxAge) ||
@@ -125,8 +151,14 @@ export function decodeLife(json: string): Life {
     !validateFinance(value.finance, year, Number(character.birthYear))) {
     throw new Error('This saved life has invalid career or finance data.');
   }
+  if (version < 6) {
+    life.version = 6;
+    life.property = initialProperty();
+    life.communityFriends = [];
+  } else if (!validAssetsAndFriends(life)) {
+    throw new Error('This saved life has invalid assets or community friends.');
+  }
   if (version < 5) {
-    life.version = 5;
     life.notices = [];
     life.illnesses = [];
   } else if (!validHealthAndNotices(life)) {

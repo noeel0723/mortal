@@ -46,6 +46,7 @@ function together(_name: string, life: Life, person: Contact) {
 
 export function contactGroup(person: Contact): ContactGroup {
   if (isWorkContact(person)) return 'worker';
+  if ('hobby' in person) return 'peer';
   if (!('stage' in person)) return 'parent';
   return isPeer(person) ? 'peer' : 'educator';
 }

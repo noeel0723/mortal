@@ -1,5 +1,8 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { personalActivities } from '../src/activityView';
+import { assetById, assetKinds } from '../src/data/shops';
+import type { AssetListing } from '../src/data/shops';
 import { backgroundLabels, cities, cityDescriptions, genderLabels, talentLabels } from '../src/data/veyra';
 import { contactBondRows, contactInteractions, contactProfileRows, contactRole } from '../src/contactView';
 import {
@@ -14,7 +17,10 @@ import { workAge, workHours } from '../src/engine/career';
 import { industries } from '../src/engine/careerTypes';
 import { currentClass, isPeer, isSchoolStage } from '../src/engine/school';
 import { canEditFace } from '../src/engine/appearance';
-import { activities, activityIssue } from '../src/engine/simulation';
+import { activityIssue } from '../src/engine/simulation';
+import { propertyIssue } from '../src/engine/property';
+import { assetArt } from '../src/portraits/assetArt';
+import { housingControls, listingsFor, ownedListings, propertyCategories, residenceLabel, shoppingCategory } from '../src/propertyView';
 import { activeCoworkers } from '../src/engine/workplace';
 import type { HealthService } from '../src/engine/healthTypes';
 import { careSections, careSelection, careServices, profileHealthRows } from '../src/healthView';
@@ -60,6 +66,11 @@ export const pageTitles = {
   'player-profile': 'My Profile',
   'family-tree': 'Family Tree',
   assets: 'Assets',
+  shopping: 'Shopping',
+  'shop-category': 'Catalog',
+  'shop-item': 'Listing',
+  housing: 'Housing',
+  'owned-assets': 'Owned Assets',
   finances: 'Finances',
   activities: 'Activities',
   doctor: 'Doctors',
@@ -103,32 +114,44 @@ const parentPages: Partial<Record<DetailPage, GamePage>> = {
   person: 'relationships',
   'family-tree': 'relationships',
   finances: 'assets',
+  shopping: 'assets',
+  'shop-category': 'shopping',
+  'shop-item': 'shop-category',
+  housing: 'assets',
+  'owned-assets': 'assets',
   appearance: 'activities',
   doctor: 'activities',
   settings: 'menu',
   achievements: 'menu',
 };
 
-export function PlayPageHeader({ page, person, schoolTitle, go }: { page: DetailPage; person?: Contact; schoolTitle?: string; go: Navigate }) {
+export function PlayPageHeader({ page, person, schoolTitle, detail, go }: {
+  page: DetailPage; person?: Contact; schoolTitle?: string; detail?: string; go: Navigate;
+}) {
   let parent = parentPages[page] ?? 'journal';
   if (page === 'education' && schoolTitle) parent = 'journal';
-  const titleFor = (target: GamePage) => {
+  const parentDetail = page === 'shop-item' ? assetById.get(detail ?? '')?.kind : undefined;
+  const titleFor = (target: GamePage, value?: string) => {
     if (target === 'education' && schoolTitle) return schoolTitle;
+    if (target === 'shop-category') {
+      const kind = shoppingCategory(value);
+      return kind ? propertyCategories[kind].label : pageTitles[target];
+    }
     if ((target === 'person' || target === 'class-person' || target === 'work-person') && person) {
       return target === 'person' ? contactRole(person) : person.role;
     }
     return pageTitles[target];
   };
-  const title = titleFor(page);
+  const title = titleFor(page, detail);
   const isRoot = parent === 'journal';
   const heading = useRef<HTMLHeadingElement>(null);
   const personId = person?.id;
-  useEffect(() => { heading.current?.focus({ preventScroll: true }); }, [page, personId]);
+  useEffect(() => { heading.current?.focus({ preventScroll: true }); }, [page, personId, detail]);
   return (
     <header className="play-page-header">
       <button type="button" className={`play-page-return ${isRoot ? 'play-page-return--close' : ''}`}
-        aria-label={isRoot ? `Close ${title}` : `Back to ${titleFor(parent)}`}
-        onClick={() => go(parent)}>
+        aria-label={isRoot ? `Close ${title}` : `Back to ${titleFor(parent, parentDetail)}`}
+        onClick={() => go(parent, parentDetail)}>
         <span aria-hidden="true">{isRoot ? '×' : 'Back'}</span>
       </button>
       <h1 id="play-page-title" ref={heading} tabIndex={-1}>{title}</h1>
@@ -242,11 +265,10 @@ function ControlRows({ controls, go }: { controls: EducationControl[]; go: Navig
     }} />);
 }
 
-const activityOptions = [
-  { id: 'walk', icon: 'walk', label: 'Take a Walk', description: 'Improves health and reduces stress.' },
-  { id: 'rest', icon: 'rest', label: 'Rest', description: 'Restores energy and reduces stress.' },
-  { id: 'read', icon: 'study', label: 'Read a Book', description: 'Improves smarts and happiness.' },
-] as const;
+function AssetImage({ listing, large = false }: { listing: AssetListing; large?: boolean }) {
+  return <img className={`asset-art${large ? ' asset-art--large' : ''}`} src={assetArt(listing)}
+    alt={large ? `Pixel artwork of ${listing.name}` : ''} width="72" height="72" />;
+}
 
 function JobListings({ life, go }: { life: Life; go: Navigate }) {
   const [filters, setFilters] = useState(defaultJobFilters);
@@ -296,7 +318,6 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
   const { busy, dispatch, save } = useGame();
   const { character, family } = life;
   const blocked = life.pending ? 'Resolve the pending decision first.' : character.causeOfDeath ? 'This life has ended.' : null;
-  const energy = `${character.attributes.energy}%`;
   const job = life.career.current;
   const canFindJob = character.age >= workAge && !character.causeOfDeath && life.career.retiredYear === null;
 
@@ -461,7 +482,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
     }
     case 'relationships':
     case 'family-tree': {
-      const friends = [...life.schoolContacts, ...life.career.contacts].filter((contact) => contact.friend);
+      const friends = [...life.communityFriends, ...life.schoolContacts, ...life.career.contacts].filter((contact) => contact.friend);
       return <>
         <PageGroup title="Parents">
           {family.map((relative) => <PersonRow key={relative.id} person={relative} onClick={() => go('person', relative.id)} />)}
@@ -516,22 +537,64 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       </>;
     }
     case 'assets':
-      return <PageGroup title="Banking">
-        <MenuRow icon="bank" title="Finances" detail="Bank balance and transaction history."
-          value={money(character.bank)} onClick={() => go('finances')} />
+      return <>
+        <PageGroup title="Property and vehicles">
+          <MenuRow icon="home" title="Housing" detail={residenceLabel(life)} onClick={() => go('housing')} />
+          <MenuRow icon="cart" title="Shopping" detail="Browse houses, cars, and motorcycles." onClick={() => go('shopping')} />
+          <MenuRow icon="assets" title="Owned Assets" value={String(life.property.owned.length)} onClick={() => go('owned-assets')} />
+        </PageGroup>
+        <PageGroup title="Banking">
+          <MenuRow icon="bank" title="Finances" detail="Bank balance and transaction history."
+            value={money(character.bank)} onClick={() => go('finances')} />
+        </PageGroup>
+      </>;
+    case 'housing':
+      return <>
+        <PageGroup title="Where you live"><MenuRow icon="home" title={residenceLabel(life)} /></PageGroup>
+        <PageGroup title="Moving Out">{housingControls(life).map((item) => <MenuRow key={item.label} icon={item.icon}
+          title={item.label} detail={item.issue ?? item.detail} disabled={busy || !!item.issue}
+          onClick={() => void dispatch(item.action)} />)}</PageGroup>
+      </>;
+    case 'shopping':
+      return <PageGroup title="Browse">{assetKinds.map((kind) => <MenuRow key={kind} icon={propertyCategories[kind].icon}
+        title={propertyCategories[kind].label} value={String(listingsFor(kind).length)} onClick={() => go('shop-category', kind)} />)}</PageGroup>;
+    case 'shop-category': {
+      const kind = shoppingCategory(detail);
+      if (!kind) return <p className="play-empty">This catalog is unavailable.</p>;
+      return <PageGroup title={`${listingsFor(kind).length} listings`}>{listingsFor(kind).map((listing) => <MenuRow key={listing.id}
+        avatar={<AssetImage listing={listing} />} title={listing.name} detail={listing.detail} value={money(listing.price)}
+        onClick={() => go('shop-item', listing.id)} />)}</PageGroup>;
+    }
+    case 'shop-item': {
+      const listing = assetById.get(detail ?? '');
+      if (!listing) return <p className="play-empty">This listing is unavailable.</p>;
+      const action = { type: 'buy-asset', id: listing.id } as const;
+      const issue = propertyIssue(life, action);
+      return <PageGroup title={listing.name}>
+        <div className="asset-preview"><AssetImage listing={listing} large /><p>{listing.detail}</p></div>
+        <MenuRow icon="cart" title="Buy" detail={issue ?? 'Pay from your current balance.'} value={money(listing.price)}
+          disabled={busy || !!issue} onClick={() => void dispatch(action)} />
       </PageGroup>;
+    }
+    case 'owned-assets': {
+      const owned = ownedListings(life);
+      return owned.length ? assetKinds.map((kind) => {
+        const entries = owned.filter(({ listing }) => listing.kind === kind);
+        return entries.length ? <PageGroup key={kind} title={propertyCategories[kind].label}>{entries.map(({ id, year, listing, source }) =>
+          <MenuRow key={id} avatar={<AssetImage listing={listing} />} title={listing.name}
+            detail={`${source === 'gift' ? 'Gifted' : 'Purchased'} in ${year}${life.property.residence === id ? ' · Current home' : ''}`} />)}</PageGroup> : null;
+      }) : <p className="play-empty">You do not own any houses or vehicles yet.</p>;
+    }
     case 'finances':
       return <Finances life={life} />;
     case 'activities':
       return <>
-        <PageGroup title="Energy"><MenuRow icon="health" title="Current energy" value={energy} /></PageGroup>
         <PageGroup title="Wellbeing">
           <MenuRow icon="medical" title="Doctors" detail="Browse healthcare services." onClick={() => go('doctor')} />
-          {activityOptions.map((item) => {
+          {personalActivities.map((item) => {
             const issue = blocked ?? activityIssue(life, item.id);
-            const cost = activities[item.id].energy;
             return <MenuRow key={item.id} icon={item.icon} title={item.label}
-              detail={issue ?? `${item.description}${cost ? ` Uses ${cost} energy.` : ''}`} disabled={busy || !!issue}
+              detail={issue ?? item.description} disabled={busy || !!issue}
               onClick={() => void dispatch({ type: 'activity', activity: item.id })} />;
           })}
         </PageGroup>

@@ -15,8 +15,8 @@ const effects: Record<IllnessLevel, { health: number; energy: number; cost: numb
 
 const severityPenalty: Record<IllnessLevel, number> = { mild: 0, moderate: 8, severe: 16 };
 export const donations = {
-  'donate-blood': { energy: 14, happiness: 4, reward: 0, title: 'Blood Donation', text: 'I donated blood at the clinic.' },
-  'donate-plasma': { energy: 20, happiness: 2, reward: 400, title: 'Plasma Donation', text: 'I donated plasma and received compensation.' },
+  'donate-blood': { happiness: 4, reward: 0, title: 'Blood Donation', text: 'I donated blood at the clinic.' },
+  'donate-plasma': { happiness: 2, reward: 400, title: 'Plasma Donation', text: 'I donated plasma at the clinic.' },
 } as const;
 
 type VisitQuote = { fee: number; chance?: number; issue: string | null };
@@ -40,7 +40,7 @@ export function matchesService(condition: IllnessCase, service: PatientService) 
 }
 
 export function healthcareQuote(life: Life, visit: HealthVisit): VisitQuote {
-  const { character, usedActions } = life;
+  const { character } = life;
   const blocked = character.causeOfDeath ? 'This life has already ended.' : life.pending ? 'Resolve the pending decision first.' : null;
   const affordable = (fee: number) => character.bank < fee ? 'Your balance does not cover this visit.' : null;
   if ('patient' in visit) {
@@ -56,23 +56,19 @@ export function healthcareQuote(life: Life, visit: HealthVisit): VisitQuote {
     const price = provider ? Math.round(effects[condition.level].cost * provider.price) : service === 'emergency' ? 3600 : 500;
     const fee = self && character.age < 18 && (!provider || provider.id === 'community') ? 0 : price;
     const chance = provider ? provider.chance - severityPenalty[condition.level] : service === 'emergency' ? 100 : 93;
-    const issue = blocked ?? (!self && !hasIncome(life) ? 'Earn a salary before paying for someone else’s visit.' : null) ??
-      (usedActions.includes(`doctor:${patient}`) ? 'This patient has already had a visit this year.' : null) ?? affordable(fee);
+    const issue = blocked ?? (!self && !hasIncome(life) ? 'Earn a salary before paying for someone else’s visit.' : null) ?? affordable(fee);
     return { fee, chance, issue };
   }
 
   if (visit.service === 'psychiatrist') {
     const fee = character.age < 18 ? 0 : 400;
     const issue = blocked ?? (character.age < 13 ? 'Available from age 13.' : null) ??
-      (usedActions.includes('psychiatrist') ? 'You already had a session this year.' : null) ??
       (character.attributes.stress < 20 ? 'A session is available from 20% stress.' : null) ?? affordable(fee);
     return { fee, issue };
   }
 
   const issue = blocked ?? (character.age < 18 ? 'Available from age 18.' : null) ??
-    (usedActions.includes('donation') ? 'You already made a donation this year.' : null) ??
-    (activeIllness(life) || character.attributes.health < 65 ? 'You need at least 65% health and no active illness.' : null) ??
-    (character.attributes.energy < donations[visit.service].energy ? 'You need more energy.' : null);
+    (activeIllness(life) || character.attributes.health < 65 ? 'You need at least 65% health and no active illness.' : null);
   return { fee: 0, issue };
 }
 
@@ -82,7 +78,6 @@ function removeIllness(life: Life, condition: IllnessCase) {
 
 function treat(life: Life, condition: IllnessCase, npc: Contact | undefined,
   visit: { fee?: number; success: boolean; title: string; text: string }) {
-  life.usedActions.push(`doctor:${condition.patient}`);
   const cost = visit.fee ?? 0;
   const severe = condition.level === 'severe';
   const improvement = visit.success ? severe ? 8 : condition.level === 'moderate' ? 6 : 3 : 0;
@@ -115,15 +110,19 @@ export function visitHealthcare(life: Life, visit: HealthVisit) {
     treat(life, activeIllness(life, visit.patient)!, npc, { fee, success, title,
       text: npc ? `I took ${npc.name} to ${destination}.` : `I went to ${destination}.` });
   } else if (visit.service === 'psychiatrist') {
-    life.usedActions.push(visit.service);
     recordNotice(life, 'health', 'Psychiatry Session', 'I talked through some of my stress during a psychiatry session.',
       { stress: -18, happiness: 4, bank: -fee }, 'medical');
   } else {
-    const { title, text, energy, happiness, reward } = donations[visit.service];
-    life.usedActions.push('donation');
-    recordNotice(life, 'health', title, text, { energy: -energy, happiness, bank: reward });
+    const { title, text, happiness } = donations[visit.service];
+    const reward = donationReward(life, visit.service);
+    if (reward) life.usedActions.push('paid-plasma');
+    recordNotice(life, 'health', title, reward ? `${text} I received compensation for the donation.` : text, { happiness, bank: reward });
   }
   return null;
+}
+
+export function donationReward(life: Life, service: keyof typeof donations) {
+  return life.usedActions.some((key) => key === 'paid-plasma' || key === 'donation') ? 0 : donations[service].reward;
 }
 
 export function startIllness(life: Life, illness: IllnessId, npc?: Contact) {
@@ -188,7 +187,7 @@ function chooseIllness(age: number, health: number, random: ReturnType<typeof se
 
 export function advanceIllnesses(life: Life) {
   const random = seededRandom(life.seed ^ Math.imul(life.year, 0xb5297a4d));
-  const contacts = [...life.family, ...life.schoolContacts, ...life.career.contacts];
+  const contacts = [...life.family, ...life.schoolContacts, ...life.career.contacts, ...life.communityFriends];
   const previouslyIll = new Set(life.illnesses.map(({ patient }) => patient));
   for (const condition of life.illnesses) progressIllness(life, condition, random);
   const { age, attributes } = life.character;

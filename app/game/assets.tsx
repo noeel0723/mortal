@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, Text } from 'react-native';
 import { financeEntries, financeOverview, financeYears } from '../../src/careerView';
 import { ActionButton, DataRow, Heading, Page, Section, shared } from '../../src/components/ui';
 import { money } from '../../src/i18n/en';
+import { residenceLabel } from '../../src/propertyView';
 import { useGame } from '../../src/stores/game';
 import { space } from '../../src/theme/tokens';
 
@@ -16,6 +17,14 @@ export default function Assets() {
   return (
     <Page inGame>
       <Heading title="Assets" back={() => router.dismissTo('/game')} />
+      <Section title="Property and vehicles">
+        <ActionButton icon="home" label="Housing" detail={residenceLabel(life)}
+          onPress={() => router.push({ pathname: '/game/property', params: { mode: 'housing' } })} />
+        <ActionButton icon="cart" label="Shopping" detail="Browse houses, cars, and motorcycles."
+          onPress={() => router.push({ pathname: '/game/property', params: { mode: 'shopping' } })} />
+        <ActionButton icon="assets" label="Owned Assets" detail={String(life.property.owned.length)}
+          onPress={() => router.push({ pathname: '/game/property', params: { mode: 'owned' } })} />
+      </Section>
       <Section title={`Financial overview · ${year ?? life.year}`}>
         <Text style={shared.small}>Transaction year</Text>
         <ScrollView horizontal contentContainerStyle={styles.years}>

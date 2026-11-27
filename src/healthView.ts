@@ -22,9 +22,9 @@ export const careServices = {
   psychiatrist: { title: 'Psychiatrist', icon: 'thoughts', detail: 'Book a session to manage stress.',
     prompt: 'A session reduces stress and improves happiness.' },
   'donate-blood': { title: 'Donate Blood', icon: 'blood', detail: 'Help the community with a blood donation.',
-    prompt: `A donation uses ${donations['donate-blood'].energy} energy and improves happiness.` },
+    prompt: 'A blood donation improves happiness.' },
   'donate-plasma': { title: 'Donate Plasma', icon: 'syringe', detail: 'Make a compensated plasma donation.',
-    prompt: `A donation uses ${donations['donate-plasma'].energy} energy and pays ${money(donations['donate-plasma'].reward)}.` },
+    prompt: `The first plasma donation each year pays ${money(donations['donate-plasma'].reward)}.` },
 } as const satisfies Record<HealthService, { title: string; icon: Emoji; detail: string; prompt: string; empty?: string }>;
 
 export function isPatientService(service: HealthService): service is PatientService {

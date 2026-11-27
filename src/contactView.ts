@@ -39,6 +39,7 @@ export function contactProfileRows(life: Life, person: Contact) {
     { label: 'City', value: person.city },
     { label: 'Occupation', value: person.occupation },
     ...(isWorkContact(person) ? [{ label: 'Employer', value: employerById.get(person.employerId)?.name ?? person.employerId }] : []),
+    ...('hobby' in person ? [{ label: 'Shared hobby', value: person.hobby }] : []),
     { label: 'Health', value: `${person.health}%` },
     ...profileHealthRows(life, person.id),
   ];

@@ -20,6 +20,7 @@
     "test:web:education": "node scripts/test-education-browser.mjs",
     "test:web:career": "node scripts/test-career-browser.mjs",
     "test:web:health": "node scripts/test-health-browser.mjs",
+    "test:web:library-property": "node scripts/test-library-property-browser.mjs",
     "simulate": "node scripts/simulate.ts"
   },
   "dependencies": {
