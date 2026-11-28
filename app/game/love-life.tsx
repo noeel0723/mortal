@@ -10,14 +10,18 @@ import { datingCandidates, datingSummary, meetingControls, relationshipGroups, r
 import { useGame } from '../../src/stores/game';
 
 export default function LoveLife() {
-  const { screen } = useLocalSearchParams<{ screen?: string }>();
+  const { screen, source } = useLocalSearchParams<{ screen?: string; source?: string }>();
   const slot = useGame((state) => state.slot);
   if (!slot) return null;
   const { life } = slot;
   const row = (person: Contact, detail?: string) => <ActionButton key={person.id} icon="person" label={person.name}
     detail={detail ?? socialRole(life, person)} leading={<Portrait appearance={person.appearance} age={person.age} size={36} />}
     onPress={() => router.push({ pathname: '/game/person', params: { id: person.id, source: 'love' } })} />;
-  const back = () => screen && router.canGoBack() ? router.back() : router.dismissTo('/game/relationships');
+  const back = () => {
+    if ((screen || source === 'activities') && router.canGoBack()) router.back();
+    else if (source === 'activities') router.replace({ pathname: '/game/activities', params: { screen: 'love' } });
+    else router.dismissTo('/game/relationships');
+  };
 
   if (screen === 'profiles') {
     const people = datingCandidates(life);

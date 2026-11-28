@@ -5,7 +5,9 @@ import { createLife } from '../src/engine/create.ts';
 import { postTransaction } from '../src/engine/journal.ts';
 import { activeRomance } from '../src/engine/love.ts';
 import { makeNpc } from '../src/engine/npcs.ts';
-import { npcNetWorth } from '../src/engine/dating.ts';
+import { genderLabels } from '../src/data/veyra.ts';
+import { discoveryEvent, pendingDatingProfile } from '../src/engine/datingDiscovery.ts';
+import { candidateNetWorth } from '../src/engine/datingPool.ts';
 import { boundaryEvidence, relationshipState, setAgreement } from '../src/engine/relationships.ts';
 import { advance } from '../src/engine/simulation.ts';
 import { estate } from '../src/engine/wealth.ts';
@@ -26,7 +28,6 @@ function scenario() {
     life.communityFriends.push(friend);
     const payload = JSON.stringify({ ...life, version: 6, social: undefined });
     let test = decodeLife(payload);
-    test = advance(test, { type: 'meet', source: 'app' }).life;
     test = advance(test, { type: 'romance', person: id, action: 'ask' }).life;
     if (activeRomance(test)?.status !== 'dating') continue;
     test = advance(test, { type: 'relationship-care', person: id, action: 'exclusive' }).life;
@@ -56,6 +57,39 @@ try {
   const read = async () => JSON.parse((await page.evaluate(saveSlot, { id: slot })).payload);
   const { payload, life, friend } = scenario();
 
+  async function prepareSearch(source, preferences) {
+    const entry = await page.evaluate(saveSlot, { id: slot });
+    const fixture = decodeLife(entry.payload);
+    for (let step = 0; step < 400; step++, fixture.seed++) {
+      const shown = advance(fixture, { type: 'dating-match', source, preferences }).life;
+      const candidate = shown && pendingDatingProfile(shown);
+      if (!candidate) continue;
+      const matched = advance(shown, { type: 'choose', event: discoveryEvent, choice: 'like' }).life;
+      if (matched?.notices.at(-1)?.title !== 'Mutual Match') continue;
+      const dated = advance(matched, { type: 'romance', action: 'ask', person: candidate.person.id }).life;
+      if (dated?.notices.at(-1)?.title !== 'A First Date') continue;
+      await page.evaluate(saveSlot, { id: slot, entry: { ...entry, payload: JSON.stringify(fixture) } });
+      await page.reload();
+      await heading('Love').waitFor();
+      return;
+    }
+    assert.fail(`Could not find a compatible ${source} fixture`);
+  }
+
+  async function becomePartners(candidateName) {
+    await click('Send Like');
+    await dialog('Mutual Match').waitFor();
+    await acknowledgeEvents(page);
+    await click('My Love Life');
+    await heading('Getting to Know Each Other').waitFor();
+    await click(candidateName);
+    await click('Ask on a Date');
+    await dialog('A First Date').waitFor();
+    await acknowledgeEvents(page);
+    await click('Back to Relationships');
+    await click('Close Relationships');
+  }
+
   await page.goto(url);
   await button('New Life').waitFor();
   await page.evaluate(saveSlot, { id: slot, entry: { id: slot, name: `${life.character.firstName} ${life.character.lastName}`,
@@ -69,8 +103,9 @@ try {
   await appDialog.getByText(money(estate(await read()).total), { exact: true }).waitFor();
   await click('Close Dating App');
   await click('Find a Date');
-  await dialog('Someone New').waitFor();
-  await acknowledgeEvents(page);
+  await dialog('Dating Profile').waitFor();
+  await click('Pass');
+  await dialog('Dating Profile').waitFor({ state: 'hidden' });
   assert.equal((await read()).version, 11);
   await click('Ask Someone Out');
   await heading('Dating Profiles').waitFor();
@@ -157,31 +192,40 @@ try {
   }
   for (const label of ['Spotlight Dating', 'Casual Date', 'Matchmaking']) assert.equal(await button(label).count(), 0);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await click('Dating Profile');
+  await heading('Dating Profile').waitFor();
+  await page.getByRole('combobox', { name: 'Preferred Age' }).selectOption('25-34');
+  await page.getByRole('combobox', { name: 'Preferred Net Worth' }).selectOption('1000-4999');
+  await click('Save Profile');
+  await button('Profile Saved').waitFor();
+  await page.reload();
+  assert.equal(await page.getByRole('combobox', { name: 'Preferred Age' }).inputValue(), '25-34');
+  await click('Back to Love');
+  await prepareSearch('app', { age: '25-34', netWorth: '1000-4999' });
   await click('Dating App');
-  await appDialog.getByRole('combobox', { name: 'Preferred Age' }).selectOption('25-34');
-  await appDialog.getByRole('combobox', { name: 'Preferred Net Worth' }).selectOption('1000-4999');
+  assert.equal(await appDialog.getByRole('combobox', { name: 'Preferred Age' }).inputValue(), '25-34');
+  assert.equal(await appDialog.getByRole('combobox', { name: 'Preferred Net Worth' }).inputValue(), '1000-4999');
   const formBounds = await appDialog.boundingBox();
   assert.ok(formBounds && formBounds.width < 320 && formBounds.height < 500);
   if (process.env.MORTAL_CAPTURE_DATING) await page.screenshot({ path: '.expo/web-qa/dating-filters.png' });
-  await click('Find a Match');
-  const match = dialog('Dating Match');
+  await click('Find a Profile');
+  const match = dialog('Dating Profile');
   await match.waitFor();
   const matchedLife = await read();
-  const date = matchedLife.social.people.find(({ id }) => id === matchedLife.social.pendingPerson);
+  const selected = pendingDatingProfile(matchedLife);
+  const date = selected.person;
+  assert.ok(!matchedLife.social.people.some(({ id }) => id === date.id));
   assert.ok(date.age >= 25 && date.age <= 34);
-  const worth = npcNetWorth(matchedLife, date);
+  const worth = candidateNetWorth(selected);
   assert.ok(worth >= 100000 && worth <= 499999);
   await page.reload();
   const datePortrait = match.getByRole('img', { name: `Portrait of ${date.name}` });
   await datePortrait.waitFor();
   assert.equal(await datePortrait.getAttribute('src'), portraitSrc(date.appearance, date.age));
-  await match.getByText(`Age ${date.age} · ${date.occupation}`, { exact: true }).waitFor();
+  await match.getByText(`Age ${date.age} · ${genderLabels[date.gender]} · ${date.occupation}`, { exact: true }).waitFor();
   await match.getByText(money(worth), { exact: true }).waitFor();
-  await click('Go on a First Date');
-  await dialog('A First Date').waitFor();
-  await acknowledgeEvents(page);
-  await click('Back to Activities');
-  await click('Close Activities');
+  if (process.env.MORTAL_CAPTURE_DATING) await page.screenshot({ path: '.expo/web-qa/dating-discovery.png' });
+  await becomePartners(date.name);
 
   async function ageUp() {
     const nextAge = (await read()).character.age + 1;
@@ -196,21 +240,18 @@ try {
   await acknowledgeEvents(page, true);
   await click('Activities');
   await click('Love');
+  await prepareSearch('lgbtq', { age: '35-44', netWorth: 'under-250' });
   await click('LGBTQ+ Dating');
   const pride = dialog('LGBTQ+ Dating');
   await pride.getByRole('combobox', { name: 'Preferred Age' }).selectOption('35-44');
   await pride.getByRole('combobox', { name: 'Preferred Net Worth' }).selectOption('under-250');
-  await click('Find a Match');
-  await dialog('Dating Match').waitFor();
+  await click('Find a Profile');
+  await match.waitFor();
   const prideLife = await read();
-  const prideMatch = prideLife.social.people.find(({ id }) => id === prideLife.social.pendingPerson);
-  assert.ok(prideMatch.age >= 35 && prideMatch.age <= 44);
-  assert.ok(npcNetWorth(prideLife, prideMatch) < 25000);
-  await click('Go on a First Date');
-  await dialog('A First Date').waitFor();
-  await acknowledgeEvents(page);
-  await click('Back to Activities');
-  await click('Close Activities');
+  const prideMatch = pendingDatingProfile(prideLife);
+  assert.ok(prideMatch.person.age >= 35 && prideMatch.person.age <= 44);
+  assert.ok(candidateNetWorth(prideMatch) < 25000);
+  await becomePartners(prideMatch.person.name);
   await click('Family');
   await click('Open Love Life');
   await heading('Current Partners').waitFor();

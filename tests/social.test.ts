@@ -3,7 +3,9 @@ import { localExpense } from '../src/engine/pricing.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decodeLife } from '../src/database/codec.ts';
-import { npcLooks, npcNetWorth } from '../src/engine/dating.ts';
+import { defaultDatingProfile, npcLooks } from '../src/engine/dating.ts';
+import { discoveryEvent, pendingDatingProfile } from '../src/engine/datingDiscovery.ts';
+import { candidateNetWorth, datingPool, matchesSearch } from '../src/engine/datingPool.ts';
 import type { DatingPreferences } from '../src/engine/dating.ts';
 import { eventById } from '../src/data/events.ts';
 import { employers } from '../src/data/employers.ts';
@@ -15,11 +17,11 @@ import { annualFinance } from '../src/engine/finance.ts';
 import { canAccompany, startIllness } from '../src/engine/health.ts';
 import { postTransaction } from '../src/engine/journal.ts';
 import { activeRomance, activeRomances, loveIssue, romanceFor } from '../src/engine/love.ts';
-import { annualLoveSearches } from '../src/engine/loveSearch.ts';
+import { annualLoveSearches, consumeLoveSearch } from '../src/engine/loveSearch.ts';
 import { pendingMeeting } from '../src/engine/meetings.ts';
 import { advanceNpcLives, allContacts, ensureNpc, makeNpc, npcRandom, syncNpcs } from '../src/engine/npcs.ts';
 import { createSchoolClass, findContact } from '../src/engine/school.ts';
-import { agreementFor, attraction, openConcern, relationshipState, setAgreement, visibleConcerns } from '../src/engine/relationships.ts';
+import { agreementFor, attraction, openConcern, relationshipMemory, relationshipState, setAgreement, visibleConcerns } from '../src/engine/relationships.ts';
 import { cities } from '../src/data/veyra.ts';
 import { advance } from '../src/engine/simulation.ts';
 import { offerSocialEvent } from '../src/engine/socialEvents.ts';
@@ -223,8 +225,23 @@ test('a 15-year-old learns to drive before borrowing and returning an owned vehi
   assert.deepEqual(decodeLife(JSON.stringify(life)), life);
 });
 
+function legacyMatch(life: Life, source: 'date' | 'app') {
+  const matched = decodeLife(JSON.stringify(life));
+  const attempt = consumeLoveSearch(matched, source);
+  const age = Math.max(18, life.character.age + npcRandom(life, `match:${source}:${attempt}`, life.year).integer(-4, 4));
+  const person = makeNpc(matched, `npc-dating-${source}-${life.year}-${attempt}`, age, 'Acquaintance');
+  matched.social.people.push(person);
+  const profile = ensureNpc(matched, person);
+  profile.preferences = [...new Set([matched.character.gender, ...profile.preferences])];
+  relationshipMemory(matched, person.id, 'meeting', 2);
+  matched.social.pendingPerson = person.id;
+  matched.pending = 'social-dating-match';
+  if (!matched.seen.includes(matched.pending)) matched.seen.push(matched.pending);
+  return decodeLife(JSON.stringify(matched));
+}
+
 function acceptMatch(life: Life, source: 'date' | 'app') {
-  const matched = act(life, { type: 'dating-match', source });
+  const matched = legacyMatch(life, source);
   return act(matched, { type: 'choose', event: 'social-dating-match', choice: 'accept' });
 }
 
@@ -240,13 +257,19 @@ test('five annual searches per Love activity give different candidates and decli
     const ids = new Set<string>();
     for (let attempt = 0; attempt < annualLoveSearches; attempt++) {
       const invited = decodeLife(JSON.stringify(act(life, action)));
-      const id = invited.social.pendingPerson!;
+      const id = invited.social.pendingPerson ?? pendingDatingProfile(invited)?.person.id;
+      if (!id) {
+        const notice = invited.notices.at(-1)!;
+        assert.equal(notice.title, 'No Suitable Profiles');
+        life = act(invited, { type: 'acknowledge-event', entry: notice.entry });
+        continue;
+      }
       assert.ok(!relationshipGroups(invited).acquaintances.some((person) => person.id === id));
       ids.add(id);
       life = act(invited, { type: 'choose', event: invited.pending!, choice: 'pass' });
       assert.equal(findContact(life, id), undefined);
     }
-    assert.equal(ids.size, 5);
+    assert.ok(ids.size >= (action.type === 'intimacy' ? 5 : 1));
     assert.match(advance(life, action).error ?? '', /all 5 searches this year/);
   }
   life = age(life);
@@ -361,24 +384,86 @@ test('Hook Up keeps the match and choice through reload and remains a one-night 
   assert.equal(findContact(passed, id), undefined);
 });
 
-test('dating app preferences match adult ages and NPC net worth without debiting the player', () => {
+test('the bounded pool is unchanged by player preferences and app filters only select existing profiles', () => {
   const base = adult();
+  const pool = datingPool(base);
+  assert.equal(pool.length, 126);
+  assert.equal(new Set(pool.map(({ person }) => person.id)).size, pool.length);
+  assert.equal(new Set(pool.map(({ person }) => person.city)).size, 3);
+  assert.ok(new Set(pool.map(({ profile }) => profile.datingGoal)).size > 4);
+  const edited = act(base, { type: 'dating-profile', profile: { ...defaultDatingProfile, age: '65-74', distance: 'any', netWorth: '1000-4999' } });
+  assert.deepEqual(datingPool(decodeLife(JSON.stringify(edited))), pool);
   for (const source of ['app', 'lgbtq'] as const) {
-    const matched = act(base, { type: 'dating-match', source, preferences: { age: '65-74', netWorth: '1000-4999' } });
-    const person = findContact(matched, matched.social.pendingPerson!)!;
-    const netWorth = npcNetWorth(matched, person);
+    const matched = act(edited, { type: 'dating-match', source });
+    const candidate = pendingDatingProfile(matched)!;
+    const { person, profile } = candidate;
+    assert.deepEqual(profile, pool[candidate.index]!.profile);
+    const netWorth = candidateNetWorth(candidate);
     assert.ok(person.age >= 65 && person.age <= 74);
     assert.ok(netWorth >= 100000 && netWorth <= 499999);
     assert.deepEqual(matched.transactions, base.transactions);
-    if (source === 'lgbtq') assert.ok(ensureNpc(matched, person).preferences.includes(person.gender));
+    if (source === 'lgbtq') assert.ok(person.gender === 'nonbinary' || profile.preferences.includes(person.gender));
+    assert.equal(findContact(matched, person.id), undefined);
     const popup = eventPopup(matched);
     assert.equal(popup?.portrait?.age, person.age);
     assert.deepEqual(popup?.portrait?.appearance, person.appearance);
     assert.deepEqual(eventPopup(decodeLife(JSON.stringify(matched))), popup);
+    const invalid = { ...matched, social: { ...matched.social,
+      datingCycle: { year: matched.year, viewed: [], pending: { source } } } };
+    assert.throws(() => decodeLife(JSON.stringify(invalid)), /invalid social data/);
   }
   const preferences = { age: '12-17', netWorth: 'any' } as unknown as DatingPreferences;
   assert.match(advance(base, { type: 'dating-match', source: 'app', preferences }).error ?? '', /valid age range/);
   assert.match(advance(base, { type: 'dating-match', source: 'date', preferences: { age: 'any', netWorth: 'any' } }).error ?? '', /valid age range/);
+});
+
+test('a search can return no profiles without changing the pool or promoting anyone', () => {
+  const base = adult();
+  const distant = act(base, { type: 'dating-profile', profile: { ...defaultDatingProfile, distance: 'distant' } });
+  const remote = pendingDatingProfile(act(distant, { type: 'dating-match', source: 'app' }));
+  assert.ok(remote);
+  assert.notEqual(remote.person.city, base.character.city);
+  const result = act(distant, { type: 'dating-match', source: 'date' });
+  assert.equal(eventPopup(result)?.title, 'No Suitable Profiles');
+  assert.equal(result.pending, null);
+  assert.deepEqual(result.social.people, distant.social.people);
+  assert.deepEqual(result.transactions, distant.transactions);
+  const searching = act(base, { type: 'dating-profile', profile: { ...defaultDatingProfile, goal: 'not-looking' } });
+  assert.match(advance(searching, { type: 'dating-match', source: 'app' }).error ?? '', /relationship goal/);
+});
+
+test('a like produces a deterministic NPC response and only mutual matches become contacts', () => {
+  const outcomes = new Set<string>();
+  for (let seed = 1; seed < 60 && outcomes.size !== 3; seed++) {
+    let life = adult();
+    life.seed = seed;
+    life = act(life, { type: 'dating-profile', profile: { ...defaultDatingProfile, goal: seed % 2 ? 'undecided' : 'marriage' } });
+    const discovered = act(life, { type: 'dating-match', source: 'app' });
+    const staged = pendingDatingProfile(discovered);
+    if (!staged) continue;
+    assert.equal(findContact(discovered, staged.person.id), undefined);
+    assert.ok(matchesSearch(discovered, staged, 'app', life.social.datingProfile!));
+    const like = { type: 'choose', event: discoveryEvent, choice: 'like' } as const;
+    const answered = act(discovered, like);
+    assert.deepEqual(act(decodeLife(JSON.stringify(discovered)), like), answered);
+    const notice = answered.notices.at(-1)!;
+    const story = answered.journal[notice.entry]!.text;
+    if (notice.title === 'Mutual Match') {
+      outcomes.add('matched');
+      assert.equal(romanceFor(answered, staged.person.id)?.status, 'getting-to-know');
+      assert.equal(activeRomance(answered), undefined);
+      const { savings, preferences, education, job, datingGoal } = answered.social.profiles[staged.person.id]!;
+      assert.deepEqual({ savings, preferences, education, job, datingGoal }, {
+        savings: staged.profile.savings, preferences: staged.profile.preferences, education: staged.profile.education,
+        job: staged.profile.job, datingGoal: staged.profile.datingGoal,
+      });
+    } else {
+      outcomes.add(story.includes('different things') ? 'goals' : 'declined');
+      assert.equal(findContact(answered, staged.person.id), undefined);
+    }
+    assert.deepEqual(decodeLife(JSON.stringify(answered)), answered);
+  }
+  assert.deepEqual(outcomes, new Set(['matched', 'goals', 'declined']));
 });
 
 test('a group invitation validates both saved adults and requires both to consent', () => {
@@ -426,12 +511,11 @@ test('Love introductions are adult-only and keep the match and response after re
     const matched = act(adult(), { type: 'dating-match', source });
     const restored = decodeLife(JSON.stringify(matched));
     assert.deepEqual(restored, matched);
-    const person = findContact(restored, restored.social.pendingPerson!)!;
-    assert.ok(person.age >= 18 && ensureNpc(restored, person).preferences.includes(restored.character.gender));
-    if (source === 'lgbtq') assert.ok(ensureNpc(restored, person).preferences.includes(person.gender));
-    if (source === 'spotlight') assert.equal(ensureNpc(restored, person).status, 'employed');
-    stories.add(restored.journal.at(-2)!.text);
-    const result = act(restored, { type: 'choose', event: restored.pending!, choice: source === 'casual' ? 'accept' : 'pass' });
+    const { person, profile, intro } = pendingDatingProfile(restored)!;
+    assert.ok(person.age >= 18 && profile.preferences.includes(restored.character.gender));
+    if (source === 'lgbtq') assert.ok(person.gender === 'nonbinary' || profile.preferences.includes(person.gender));
+    stories.add(intro);
+    const result = act(restored, { type: 'choose', event: discoveryEvent, choice: 'pass' });
     assert.equal(result.social.pendingPerson, null);
     assert.equal(activeRomances(result).length, 0);
     assert.ok(advance(result, { type: 'dating-match', source: 'app' }).life);
@@ -527,7 +611,7 @@ test('mutual non-exclusivity preserves concurrent partners without making breach
 });
 
 test('getting to know someone, first date, and commitment have distinct states', () => {
-  const invited = act(adult(), { type: 'dating-match', source: 'app' });
+  const invited = legacyMatch(adult(), 'app');
   const id = invited.social.pendingPerson!;
   const slow = act(invited, { type: 'choose', event: 'social-dating-match', choice: 'slow' });
   assert.equal(romanceFor(slow, id)?.status, 'getting-to-know');

@@ -78,6 +78,7 @@ export default function GameLayout() {
         {popup.cause && <View style={styles.deathCause}><Text style={[styles.identityRole, styles.center]}>Cause of death</Text>
           <Text style={[styles.identityName, styles.center]}>{popup.cause}</Text></View>}
         {popup.match?.netWorth && <View style={styles.matchStat}><DataRow label="Net Worth" value={popup.match.netWorth} /></View>}
+        {popup.profileRows && <View style={styles.matchStat}>{popup.profileRows.map((row) => <DataRow key={row.label} {...row} />)}</View>}
         {popup.match?.looks !== undefined && <View style={styles.result}><DetailMeter label="Looks" value={popup.match.looks} /></View>}
         {popup.profileMeters && <View style={styles.result}>{popup.profileMeters.map((row) => <DetailMeter key={row.label} {...row} />)}</View>}
         {popup.enjoyment && <View style={[styles.result, styles.enjoyment]}>

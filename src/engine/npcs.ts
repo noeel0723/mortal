@@ -45,7 +45,10 @@ export function isFamily(life: Life, id: string) {
 }
 
 export function npcProfile(life: Life, person: Contact): NpcProfile {
-  if (Object.hasOwn(life.social.profiles, person.id)) return life.social.profiles[person.id]!;
+  return Object.hasOwn(life.social.profiles, person.id) ? life.social.profiles[person.id]! : initialNpcProfile(life, person);
+}
+
+export function initialNpcProfile(life: Life, person: Contact): NpcProfile {
   const random = npcRandom(life, person.id);
   const traitsForPerson = Object.fromEntries(traits.map((trait) => [trait, random.integer(18, 92)])) as Traits;
   const parent = isParent(life, person.id);

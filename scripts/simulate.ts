@@ -12,6 +12,8 @@ import type { SkillId, TrainingMethod } from '../src/data/skills.ts';
 import { academicActionIssue, isTuitionDue, latestApplication } from '../src/engine/academics.ts';
 import { careerActionIssue, jobRequirementsIssue, vacancies } from '../src/engine/career.ts';
 import { createLife } from '../src/engine/create.ts';
+import { defaultDatingProfile } from '../src/engine/dating.ts';
+import { discoveryEvent } from '../src/engine/datingDiscovery.ts';
 import { incomeTax, outstanding } from '../src/engine/finance.ts';
 import { familyIssue } from '../src/engine/familyLife.ts';
 import { activeRomance, activeRomances, datingCompatibility, loveIssue } from '../src/engine/love.ts';
@@ -330,23 +332,51 @@ type RelationshipStrategy = typeof relationshipStrategies[number];
 type RelationshipOutcome = { lives: number; withMarriage: number; withNonExclusive: number; concurrentNonExclusive: number;
   duration: number[]; satisfaction: number[]; breakupCauses: Record<string, number>; conflicts: number; resolved: number };
 const relationshipOutcomes = new Map<RelationshipStrategy, RelationshipOutcome>();
+const datingStrategies = ['local-event', 'same-city-app', 'all-cities-app', 'filtered-app'] as const;
+type DatingStrategy = typeof datingStrategies[number];
+type DatingOutcome = { searches: number; empty: number; likes: number; mutual: number; firstDates: number; directCostCents: number; duration: number[] };
+const datingOutcomes = new Map<DatingStrategy, DatingOutcome>(datingStrategies.map((name) => [name, {
+  searches: 0, empty: 0, likes: 0, mutual: 0, firstDates: 0, directCostCents: 0, duration: [],
+}]));
+const datingStrategyFor = (seed: number) => datingStrategies[seed % datingStrategies.length]!;
 
 function socialChoice(life: Life, seed: number, strategy: RelationshipStrategy) {
   const { age, causeOfDeath } = life.character;
   if (age < 18 || causeOfDeath || strategy === 'single' ||
     (strategy === 'divorced' && life.social.romances.some(({ status }) => status === 'divorced'))) return life;
   const romance = activeRomance(life);
-  const visit = (source: 'date' | 'app') => {
+  const datingStrategy = datingStrategyFor(seed);
+  const datingStats = datingOutcomes.get(datingStrategy)!;
+  const search = () => {
+    const source = datingStrategy === 'local-event' ? 'date' : 'app';
     const match = { type: 'dating-match', source } as const;
     if (!loveIssue(life, match)) {
+      if (!life.social.datingProfile) {
+        if (datingStrategy === 'all-cities-app') {
+          life = apply(life, { type: 'dating-profile', profile: { ...defaultDatingProfile, distance: 'any' } });
+        } else if (datingStrategy === 'filtered-app') {
+          life = apply(life, { type: 'dating-profile', profile: { ...defaultDatingProfile,
+            age: '25-34', education: 'degree', netWorth: '1000-4999' } });
+        }
+      }
+      const balance = life.character.bank;
+      datingStats.searches++;
       life = apply(life, match);
-      life = apply(life, { type: 'choose', event: 'social-dating-match', choice: 'accept' });
-      decisions++;
+      if (life.pending === discoveryEvent) {
+        const contacts = life.social.people.length;
+        datingStats.likes++;
+        life = apply(life, { type: 'choose', event: discoveryEvent, choice: 'like' });
+        datingStats.mutual += Number(life.social.people.length > contacts);
+        decisions++;
+      } else datingStats.empty++;
+      datingStats.directCostCents += balance - life.character.bank;
     }
   };
-  if (!romance) {
-    if (age > 52 || age % 2 !== 0) return life;
-    const candidates = datingCandidates(life).sort((a, b) => datingCompatibility(life, b) - datingCompatibility(life, a));
+  const lookForDate = () => {
+    const sources = romance ? life.social.romances.filter(({ status }) => status === 'getting-to-know').map(({ person }) => person) : undefined;
+    const candidates = datingCandidates(life)
+      .filter(({ id }) => !sources || sources.includes(id))
+      .sort((a, b) => datingCompatibility(life, b) - datingCompatibility(life, a));
     const candidate = candidates.find((person) => (seed + life.year) % 4 !== 0 &&
       !loveIssue(life, { type: 'romance', person: person.id, action: 'ask' }));
     if (candidate) {
@@ -355,10 +385,21 @@ function socialChoice(life: Life, seed: number, strategy: RelationshipStrategy) 
         if (result.life) life = result.life;
       }
       const ask = { type: 'romance', person: candidate.id, action: 'ask' } as const;
-      if (!loveIssue(life, ask)) life = apply(life, ask);
+      if (!loveIssue(life, ask)) {
+        const balance = life.character.bank;
+        const firstDate = life.social.relationships[candidate.id]?.milestones.date === undefined;
+        life = apply(life, ask);
+        if (candidate.id.startsWith('npc-pool-')) {
+          datingStats.firstDates += Number(firstDate && life.social.relationships[candidate.id]?.milestones.date !== undefined);
+          datingStats.directCostCents += balance - life.character.bank;
+        }
+      }
     } else {
-      visit(seed % 2 ? 'date' : 'app');
+      search();
     }
+  };
+  if (!romance) {
+    if (age <= 52 && age % 2 === 0) lookForDate();
     return life;
   }
   const partner = findContact(life, romance.person)!;
@@ -380,13 +421,13 @@ function socialChoice(life: Life, seed: number, strategy: RelationshipStrategy) 
       if (agreementFor(life, person.id) !== 'non-exclusive') care('non-exclusive', person);
       care('phone', person);
     }
-    if (age <= 52 && age % 3 === 0 && activeRomances(life).length < 2 && agreementFor(life, partner.id) === 'non-exclusive') visit('app');
+    if (age <= 52 && age % 3 === 0 && activeRomances(life).length < 2 && agreementFor(life, partner.id) === 'non-exclusive') lookForDate();
     return life;
   }
   if (strategy === 'broken-agreement') {
     if (activeRomances(life).length === 1 && age <= 52) {
       if (agreementFor(life, partner.id) !== 'exclusive') care('exclusive');
-      else if (life.year > romance.started && age % 3 === 0) visit('app');
+      else if (life.year > romance.started && age % 3 === 0) lookForDate();
     }
     if (life.year % 2 === 0) care('phone');
     return life;
@@ -590,7 +631,11 @@ for (let seed = 1; seed <= count; seed++) {
   relationshipStats.concurrentNonExclusive += Number(hadConcurrent);
   for (const romance of life.social.romances) {
     const state = life.social.relationships[romance.person];
-    if (state?.milestones.date) relationshipStats.duration.push((romance.ended ?? life.year) - romance.started);
+    if (state?.milestones.date) {
+      const duration = (romance.ended ?? life.year) - romance.started;
+      relationshipStats.duration.push(duration);
+      if (romance.person.startsWith('npc-pool-')) datingOutcomes.get(datingStrategyFor(seed))!.duration.push(duration);
+    }
     if (state?.endedBecause) relationshipStats.breakupCauses[state.endedBecause] = (relationshipStats.breakupCauses[state.endedBecause] ?? 0) + 1;
   }
   for (const state of Object.values(life.social.relationships)) {
@@ -732,6 +777,10 @@ console.log(JSON.stringify({
   relationships: Object.fromEntries([...relationshipOutcomes].map(([strategy, { duration, satisfaction, ...stats }]) => [strategy, {
     ...stats, durationYears: percentiles(duration), annualSatisfaction: percentiles(satisfaction),
     marriageRate: Math.round(stats.withMarriage / stats.lives * 1000) / 10,
+  }])),
+  dating: Object.fromEntries([...datingOutcomes].map(([strategy, { duration, ...stats }]) => [strategy, {
+    ...stats, matchRate: stats.likes ? Math.round(stats.mutual / stats.likes * 1000) / 10 : 0,
+    durationYears: percentiles(duration),
   }])),
   wealth: {
     finalNetWorthCents: percentiles(netWorth), savingsCents: percentiles(deposits), finalLiabilitiesCents: percentiles(liabilities),

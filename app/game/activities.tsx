@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Portrait } from '../../src/components/portrait';
-import { DatingOptions } from '../../src/components/datingOptions';
+import { DatingOptions, DatingProfileEditor } from '../../src/components/datingOptions';
 import { ActionButton, Heading, Page, Section } from '../../src/components/ui';
 import { lifestyleActivities, mindAndBodyActivities, socialActivities, type ActivityControl } from '../../src/activityView';
 import { canEditFace } from '../../src/engine/appearance';
@@ -23,6 +23,12 @@ export default function Activities() {
         disabled={busy || !!item.issue} onPress={() => void dispatch(item.action)} />
     );
   }
+
+  if (screen === 'dating-profile') return <Page inGame>
+    <Heading title="Dating Profile" back={() => router.canGoBack() ? router.back() :
+      router.replace({ pathname: '/game/activities', params: { screen: 'love' } })} />
+    <DatingProfileEditor life={life} />
+  </Page>;
 
   if (screen === 'threesome') {
     const candidates = intimacyGuests(life);
@@ -58,6 +64,12 @@ export default function Activities() {
             disabled={busy || !!groupIssue}
             onPress={() => router.push({ pathname: '/game/activities', params: { screen: 'threesome' } })} />}
         </Section>
+        {love && <Section title="Your Profile">
+          <ActionButton icon="person" label="Dating Profile" detail="Edit your dating preferences"
+            onPress={() => router.push({ pathname: '/game/activities', params: { screen: 'dating-profile' } })} />
+          <ActionButton icon="loveLetter" label="My Love Life" detail="See your matches and partners"
+            onPress={() => router.push({ pathname: '/game/love-life', params: { source: 'activities' } })} />
+        </Section>}
       </Page>
     );
   }

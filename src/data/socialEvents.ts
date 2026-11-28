@@ -19,6 +19,11 @@ const regularInvitations: LifeEvent[] = invitations.map(({ id, text, label }) =>
 
 export const socialEventCatalog: readonly LifeEvent[] = [
   ...regularInvitations,
+  { id: 'social-dating-discovery', category: 'community', ages: [18, 115], probability: 0, text: 'I found a dating profile.',
+    choices: [
+      { id: 'like', label: 'Send Like', emoji: 'accept', outcome: '', effects: {} },
+      { id: 'pass', label: 'Pass', emoji: 'decline', outcome: '', effects: {} },
+    ] },
   { id: 'social-meeting', category: 'community', ages: [5, 115], probability: 0, text: 'I met someone new.',
     choices: [
       { id: 'accept', label: 'Talk and Keep in Touch', emoji: 'support', outcome: '', effects: {} },

@@ -54,7 +54,7 @@ import { cityFromSlug, cityReport, compareCities, currentNews, industryReport, r
 import { Achievements, Settings } from './menu';
 import { AppearancePage, Portrait } from './portraits';
 import { DetailDialog } from './detailDialog';
-import { DatingDialog } from './datingDialog';
+import { DatingDialog, DatingProfileForm } from './datingDialog';
 import { Button, Feedback, Icon, Rows } from './ui';
 
 export const pageTitles = {
@@ -105,6 +105,7 @@ export const pageTitles = {
   transactions: 'Transaction History',
   activities: 'Activities',
   love: 'Love',
+  'dating-profile': 'Dating Profile',
   threesome: 'Threesome',
   'mind-body': 'Mind & Body',
   doctor: 'Doctors',
@@ -183,6 +184,7 @@ const parentPages: Partial<Record<DetailPage, GamePage>> = {
   'plastic-surgery': 'activities',
   doctor: 'activities',
   love: 'activities',
+  'dating-profile': 'love',
   threesome: 'love',
   'mind-body': 'activities',
   skills: 'statistics',
@@ -202,6 +204,7 @@ export function PlayPageHeader({ page, person, schoolTitle, detail, go }: {
   page: DetailPage; person?: Contact; schoolTitle?: string; detail?: string; go: Navigate;
 }) {
   let parent = parentPages[page] ?? 'journal';
+  if (page === 'love-life' && detail === 'love') parent = 'love';
   if (page === 'owned-detail') {
     const section = detail?.split('~')[1];
     if (section === 'properties' || section === 'vehicles' || section === 'asset-records') parent = section;
@@ -1029,9 +1032,15 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           <MenuRow icon="classroom" title="Threesome" detail={issue ?? 'Invite two adults'}
             disabled={busy || !!issue} onClick={() => go('threesome')} />
         </PageGroup>
+        <PageGroup title="Your Profile">
+          <MenuRow icon="person" title="Dating Profile" detail="Edit your dating preferences" onClick={() => go('dating-profile')} />
+          <MenuRow icon="loveLetter" title="My Love Life" detail="See your matches and partners" onClick={() => go('love-life', 'love')} />
+        </PageGroup>
         {datingDialog}
       </>;
     }
+    case 'dating-profile':
+      return <DatingProfileForm life={life} />;
     case 'threesome':
       return <GroupEncounter life={life} />;
     case 'mind-body':

@@ -1,11 +1,11 @@
 import { recordNotice, resultMeter } from './eventNotices.ts';
 import { moveHousehold } from './household.ts';
-import { isDatingApp, validDatingPreferences } from './dating.ts';
+import { isDatingApp, playerDatingProfile, validDatingPreferences } from './dating.ts';
 import { sharedHobbies } from './hobbies.ts';
 import { clamp } from './journal.ts';
-import { consumeLoveSearch, loveSearchIssue } from './loveSearch.ts';
+import { loveSearchIssue } from './loveSearch.ts';
 import { meetingIssue, startMeeting } from './meetings.ts';
-import { ensureNpc, isFamily, makeNpc, newPeopleLimit, npcProfile, npcRandom, remember } from './npcs.ts';
+import { ensureNpc, isFamily, newPeopleLimit, npcProfile, npcRandom, remember } from './npcs.ts';
 import { findContact } from './school.ts';
 import { agreementFor, attraction, boundaryEvidence, inPersonIssue, meaningfulTime, openConcern, relationshipEnded, relationshipMemory,
   restartRelationship, responseScale, takingSpace } from './relationships.ts';
@@ -117,6 +117,7 @@ export function loveIssue(life: Life, action: LoveAction): string | null {
     }
     if (action.source === 'hobbies' || action.source === 'neighborhood') return meetingIssue(life, action.source);
     if (life.character.age < 18) return 'Dating opens at age 18.';
+    if (playerDatingProfile(life).goal === 'not-looking') return 'Update your relationship goal in Dating Profile to start looking.';
     if (life.social.people.filter(({ role }) => role === 'Acquaintance').length >= newPeopleLimit - 8) return 'Your social circle is full.';
     return loveSearchIssue(life, action.source);
   }
@@ -164,23 +165,11 @@ function dateStory(life: Life, person: Contact, action: keyof typeof dateActivit
   return pickStory(life, `${person.id}:romance:${action}`, stories[action]);
 }
 
-export function applyLove(life: Life, action: Exclude<LoveAction, { type: 'dating-match' }>) {
+export function applyLove(life: Life, action: Extract<LoveAction, { type: 'romance' | 'wedding' }> |
+  { type: 'meet'; source: 'hobbies' | 'neighborhood' }) {
   const issue = loveIssue(life, action);
   if (issue) return issue;
-  if (action.type === 'meet') {
-    const { source } = action;
-    if (source === 'hobbies' || source === 'neighborhood') return startMeeting(life, source);
-    const attempt = consumeLoveSearch(life, source);
-    const random = npcRandom(life, `new-person:${source}:${attempt}`, life.year);
-    const person = makeNpc(life, `npc-meet-${source}-${life.year}-${attempt}`,
-      Math.min(102, Math.max(18, life.character.age + random.integer(-3, 3))), 'Acquaintance');
-    life.social.people.push(person);
-    relationshipMemory(life, person.id, 'meeting', 2);
-    const story = `I met ${person.name} ${source === 'date' ? 'at a singles event' : 'through the dating app'} and got to know them a little.`;
-    remember(life, person, story);
-    recordNotice(life, 'community', 'Someone New', story, { happiness: 2 });
-    return null;
-  }
+  if (action.type === 'meet') return startMeeting(life, action.source);
   const person = findContact(life, action.person)!;
   const profile = ensureNpc(life, person);
   const previous = person.bond.affection;

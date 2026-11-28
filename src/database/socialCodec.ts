@@ -2,6 +2,8 @@ import { jobById } from '../data/jobs.ts';
 import { cities, genders } from '../data/veyra.ts';
 import { allContacts, newPeopleLimit } from '../engine/npcs.ts';
 import { isActiveRomance } from '../engine/love.ts';
+import { datingGoals } from '../engine/dating.ts';
+import { discoveryEvent, validDatingState } from '../engine/datingDiscovery.ts';
 import { validSearchMatchId } from '../engine/loveSearch.ts';
 import { validPendingMeeting } from '../engine/meetings.ts';
 import { canShareInvitation, isIntimacyContact, isIntimacyEvent } from '../engine/intimacy.ts';
@@ -31,12 +33,14 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
   const ids = new Set(contacts.map(({ id }) => id));
   if (ids.has('self') || ids.size !== contacts.length || Object.keys(social.profiles).length !== ids.size) return false;
   if (!validateRelationships(life, ids)) return false;
+  if (!validDatingState(life)) return false;
   for (const id of ids) {
     if (!Object.hasOwn(social.profiles, id)) return false;
     const profile = social.profiles[id];
     if (!record(profile) || !record(profile.traits) || !traits.every((trait) => integer(profile.traits[trait], 0, 100)) ||
       !Array.isArray(profile.interests) || profile.interests.length !== 2 || !profile.interests.every((item) => typeof item === 'string') ||
       !Array.isArray(profile.preferences) || !profile.preferences.length || !profile.preferences.every((item) => genders.includes(item)) ||
+      (profile.datingGoal !== undefined && (typeof profile.datingGoal !== 'string' || !Object.hasOwn(datingGoals, profile.datingGoal))) ||
       !npcEducation.includes(profile.education) || !employment.includes(profile.status) ||
       (profile.job !== null && !jobById.has(profile.job)) ||
       ![profile.income, profile.expenses, profile.savings, profile.commitments, profile.experience, profile.conflicts].every(amount) ||
@@ -99,6 +103,7 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
   }
   if (life.pending !== 'social-threesome' && social.pendingGuest !== undefined) return false;
   if (!validPendingMeeting(life)) return false;
+  if (life.pending === discoveryEvent) return true;
   if (life.pending === 'social-meeting') return !character.causeOfDeath;
   if (!socialEvents.some((event) => event === life.pending)) return social.pendingPerson === null;
   const participant = contacts.find(({ id, alive }) => id === social.pendingPerson && alive);

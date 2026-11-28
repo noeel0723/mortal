@@ -151,6 +151,7 @@ export function Play({ life, page, personId, go, home, newLife }: {
         {popup.match?.netWorth && <div className="event-match-stat">
           <Rows items={[{ label: 'Net Worth', value: popup.match.netWorth }]} />
         </div>}
+        {popup.profileRows && <div className="event-match-stat"><Rows items={popup.profileRows} /></div>}
         {popup.match?.looks !== undefined && <div className="event-result-meter">
           <PageMeter label="Looks" value={popup.match.looks} />
         </div>}

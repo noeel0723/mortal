@@ -157,7 +157,7 @@ export function datingControls(life: Life) {
 
 export function meetingControls(life: Life, romantic: boolean) {
   return romantic ? [
-    love(life, { type: 'meet', source: 'date' }, 'Find a Date', 'rose', searchDetail(life, 'date', 'Meet someone at a singles event')),
+    love(life, { type: 'dating-match', source: 'date' }, 'Find a Date', 'rose', searchDetail(life, 'date', 'Meet someone at a singles event')),
     ...datingAppControls(life),
   ] : [
     love(life, { type: 'meet', source: 'neighborhood' }, 'Meet a Neighbor', 'location', 'Get to know someone nearby'),

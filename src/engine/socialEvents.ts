@@ -1,24 +1,17 @@
-import { jobById } from '../data/jobs.ts';
-import { skills } from '../data/skills.ts';
 import { socialEventCatalog } from '../data/socialEvents.ts';
-import { datingAgeOptions, datingWorthOptions } from './dating.ts';
+import { answerDatingDiscovery, discoveryEvent } from './datingDiscovery.ts';
 import { recordNotice } from './eventNotices.ts';
 import { answerIntimacy, isIntimacyEvent, prepareIntimacy } from './intimacy.ts';
 import { clamp, record } from './journal.ts';
-import { activeRomances, canPropose, changeRomance, endRomance, loveIssue, romanceFor, romanceHistory } from './love.ts';
-import { consumeLoveSearch, discardSearchMatch } from './loveSearch.ts';
+import { activeRomances, canPropose, changeRomance, endRomance, romanceFor, romanceHistory } from './love.ts';
+import { discardSearchMatch } from './loveSearch.ts';
 import { answerMeeting } from './meetings.ts';
-import { allContacts, ensureNpc, makeNpc, npcProfile, npcRandom, remember } from './npcs.ts';
+import { allContacts, ensureNpc, npcProfile, npcRandom, remember } from './npcs.ts';
 import { activeFor, agreementFor, agreementPhrase, boundaryEvidence, concernLabels, inPersonIssue, knownRelationship, meaningfulTime, negotiateAgreement, relationshipMemory,
   relationshipSatisfaction, relationshipState, setAgreement, visibleConcerns } from './relationships.ts';
 import { findContact } from './school.ts';
-import type { DatingSource, IntimacyAction, SocialAction, SocialEventId } from './socialTypes.ts';
+import type { IntimacyAction, SocialEventId } from './socialTypes.ts';
 import type { Contact, Life, LifeEvent } from './types.ts';
-
-const matchIntroductions: Record<DatingSource, string> = {
-  spotlight: 'through an app for local public figures', date: 'at a singles evening', app: 'through a local dating app',
-  lgbtq: 'through an LGBTQ+ dating app', casual: 'at a café after arranging a casual date', matchmaking: 'through a local matchmaker',
-};
 
 export function isSocialEvent(id: string) {
   return socialEventCatalog.some((event) => event.id === id);
@@ -67,38 +60,6 @@ function queueSocialEvent(life: Life, id: SocialEventId, person: string) {
   life.pending = id;
   if (!life.seen.includes(id)) life.seen.push(id);
   record(life, event.category, socialEventText(life, event));
-}
-
-export function applyDatingMatch(life: Life, action: Extract<SocialAction, { type: 'dating-match' }>) {
-  const issue = loveIssue(life, action);
-  if (issue) return issue;
-  const { source, preferences } = action;
-  const attempt = consumeLoveSearch(life, source);
-  const random = npcRandom(life, `match:${source}:${attempt}`, life.year);
-  const age = preferences && datingAgeOptions[preferences.age];
-  const matchAge = age && 'range' in age ? random.integer(age.range[0], age.range[1]) :
-    Math.min(114, Math.max(source === 'spotlight' ? 22 : 18, life.character.age + random.integer(-4, 4)));
-  const person = makeNpc(life, `npc-dating-${source}-${life.year}-${attempt}`, matchAge, 'Acquaintance');
-  life.social.people.push(person);
-  relationshipMemory(life, person.id, 'meeting', 2);
-  const profile = ensureNpc(life, person);
-  const worth = preferences && datingWorthOptions[preferences.netWorth];
-  if (worth && 'range' in worth) profile.savings = random.integer(worth.range[0], worth.range[1]) + profile.commitments;
-  profile.preferences = [...new Set([life.character.gender, ...(source === 'lgbtq' ? [person.gender] : profile.preferences)])];
-  if (source === 'spotlight') {
-    const job = jobById.get('graphic-designer')!;
-    Object.assign(profile, { status: 'employed', job: job.id, income: job.salary[0], education: 'Undergraduate' });
-    person.occupation = job.title;
-  }
-  const hobby = source === 'matchmaking' ? life.skills.hobbies.find((id) => skills[id].age <= person.age) : undefined;
-  if (hobby) profile.interests = [hobby, ...profile.interests.filter((item) => item !== hobby).slice(0, 1)];
-  const note = source === 'spotlight' ? ' They were featured in a recent local arts showcase.' :
-    hobby ? ` The matchmaker introduced us because we both enjoy ${skills[hobby].name}.` : '';
-  const story = `I met ${person.name} ${matchIntroductions[source]}.${note}`;
-  remember(life, person, story);
-  record(life, 'community', story);
-  queueSocialEvent(life, source === 'casual' ? 'social-casual-match' : 'social-dating-match', person.id);
-  return null;
 }
 
 export function offerSocialEvent(life: Life) {
@@ -213,6 +174,10 @@ function answerBreach(life: Life, person: Contact, choice: string) {
 
 export function answerSocialEvent(life: Life, id: string, choice: string) {
   const accepted = choice === 'accept';
+  if (id === discoveryEvent) {
+    answerDatingDiscovery(life, choice === 'like');
+    return;
+  }
   if (id === 'social-meeting') {
     answerMeeting(life, accepted);
     return;

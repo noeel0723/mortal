@@ -6,7 +6,9 @@ import { drivingIssue } from './engine/familyDriving.ts';
 import { birthParents, surname } from './engine/familyNames.ts';
 import { eventStory, libraryGuest } from './engine/library.ts';
 import { pendingMeeting } from './engine/meetings.ts';
-import { npcLooks, npcNetWorth } from './engine/dating.ts';
+import { datingGoals, npcLooks, npcNetWorth } from './engine/dating.ts';
+import { discoveryEvent, pendingDatingProfile } from './engine/datingDiscovery.ts';
+import { candidateNetWorth } from './engine/datingPool.ts';
 import { isSocialEvent, socialEventText } from './engine/socialEvents.ts';
 import { visibleConcerns } from './engine/relationships.ts';
 import { findContact } from './engine/school.ts';
@@ -36,11 +38,32 @@ type EventPopup = {
   cause?: string;
   match?: { looks?: number; netWorth?: string };
   profileMeters?: { label: string; value: number }[];
+  profileRows?: { label: string; value: string }[];
 };
 
 export function eventPopup(life: Life): EventPopup | undefined {
   const event = life.pending ? eventById.get(life.pending) : undefined;
   if (event?.choices?.length) {
+    const discovery = event.id === discoveryEvent ? pendingDatingProfile(life) : undefined;
+    if (discovery) {
+      const { person, profile, intro } = discovery;
+      return {
+        key: `decision-${event.id}-${person.id}`, title: 'Dating Profile', text: intro, special: 'match',
+        category: categories.community,
+        portrait: { appearance: person.appearance, name: person.name, age: person.age,
+          role: `${en.age(person.age)} · ${genderLabels[person.gender]} · ${person.occupation}` },
+        profileRows: [
+          { label: 'Goal', value: datingGoals[profile.datingGoal].label },
+          { label: 'Lives in', value: person.city },
+          { label: 'Education', value: profile.education },
+          { label: 'Interests', value: profile.interests.join(', ') },
+          { label: 'Net Worth', value: money(candidateNetWorth(discovery)) },
+        ],
+        match: { looks: npcLooks(life, person) },
+        actions: event.choices.map((choice) => ({ label: choice.label, icon: choice.emoji,
+          tone: choice.id === 'like' ? 'primary' : 'quiet', action: { type: 'choose', event: event.id, choice: choice.id } })),
+      };
+    }
     const hookup = event.id === 'social-hookup';
     const meeting = event.id === 'social-meeting' ? pendingMeeting(life) : undefined;
     const guest = meeting?.person ?? (event.id === libraryFriendEvent ? libraryGuest(life) : undefined);

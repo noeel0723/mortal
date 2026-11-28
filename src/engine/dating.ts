@@ -26,6 +26,41 @@ export type DatingAppSource = 'app' | 'lgbtq';
 export const defaultDatingPreferences: DatingPreferences = { age: 'any', netWorth: 'any' };
 export const isDatingApp = (source: string): source is DatingAppSource => source === 'app' || source === 'lgbtq';
 
+export const datingGoals = {
+  'not-looking': { label: 'Not looking' }, casual: { label: 'Casual dating' }, 'long-term': { label: 'Long-term relationship' },
+  marriage: { label: 'Marriage-oriented' }, companionship: { label: 'Companionship' }, undecided: { label: 'Undecided' },
+} as const;
+export type DatingGoal = keyof typeof datingGoals;
+
+export const datingProfileFields = {
+  gender: { label: 'Preferred Partner', options: { any: { label: 'Any gender' }, woman: { label: 'Women' }, man: { label: 'Men' }, nonbinary: { label: 'Nonbinary people' } } },
+  age: { label: 'Preferred Age', options: datingAgeOptions },
+  goal: { label: 'Relationship Goal', options: datingGoals },
+  distance: { label: 'Distance', options: { local: { label: 'Same city' }, any: { label: 'Any city' }, distant: { label: 'Other cities' } } },
+  lifestyle: { label: 'Lifestyle', options: { any: { label: 'Any lifestyle' }, active: { label: 'Active' }, creative: { label: 'Creative' },
+    social: { label: 'Social' }, quiet: { label: 'Quiet' } } },
+  education: { label: 'Education', options: { any: { label: 'Any education' }, vocational: { label: 'Vocational qualification' },
+    degree: { label: 'University degree' } } },
+  netWorth: { label: 'Preferred Net Worth', options: datingWorthOptions },
+} as const;
+export type DatingProfile = { [K in keyof typeof datingProfileFields]: keyof typeof datingProfileFields[K]['options'] };
+export const defaultDatingProfile: DatingProfile = { ...defaultDatingPreferences, gender: 'any', goal: 'undecided',
+  distance: 'local', lifestyle: 'any', education: 'any' };
+export const playerDatingProfile = (life: Life) => life.social.datingProfile ?? defaultDatingProfile;
+
+export function validDatingProfile(value: unknown): value is DatingProfile {
+  return !!value && typeof value === 'object' && !Array.isArray(value) &&
+    Object.entries(datingProfileFields).every(([key, { options }]) => {
+      const pick = (value as Record<string, unknown>)[key];
+      return typeof pick === 'string' && Object.hasOwn(options, pick);
+    });
+}
+
+export function datingProfileIssue(life: Life) {
+  if (life.character.causeOfDeath || life.pending) return 'Resolve the current life event first.';
+  return life.character.age < 18 ? 'Dating opens at age 18.' : null;
+}
+
 export function validDatingPreferences(value: unknown): value is DatingPreferences {
   return !!value && typeof value === 'object' && 'age' in value && 'netWorth' in value &&
     typeof value.age === 'string' && Object.hasOwn(datingAgeOptions, value.age) &&

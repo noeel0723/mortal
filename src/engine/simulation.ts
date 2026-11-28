@@ -6,6 +6,7 @@ import { adoptChild } from './adoption.ts';
 import { accessoryIssue, appearanceChanged, appearanceIssue, mergeAppearance, validFace, validHair } from './appearance.ts';
 import { advanceCareer, applyCareerEffect, closeCareerYear, endEmployment, performCareerAction, studyWorkload } from './career.ts';
 import { developChildInterests } from './childSkills.ts';
+import { discoveryEvent, searchDatingPool, updateDatingProfile } from './datingDiscovery.ts';
 import { recordContactDeath, recordPlayerDeath, respondToDeath } from './death.ts';
 import { annualFinance } from './finance.ts';
 import { enqueueNotice, eventTitle, recordNotice, resultMeter } from './eventNotices.ts';
@@ -28,7 +29,7 @@ import { seededRandom } from './random.ts';
 import { relocate } from './relocation.ts';
 import { conversationStory, friendshipStory } from './relationshipStories.ts';
 import { spendTimeWithAll } from './relationshipTime.ts';
-import { answerSocialEvent, applyDatingMatch, applyIntimacy, isSocialEvent, offerSocialEvent } from './socialEvents.ts';
+import { answerSocialEvent, applyIntimacy, isSocialEvent, offerSocialEvent } from './socialEvents.ts';
 import { advanceRelationships, applyRelationshipCare, meaningfulTime, responseScale, takingSpace } from './relationships.ts';
 import { advanceContactOccupation, currentClass, findContact, isPeer, isSchoolStage } from './school.ts';
 import { ageSkills, cloneSkills, incidentalPractice, setHobby, trainSkill } from './skills.ts';
@@ -77,6 +78,7 @@ function ageUp(life: Life) {
   character.age += 1;
   life.year += 1;
   life.usedActions = [];
+  delete life.social.datingCycle;
   ageSkills(life);
   character.attributes.energy = 100;
   character.attributes.stress = clamp(character.attributes.stress - 5);
@@ -151,7 +153,7 @@ function ageUp(life: Life) {
     life.seen.push(photo.id);
     recordNotice(life, photo.category, eventTitle(photo.id), photo.text, photo.effects);
   }
-  const eligible = events.filter((event) => age >= event.ages[0] && age <= event.ages[1] &&
+  const eligible = events.filter((event) => event.id !== discoveryEvent && age >= event.ages[0] && age <= event.ages[1] &&
     !life.seen.includes(event.id) && !(life.academic.leftSchool && age < 18 && event.category === 'school') &&
     (event.eligible?.(life) ?? true));
   const graduationDecision = graduated && !life.seen.includes('graduation-plan') ? eventById.get('graduation-plan') : undefined;
@@ -293,8 +295,25 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       if (issue) return { error: issue };
       break;
     }
-    case 'meet': case 'dating-match': case 'romance': case 'wedding': {
-      const issue = action.type === 'dating-match' ? applyDatingMatch(life, action) : applyLove(life, action);
+    case 'dating-profile': {
+      const issue = updateDatingProfile(life, action.profile);
+      if (issue) return { error: issue };
+      break;
+    }
+    case 'dating-match': {
+      const issue = searchDatingPool(life, action);
+      if (issue) return { error: issue };
+      break;
+    }
+    case 'meet': {
+      const { source } = action;
+      const issue = source === 'date' || source === 'app' ? searchDatingPool(life, { type: 'dating-match', source }) :
+        applyLove(life, { type: 'meet', source });
+      if (issue) return { error: issue };
+      break;
+    }
+    case 'romance': case 'wedding': {
+      const issue = applyLove(life, action);
       if (issue) return { error: issue };
       break;
     }
