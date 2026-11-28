@@ -34,7 +34,7 @@ import { relocate } from './relocation.ts';
 import { conversationStory } from './relationshipStories.ts';
 import { spendTimeWithAll } from './relationshipTime.ts';
 import { answerSocialEvent, applyIntimacy, isSocialEvent, offerSocialEvent } from './socialEvents.ts';
-import { advanceEarlyConnections, advanceRelationships, applyRelationshipCare, inPersonIssue, meaningfulTime, openConcern, takingSpace } from './relationships.ts';
+import { activeFor, advanceEarlyConnections, advanceRelationships, applyRelationshipCare, inPersonIssue, meaningfulTime, openConcern, takingSpace } from './relationships.ts';
 import { advanceContactOccupation, currentClass, findContact, isPeer, isSchoolStage } from './school.ts';
 import { ageSkills, cloneSkills, incidentalPractice, setHobby, trainSkill } from './skills.ts';
 import { developAcademicSkills } from './skillIntegration.ts';
@@ -209,6 +209,7 @@ export function talkIssue(life: Life, id: string) {
   const issue = contactIssue(life, person);
   if (issue) return issue;
   if (takingSpace(life, id)) return 'They’ve asked for time apart.';
+  if (activeFor(life, id) && inPersonIssue(life, person)) return 'Call or video call when you’re apart.';
   if (life.character.age < 3) return 'Available from age 3.';
   if (person.age < 3) return 'They are too young for a conversation.';
   if (life.usedActions.includes(`talk:${id}`)) return 'Already done this year.';

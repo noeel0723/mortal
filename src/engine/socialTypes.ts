@@ -50,7 +50,10 @@ export type SocialState = {
   local?: LocalSocialState;
   graph?: SocialEdge[];
 };
-export const romanticActivities = ['date', 'gift', 'dinner', 'movie', 'support', 'future', 'apologize'] as const;
+export const paidRomanticActivities = ['date', 'gift', 'dinner', 'movie'] as const;
+export type PaidRomanticActivity = typeof paidRomanticActivities[number];
+export const dateTiers = ['simple', 'standard', 'premium'] as const;
+export type DateTier = typeof dateTiers[number];
 export const parentingActivities = ['care', 'read', 'school', 'hobby', 'lesson', 'gift', 'support', 'future'] as const;
 export type IntimacyAction =
   | { type: 'intimacy'; encounter: 'make-love'; person: string }
@@ -65,7 +68,8 @@ export type SocialAction =
   | { type: 'dating-match'; source: DatingSource; preferences?: DatingPreferences }
   | { type: 'dating-profile'; profile: DatingProfile }
   | ({ type: 'romance'; person: string } & ({ action: 'ask'; venue?: FirstDateVenue } |
-    { action: 'interest' | 'propose' | 'breakup' | 'divorce' | typeof romanticActivities[number] }))
+    { action: PaidRomanticActivity; tier?: DateTier } |
+    { action: 'interest' | 'propose' | 'breakup' | 'divorce' | 'support' | 'future' | 'apologize' }))
   | { type: 'wedding'; person: string; plan: 'civil' | 'gathering' | 'celebration' }
   | { type: 'plan-child'; person: string; method: 'family' | 'adoption'; name?: string }
   | { type: 'parent-child'; person: string; action: typeof parentingActivities[number] };

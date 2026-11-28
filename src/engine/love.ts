@@ -7,13 +7,14 @@ import { clamp } from './journal.ts';
 import { loveSearchIssue } from './loveSearch.ts';
 import { meetingIssue, startMeeting } from './meetings.ts';
 import { ensureNpc, isFamily, newPeopleLimit, npcProfile, npcRandom, remember } from './npcs.ts';
+import { localExpense } from './pricing.ts';
 import { findContact } from './school.ts';
 import { agreementFor, attraction, boundaryEvidence, inPersonIssue, meaningfulTime, openConcern, relationshipEnded, relationshipMemory,
   restartRelationship, responseScale, takingSpace } from './relationships.ts';
 import type { RelationshipState } from './relationshipTypes.ts';
 import { pickStory } from './stories.ts';
-import { activeRomanceStatuses, datingSources } from './socialTypes.ts';
-import type { Romance, SocialAction } from './socialTypes.ts';
+import { activeRomanceStatuses, dateTiers, datingSources, paidRomanticActivities } from './socialTypes.ts';
+import type { DateTier, PaidRomanticActivity, Romance, SocialAction } from './socialTypes.ts';
 import type { Contact, Effect, Life } from './types.ts';
 
 export const romanceLabels: Record<Romance['status'], string> = {
@@ -37,6 +38,21 @@ export const dateActivities = {
   future: { label: 'Discuss the Future', cost: 0, affection: 2, trust: 4 },
   apologize: { label: 'Apologize', cost: 0, affection: 2, trust: 3 },
 } as const;
+
+export const partnerDateOptions = {
+  date: { simple: 'Coffee for Two', standard: 'Gallery Outing', premium: 'Concert Night' },
+  gift: { simple: 'A Handwritten Card', standard: 'A Thoughtful Gift', premium: 'A Keepsake' },
+  dinner: { simple: 'Neighborhood Diner', standard: 'Bistro Dinner', premium: 'Fine Dining' },
+  movie: { simple: 'Matinee Tickets', standard: 'Evening Screening', premium: 'Premium Seats' },
+} satisfies Record<PaidRomanticActivity, Record<DateTier, string>>;
+
+const tierMultipliers: Record<DateTier, number> = { simple: .5, standard: 1, premium: 2.5 };
+export const isPaidRomanticActivity = (action: string): action is PaidRomanticActivity =>
+  paidRomanticActivities.some((kind) => kind === action);
+
+export function partnerDatePrice(life: Life, person: Contact, activity: PaidRomanticActivity, tier: DateTier = 'standard') {
+  return localExpense(life.world, person.city, Math.round(dateActivities[activity].cost * tierMultipliers[tier]));
+}
 
 export type LoveAction = Extract<SocialAction, { type: 'meet' | 'dating-match' | 'romance' | 'wedding' }>;
 export const isActiveRomance = (entry?: Romance) => !!entry && activeRomanceStatuses.some((status) => entry.status === status);
@@ -111,7 +127,7 @@ function loveKey(action: Exclude<LoveAction, { type: 'meet' | 'dating-match' }>)
   return action.action === 'ask' || action.action === 'propose' ? 'romantic-advance' : `romance-${action.action}`;
 }
 
-export function loveIssue(life: Life, action: LoveAction): string | null {
+export function loveIssue(life: Life, action: LoveAction, checkPartnerPrice = true): string | null {
   if (life.character.causeOfDeath) return 'This life has ended.';
   if (life.pending) return 'Resolve the pending decision first.';
   if (action.type === 'meet' || action.type === 'dating-match') {
@@ -157,7 +173,11 @@ export function loveIssue(life: Life, action: LoveAction): string | null {
   if ((kind === 'date' || kind === 'dinner' || kind === 'movie' || kind === 'gift' || kind === 'propose') && inPersonIssue(life, person)) {
     return inPersonIssue(life, person);
   }
-  if (kind in dateActivities && life.character.bank < dateActivities[kind as keyof typeof dateActivities].cost) return 'Your balance does not cover this activity.';
+  if ('tier' in action && action.tier !== undefined && !dateTiers.includes(action.tier)) return 'Choose a valid option.';
+  if (checkPartnerPrice && isPaidRomanticActivity(kind) &&
+    life.character.bank < partnerDatePrice(life, person, kind, 'tier' in action ? action.tier : undefined)) {
+    return 'Your balance does not cover this activity.';
+  }
   if (kind !== 'interest' && kind !== 'breakup' && kind !== 'divorce' && life.character.attributes.energy < 6) return 'You need 6 energy.';
   return null;
 }
@@ -250,7 +270,9 @@ export function applyLove(life: Life, action: Extract<LoveAction, { type: 'roman
   } else {
     const item = dateActivities[action.action];
     title = item.label;
-    story = dateStory(life, person, action.action);
+    const tier = 'tier' in action ? action.tier : undefined;
+    story = tier && isPaidRomanticActivity(action.action) ?
+      `${person.name} and I chose ${partnerDateOptions[action.action][tier].toLowerCase()}.` : dateStory(life, person, action.action);
     const resistance = responseScale(life, person, action.action);
     if (action.action === 'future' && profile.datingGoal) {
       const compatible = compatibleGoals(playerDatingProfile(life).goal, profile.datingGoal);
@@ -270,7 +292,8 @@ export function applyLove(life: Life, action: Extract<LoveAction, { type: 'roman
       openConcern(life, person.id, 'goals', 38);
     }
     romanceHistory(life, person.id, story);
-    effect = { bank: -item.cost, energy: -6, happiness: Math.round(3 * resistance) };
+    const cost = isPaidRomanticActivity(action.action) ? partnerDatePrice(life, person, action.action, tier) : item.cost;
+    effect = { bank: -cost, energy: -6, happiness: Math.round(3 * resistance) };
   }
   remember(life, person, story);
   const notice = recordNotice(life, 'community', title, story, effect, 'relationships');

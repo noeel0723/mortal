@@ -22,8 +22,9 @@ import { spendTimeAllIssue } from '../src/engine/relationshipTime';
 import { intimacyGuests, intimacyIssue } from '../src/engine/intimacy';
 import { isDatingApp } from '../src/engine/dating';
 import type { DatingAppSource } from '../src/engine/dating';
-import { childParents, datingCandidates, datingControls, datingSummary, familyTreeGroups, firstDateControls, hookupControl, relationshipCareControls,
-  relationshipControls, relationshipGroups, relationshipOverview } from '../src/socialView';
+import { childParents, datingCandidates, datingControls, datingSummary, familyTreeGroups, hookupControl, relationshipCareControls,
+  relationshipControls, relationshipDialog, relationshipGroups, relationshipOverview } from '../src/socialView';
+import type { RelationshipDialogKind } from '../src/socialView';
 import { accessoryIssue, accessoryOptions, canEditFace, noAccessories } from '../src/engine/appearance';
 import type { Accessories } from '../src/engine/appearance';
 import { adoptionCandidates, adoptionIssue } from '../src/engine/adoption';
@@ -627,7 +628,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
 }) {
   const { busy, dispatch, save } = useGame();
   const [datingApp, setDatingApp] = useState<DatingAppSource>();
-  const [dateId, setDateId] = useState<string>();
+  const [relationshipSelection, setRelationshipSelection] = useState<{ person: string; kind: RelationshipDialogKind }>();
   const { character } = life;
   const job = life.career.current;
   const canFindJob = character.age >= workAge && !character.causeOfDeath && life.career.retiredYear === null;
@@ -913,6 +914,13 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       const overview = relationshipOverview(life, contact);
       const memories = contactHistory(life, contact);
       const interactions = contactInteractions(life, contact);
+      const dialog = relationshipSelection?.person === contact.id ? relationshipDialog(life, contact, relationshipSelection.kind) : undefined;
+      const socialRow = (item: (typeof social)[number]) => <MenuRow key={item.label} icon={item.icon} title={item.label}
+        detail={item.issue ?? item.detail} disabled={busy || !!item.issue} opensDialog={!!item.dialog || item.action.type === 'intimacy'}
+        onClick={() => {
+          if (item.dialog) setRelationshipSelection({ person: contact.id, kind: item.dialog });
+          else void dispatch(item.action);
+        }} />;
       const showingProfile = page === 'person-info' || page === 'class-person-info' || page === 'work-person-info';
       const base = page === 'work-person' || page === 'work-person-info' ? 'work-person' :
         page === 'class-person' || page === 'class-person-info' ? 'class-person' : 'person';
@@ -921,27 +929,22 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           <PersonRow person={contact} life={life} detail={overview?.summary} opensDialog onClick={() => go(`${base}-info`, contact.id)} />
         </PageGroup>
         {social.length > 0 && <PageGroup title={contact.role === 'Child' ? 'Parenting' : 'Love Life'}>
-          {social.map((item) => {
-            const ask = item.action.type === 'romance' && item.action.action === 'ask';
-            return <MenuRow key={item.label} icon={item.icon} title={item.label}
-              detail={item.issue ?? item.detail} disabled={busy || !!item.issue} opensDialog={ask || item.action.type === 'intimacy'}
-              onClick={() => { if (ask) setDateId(contact.id); else void dispatch(item.action); }} />;
-          })}
+          {social.map(socialRow)}
         </PageGroup>}
         {care.length > 0 && <PageGroup title="Relationship & Communication">
           {overview?.agreement && <MenuRow title="Agreement" detail={overview.agreement} />}
           {overview?.goal && <MenuRow title="Relationship Goal" detail={overview.goal} />}
           {overview?.concerns.map(({ label, value }) => <MenuRow key={label} title={label} detail={value} />)}
-          {care.map(activityRow)}
+          {care.map(socialRow)}
         </PageGroup>}
         {interactions.length > 0 && <PageGroup title="Interactions">
           {interactions.map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label}
             detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onClick={() => void dispatch(item.action)} />)}
         </PageGroup>}
-        {dateId === contact.id && <DetailDialog title="Choose a Date Venue" onDismiss={() => setDateId(undefined)}>
-          {firstDateControls(life, contact).map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label}
-            detail={item.issue ?? item.detail} disabled={busy || !!item.issue}
-            onClick={() => { setDateId(undefined); void dispatch(item.action); }} />)}
+        {dialog && <DetailDialog title={dialog.title} onDismiss={() => setRelationshipSelection(undefined)}>
+          {dialog.options.map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label}
+            detail={[item.detail, item.issue].filter(Boolean).join(' · ')} disabled={busy || !!item.issue}
+            onClick={() => { setRelationshipSelection(undefined); void dispatch(item.action); }} />)}
         </DetailDialog>}
         {showingProfile && <DetailDialog title="Character Profile" onDismiss={() => go(base, contact.id, true)}>
           <div className="detail-identity"><Portrait appearance={contact.appearance} age={contact.age} label={`Portrait of ${contact.name}`} />

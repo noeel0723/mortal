@@ -16,6 +16,7 @@ export function validateRelationships(life: Life, ids: ReadonlySet<string>) {
   for (const [id, state] of Object.entries(social.relationships)) {
     if (!ids.has(id) || !object(state) || !valueIn(agreements, state.agreement) ||
       (state.lastMeaningful !== undefined && !date(state.lastMeaningful)) ||
+      (state.lastAgreementTalk !== undefined && !date(state.lastAgreementTalk)) ||
       (state.apartUntil !== undefined && !integer(state.apartUntil, character.birthYear, year + 1)) ||
       (state.endedBecause !== undefined && !valueIn(['player', 'betrayal', 'neglect', 'conflict', 'death'], state.endedBecause)) ||
       !Array.isArray(state.memories) || state.memories.length > 16 || !state.memories.every(memory) || !object(state.milestones) ||

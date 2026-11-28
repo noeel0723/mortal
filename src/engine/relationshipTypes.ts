@@ -21,7 +21,7 @@ export type RelationshipConflict = {
 export type RelationshipState = {
   agreement: Agreement; conflicts: RelationshipConflict[]; memories: RelationshipMemory[];
   milestones: Partial<Record<typeof milestoneKinds[number], RelationshipMemory>>;
-  lastMeaningful?: number; apartUntil?: number; visit?: { year: number; city: City }; move?: { year: number; city?: City };
+  lastMeaningful?: number; lastAgreementTalk?: number; apartUntil?: number; visit?: { year: number; city: City }; move?: { year: number; city?: City };
   promise?: { year: number; due: number; kind: 'time' | 'support'; status: 'pending' | 'kept' | 'broken' };
   endedBecause?: 'player' | 'betrayal' | 'neglect' | 'conflict' | 'death';
 };

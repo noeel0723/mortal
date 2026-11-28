@@ -17,7 +17,7 @@ import { annualFinance } from '../src/engine/finance.ts';
 import { canAccompany, startIllness } from '../src/engine/health.ts';
 import { firstDateOutcome, firstDatePrice, firstDateVenues } from '../src/engine/firstDates.ts';
 import { postTransaction } from '../src/engine/journal.ts';
-import { activeRomance, activeRomances, changeRomance, endRomance, loveIssue, romanceFor } from '../src/engine/love.ts';
+import { activeRomance, activeRomances, changeRomance, endRomance, loveIssue, partnerDatePrice, romanceFor } from '../src/engine/love.ts';
 import { annualLoveSearches, consumeLoveSearch } from '../src/engine/loveSearch.ts';
 import { pendingMeeting } from '../src/engine/meetings.ts';
 import { advanceNpcLives, allContacts, ensureNpc, initialNpcProfile, makeNpc, npcRandom, syncNpcs } from '../src/engine/npcs.ts';
@@ -34,7 +34,7 @@ import { datingSources } from '../src/engine/socialTypes.ts';
 import type { Action, CommunityFriend, Life } from '../src/engine/types.ts';
 import { eventPopup } from '../src/eventView.ts';
 import { assetDetails, householdRows, ownedListings } from '../src/propertyView.ts';
-import { datingCandidates, familyTreeGroups, firstDateControls, friendshipLabel, relationshipCareControls, relationshipControls, relationshipGroups, socialRole } from '../src/socialView.ts';
+import { datingCandidates, familyTreeGroups, firstDateControls, friendshipLabel, relationshipCareControls, relationshipControls, relationshipDialog, relationshipGroups, socialRole } from '../src/socialView.ts';
 
 function act(life: Life, action: Action) {
   const result = advance(life, action);
@@ -841,12 +841,18 @@ test('getting to know someone, first date, and commitment have distinct states',
 test('distance separates physical visits from remote calls, and blocked promises survive reload', () => {
   const { life, id } = marry();
   const spouse = findContact(life, id)!;
+  assert.ok(!relationshipCareControls(life, spouse).some(({ dialog }) => dialog === 'conversation'));
+  assert.match(careIssue(life, spouse, 'phone') ?? '', /apart/);
   spouse.city = cities.find((city) => city !== life.character.city)!;
   const date = { type: 'romance', person: id, action: 'date' } as const;
   assert.match(loveIssue(life, date) ?? '', /different cities/);
+  assert.deepEqual(relationshipCareControls(life, spouse).filter(({ dialog }) => dialog === 'conversation').map(({ label }) => label), ['Have a Conversation']);
+  assert.deepEqual(relationshipDialog(life, spouse, 'conversation').options.map(({ label }) => label), ['Phone Call', 'Video Call']);
+  assert.match(advance(life, { type: 'talk', person: id }).error ?? '', /video call/);
   let connected = act(life, { type: 'relationship-care', person: id, action: 'phone' });
   connected = act(connected, { type: 'relationship-care', person: id, action: 'visit' });
   assert.equal(loveIssue(connected, date), null);
+  assert.match(careIssue(connected, findContact(connected, id)!, 'video') ?? '', /apart/);
   assert.equal(findContact(connected, id)?.city, spouse.city);
   assert.ok(connected.character.bank < life.character.bank);
   assert.deepEqual(decodeLife(JSON.stringify(connected)), connected);
@@ -859,6 +865,52 @@ test('distance separates physical visits from remote calls, and blocked promises
   assert.equal(relationshipState(after, friend.id)?.promise?.status, 'broken');
   assert.ok(visibleConcerns(after, friend.id).some(({ kind }) => kind === 'promise'));
   assert.deepEqual(decodeLife(JSON.stringify(after)), after);
+});
+
+test('partners raise expectations according to personality and preserve an unresolved choice across reload', () => {
+  for (const agreement of ['exclusive', 'non-exclusive'] as const) {
+    const life = adult();
+    const person = knownFriend(life);
+    const profile = ensureNpc(life, person);
+    profile.traits.riskTolerance = agreement === 'exclusive' ? 25 : 96;
+    profile.traits.loyalty = agreement === 'exclusive' ? 96 : 25;
+    changeRomance(life, person.id, 'dating', 'We started dating.');
+    romanceFor(life, person.id)!.started = life.year - 1;
+    forceRoll(life, `agreement-talk:${person.id}`, .1);
+    offerSocialEvent(life);
+    assert.equal(life.pending, 'social-expectations');
+    const saved = decodeLife(JSON.stringify(life));
+    assert.match(eventPopup(saved)?.text ?? '', new RegExp(`agree to an? ${agreement} relationship`));
+    const response = (choice: 'accept' | 'pass') => act(saved, { type: 'choose', event: 'social-expectations', choice });
+    const accepted = response('accept');
+    assert.equal(agreementFor(accepted, person.id), agreement);
+    assert.equal(romanceFor(accepted, person.id)?.status, 'committed');
+    const declined = decodeLife(JSON.stringify(response('pass')));
+    assert.equal(agreementFor(declined, person.id), 'casual');
+    assert.equal(relationshipState(declined, person.id)?.lastAgreementTalk, life.year);
+    offerSocialEvent(declined);
+    assert.notEqual(declined.pending, 'social-expectations');
+  }
+});
+
+test('partner date choices show ordered prices and debit only the selected affordable option', () => {
+  const { life, id } = marry();
+  const spouse = findContact(life, id)!;
+  const costs = (['simple', 'standard', 'premium'] as const).map((tier) => partnerDatePrice(life, spouse, 'dinner', tier));
+  assert.ok(costs[0]! < costs[1]! && costs[1]! < costs[2]!);
+  postTransaction(life, 'Set test balance', costs[0]! - life.character.bank, 'other');
+  const dinner = relationshipControls(life, spouse).find(({ label }) => label === 'Have Dinner Together');
+  assert.equal(dinner?.dialog, 'dinner');
+  assert.equal(dinner?.detail, undefined);
+  assert.equal(dinner?.issue, null);
+  const options = relationshipDialog(life, spouse, 'dinner').options;
+  assert.equal(options[0]?.issue, null);
+  assert.match(options[2]?.issue ?? '', /balance/);
+  assert.match(advance(life, options[2]!.action).error ?? '', /balance/);
+  const dated = act(life, options[0]!.action);
+  assert.equal(dated.character.bank, 0);
+  assert.equal(dated.transactions.at(-1)?.amount, -costs[0]!);
+  assert.match(dated.journal.at(-1)?.text ?? '', /neighborhood diner/);
 });
 
 test('cross-city mutual matches communicate, book an accepted visit, and keep their history after closing contact', () => {

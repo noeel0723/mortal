@@ -273,6 +273,8 @@ try {
   await click('Mother’s Surname · Lennox');
   await dialog('Driving Lesson').waitFor();
   await click('Teach Them');
+  await dialog('Driving Lesson').waitFor({ state: 'hidden' });
+  await acknowledgeEvents(page, true, 'Lesson Complete');
   await dialog('Lesson Complete').waitFor();
   await acknowledgeEvents(page, true);
   await click('Assets');

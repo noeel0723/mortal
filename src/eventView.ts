@@ -86,7 +86,7 @@ export function eventPopup(life: Life): EventPopup | undefined {
     const person = (hookup || event.id === 'social-dating-match') ? findContact(life, life.social.pendingPerson ?? undefined) : undefined;
     return {
       key: `decision-${event.id}`, title: meeting?.title ?? (event.id === 'social-affair' ? 'Caught Dating' :
-        hookup ? 'Hook Up' : eventTitle(event.id.replace(/^social-/, ''))),
+        event.id === 'social-expectations' ? 'Relationship Expectations' : hookup ? 'Hook Up' : eventTitle(event.id.replace(/^social-/, ''))),
       text: meeting?.intro ?? (person ? `${person.name} ${event.text}` : isSocialEvent(event.id) ? socialEventText(life, event) : eventStory(life, event)),
       category: categories[event.category],
       ...(person && {

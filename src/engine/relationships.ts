@@ -52,6 +52,10 @@ export function setAgreement(life: Life, id: string, agreement: Agreement) {
   stateFor(life, id).agreement = agreement;
 }
 
+export function noteAgreementTalk(life: Life, id: string) {
+  stateFor(life, id).lastAgreementTalk = life.year;
+}
+
 export function relationshipEnded(life: Life, id: string, reason: NonNullable<RelationshipState['endedBecause']>) {
   const state = stateFor(life, id);
   state.endedBecause = reason;
@@ -147,10 +151,14 @@ export function relationshipCondition(life: Life, person: Contact) {
   return score >= 66 ? 'Healthy' : 'Stable';
 }
 
+export function togetherInPerson(life: Life, person: Contact) {
+  const visit = relationshipState(life, person.id)?.visit;
+  return person.city === life.character.city || (visit?.year === life.year && visit.city === person.city);
+}
+
 export function inPersonIssue(life: Life, person: Contact) {
-  const state = relationshipState(life, person.id);
   if (takingSpace(life, person.id)) return 'They’ve asked for time apart.';
-  if (person.city === life.character.city || (state?.visit?.year === life.year && state.visit.city === person.city)) return null;
+  if (togetherInPerson(life, person)) return null;
   return 'You live in different cities. Arrange a visit first.';
 }
 
@@ -208,6 +216,9 @@ export function careIssue(life: Life, person: Contact, action: RelationshipCareA
   if (life.usedActions.includes(`care:${person.id}:${action}`)) return 'Available again next year.';
   if (apart && action !== 'space' && action !== 'end-contact') return 'They’ve asked for time apart. Give them until next year.';
   if (early && action === 'conversation') return inPersonIssue(life, person);
+  if ((action === 'phone' || action === 'video') && activeFor(life, person.id) && togetherInPerson(life, person)) {
+    return 'Call a partner when you’re apart.';
+  }
   if ((action === 'exclusive' || action === 'non-exclusive' || action === 'counseling' || action === 'relocation') && !activeFor(life, person.id)) {
     return 'Discuss this with a current partner.';
   }
@@ -232,6 +243,7 @@ export function careIssue(life: Life, person: Contact, action: RelationshipCareA
 }
 
 export function negotiateAgreement(life: Life, person: Contact, agreement: 'exclusive' | 'non-exclusive', initiated = false) {
+  if (initiated && careIssue(life, person, agreement)) return false;
   const profile = npcProfile(life, person);
   const intent = datingIntent(life, person, 'commit');
   const preference = agreement === 'exclusive' ? profile.traits.loyalty * .26 : profile.traits.riskTolerance * .29 + profile.traits.empathy * .10;

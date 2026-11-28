@@ -10,7 +10,7 @@ import { discardSearchMatch } from './loveSearch.ts';
 import { answerMeeting } from './meetings.ts';
 import { allContacts, ensureNpc, npcProfile, npcRandom, remember } from './npcs.ts';
 import { barrierFee, protectionEvent } from './reproductiveHealth.ts';
-import { activeFor, agreementFor, agreementPhrase, boundaryEvidence, concernLabels, earlyConnection, inPersonIssue, knownRelationship, meaningfulTime, negotiateAgreement, relationshipMemory,
+import { agreementFor, agreementPhrase, attraction, boundaryEvidence, careIssue, concernLabels, earlyConnection, inPersonIssue, knownRelationship, meaningfulTime, negotiateAgreement, noteAgreementTalk, relationshipMemory,
   relationshipSatisfaction, relationshipState, setAgreement, visibleConcerns } from './relationships.ts';
 import { findContact } from './school.ts';
 import { availability, contextualOutcome } from './socialContext.ts';
@@ -100,6 +100,12 @@ export function offerSocialEvent(life: Life) {
       return;
     }
   }
+  const agreementTalk = romances.map(({ person }) => findContact(life, person)!)
+    .find((partner) => wantsAgreementTalk(life, partner));
+  if (agreementTalk) {
+    queueSocialEvent(life, 'social-expectations', agreementTalk.id);
+    return;
+  }
   const random = npcRandom(life, 'social-event', life.year);
   if (random.next() >= .23) return;
   const possibilities: { person: string; event: SocialEventId }[] = [];
@@ -113,11 +119,6 @@ export function offerSocialEvent(life: Life) {
       }
       if (life.year - profile.lastInteraction >= 2 || partner.bond.resentment >= 32) possibilities.push({ person: partner.id, event: 'social-time' });
       if (romance.status === 'married' && profile.savings < 20000) possibilities.push({ person: partner.id, event: 'social-finances' });
-      if (romance.status === 'dating' && agreementFor(life, partner.id) === 'casual' && life.year > romance.started &&
-        partner.bond.trust >= 38 && datingIntent(life, partner, 'commit').allowed &&
-        (suggestedAgreement(life, partner) === 'exclusive' || profile.traits.riskTolerance >= 55)) {
-        possibilities.push({ person: partner.id, event: 'social-expectations' });
-      }
     }
   }
   const parent = life.family.find((person) => person.alive && ensureNpc(life, person).savings < 16000);
@@ -147,9 +148,20 @@ export function offerSocialEvent(life: Life) {
 
 function suggestedAgreement(life: Life, person: Contact) {
   const profile = npcProfile(life, person);
-  return life.social.romances.some((entry) => entry.person !== person.id && activeFor(life, entry.person)) ||
-    profile.datingGoal === 'casual' || (profile.datingGoal !== 'marriage' && profile.traits.riskTolerance > profile.traits.loyalty + 16) ?
+  return profile.datingGoal === 'casual' || (profile.datingGoal !== 'marriage' && profile.traits.riskTolerance > profile.traits.loyalty + 16) ?
     'non-exclusive' as const : 'exclusive' as const;
+}
+
+function wantsAgreementTalk(life: Life, person: Contact) {
+  const romance = romanceFor(life, person.id)!;
+  const lastTalk = relationshipState(life, person.id)?.lastAgreementTalk;
+  const proposal = suggestedAgreement(life, person);
+  if (life.year <= romance.started || (lastTalk !== undefined && life.year - lastTalk < 3) ||
+    person.bond.trust < 38 || attraction(life, person) === 0 || careIssue(life, person, proposal) ||
+    !datingIntent(life, person, 'commit').allowed) return false;
+  const { confidence, loyalty, riskTolerance } = npcProfile(life, person).traits;
+  const motivation = proposal === 'exclusive' ? loyalty : riskTolerance;
+  return npcRandom(life, `agreement-talk:${person.id}`, life.year).next() < .08 + confidence / 420 + motivation / 540;
 }
 
 function answerBreach(life: Life, person: Contact, choice: string) {
@@ -264,6 +276,7 @@ export function answerSocialEvent(life: Life, id: string, choice: string) {
   }
   if (id === 'social-expectations' || id === 'social-space' || id === 'social-concern' || id === 'social-reconnect') {
     let text: string;
+    let title = accepted ? 'A Conversation' : 'For Another Time';
     if (id === 'social-space') {
       setAgreement(life, person.id, agreementFor(life, person.id));
       relationshipState(life, person.id)!.apartUntil = life.year + 1;
@@ -272,8 +285,11 @@ export function answerSocialEvent(life: Life, id: string, choice: string) {
     } else if (id === 'social-expectations') {
       const proposed = suggestedAgreement(life, person);
       const agreed = accepted && negotiateAgreement(life, person, proposed, true);
+      noteAgreementTalk(life, person.id);
+      title = agreed ? 'An Agreement' : 'For Another Time';
       text = agreed ? `${person.name} and I agreed to ${agreementPhrase(proposed)} after talking openly.` :
         `I heard what ${person.name} wanted. We left our existing expectations in place.`;
+      romanceHistory(life, person.id, text);
     } else if (id === 'social-concern') {
       if (accepted) meaningfulTime(life, person, 'time', 7);
       text = accepted ? `I listened to ${person.name} and heard why the issue still mattered to them.` :
@@ -288,7 +304,7 @@ export function answerSocialEvent(life: Life, id: string, choice: string) {
         `I appreciated hearing from ${person.name}, but wasn’t ready to reconnect.`;
     }
     remember(life, person, text);
-    recordNotice(life, 'community', accepted ? 'A Conversation' : 'For Another Time', text);
+    recordNotice(life, 'community', title, text);
     return;
   }
   const profile = ensureNpc(life, person);
