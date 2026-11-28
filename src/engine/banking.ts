@@ -100,7 +100,7 @@ export function applyForLoan(life: Life, principal: number, term: LoanTerm) {
   life.wealth.lastApplication = life.year;
   if (!reason) life.wealth.loanOffer = quote;
   recordNotice(life, 'finance', reason ? 'Loan Application Declined' : 'Personal Loan Offer',
-    reason ?? 'The bank sent an offer. I can review the fixed rate and annual installment under Loans & Debts.');
+    reason ?? 'The bank sent an offer. I can review it in Activities under Loans & Debts.');
   return null;
 }
 

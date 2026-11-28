@@ -168,15 +168,15 @@ export const datingApps: Record<DatingAppSource, { label: string; icon: Emoji }>
 function datingAppControls(life: Life) {
   return (['app', 'lgbtq'] as const).map((source) => {
     const { label, icon } = datingApps[source];
-    return love(life, { type: 'dating-match', source }, label, icon, 'Set your preferences and find a match.');
+    return love(life, { type: 'dating-match', source }, label, icon, 'Search by age and net worth');
   });
 }
 
 export function datingControls(life: Life) {
   return [
-    love(life, { type: 'dating-match', source: 'date' }, 'Find a Date', 'health', 'Meet someone at a singles event.'),
+    love(life, { type: 'dating-match', source: 'date' }, 'Find a Date', 'health', 'Meet someone at a singles event'),
     ...datingAppControls(life),
-    intimacy(life, { type: 'intimacy', encounter: 'hookup' }, 'Hook Up', 'blackHeart', 'Meet an adult interested in a one-night stand.'),
+    intimacy(life, { type: 'intimacy', encounter: 'hookup' }, 'Hook Up', 'blackHeart', 'Find a one-night match'),
   ];
 }
 
@@ -185,8 +185,8 @@ export function meetingControls(life: Life, romantic: boolean) {
     love(life, { type: 'meet', source: 'date' }, 'Find a Date', 'rose', 'Meet someone at a singles event.'),
     ...datingAppControls(life),
   ] : [
-    love(life, { type: 'meet', source: 'neighborhood' }, 'Meet a Neighbor', 'location'),
-    love(life, { type: 'meet', source: 'hobbies' }, 'Join a Hobby Group', 'art'),
+    love(life, { type: 'meet', source: 'neighborhood' }, 'Meet a Neighbor', 'location', 'Get to know someone nearby'),
+    love(life, { type: 'meet', source: 'hobbies' }, 'Join a Hobby Group', 'art', 'Meet people with shared interests'),
   ];
 }
 

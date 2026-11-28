@@ -6,7 +6,9 @@ import { decodeLife } from '../src/database/codec.ts';
 import { npcLooks, npcNetWorth } from '../src/engine/dating.ts';
 import type { DatingPreferences } from '../src/engine/dating.ts';
 import { eventById } from '../src/data/events.ts';
+import { employers } from '../src/data/employers.ts';
 import { jobById } from '../src/data/jobs.ts';
+import { npcGivenNames, npcSurnames } from '../src/data/npcNames.ts';
 import { createLife } from '../src/engine/create.ts';
 import { ageFamilyOpportunities, annualChildcare } from '../src/engine/familyLife.ts';
 import { annualFinance } from '../src/engine/finance.ts';
@@ -14,11 +16,12 @@ import { canAccompany, startIllness } from '../src/engine/health.ts';
 import { postTransaction } from '../src/engine/journal.ts';
 import { activeRomance, activeRomances, loveIssue, romanceFor } from '../src/engine/love.ts';
 import { advanceNpcLives, allContacts, ensureNpc, makeNpc, npcRandom, syncNpcs } from '../src/engine/npcs.ts';
-import { findContact } from '../src/engine/school.ts';
+import { createSchoolClass, findContact } from '../src/engine/school.ts';
 import { agreementFor, attraction, openConcern, relationshipState, setAgreement, visibleConcerns } from '../src/engine/relationships.ts';
 import { cities } from '../src/data/veyra.ts';
 import { advance } from '../src/engine/simulation.ts';
 import { offerSocialEvent } from '../src/engine/socialEvents.ts';
+import { ensureWorkplace } from '../src/engine/workplace.ts';
 import { datingSources } from '../src/engine/socialTypes.ts';
 import type { Action, CommunityFriend, Life } from '../src/engine/types.ts';
 import { eventPopup } from '../src/eventView.ts';
@@ -40,6 +43,29 @@ function adult() {
   postTransaction(life, 'Savings', 180000, 'other');
   return life;
 }
+
+test('NPCs use 150 added names in each pool and avoid surnames shared by existing acquaintances', () => {
+  const given = Object.values(npcGivenNames).flat();
+  assert.equal(given.length, 174);
+  assert.equal(new Set(given).size, 174);
+  assert.equal(npcSurnames.length, 158);
+  assert.equal(new Set(npcSurnames).size, 158);
+  const life = adult();
+  const oldNames = ['Mara Forrest', 'Ilan Forrest', 'Vale Forrest'];
+  oldNames.forEach((name, index) => {
+    const person = makeNpc(life, `npc-old-${index}`, 25, 'Acquaintance', name);
+    life.social.people.push(person);
+    ensureNpc(life, person);
+  });
+  const restored = decodeLife(JSON.stringify(life));
+  assert.deepEqual(restored.social.people.map(({ name }) => name), oldNames);
+  restored.schoolContacts.push(...createSchoolClass(restored, 'primary'));
+  ensureWorkplace(restored, employers[0]!.id);
+  const newcomer = makeNpc(restored, 'npc-newcomer', 25, 'Acquaintance');
+  const generated = [...restored.schoolContacts, ...restored.career.contacts, newcomer];
+  assert.equal(new Set(generated.map(({ lastName }) => lastName)).size, generated.length);
+  assert.ok(generated.every(({ lastName }) => lastName && lastName !== 'Forrest'));
+});
 
 function forceRoll(life: Life, key: string, ceiling = .25) {
   while (npcRandom(life, key, life.year).next() >= ceiling) life.seed++;

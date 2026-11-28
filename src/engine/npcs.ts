@@ -1,11 +1,12 @@
 import { jobs, jobById } from '../data/jobs.ts';
 import { employers } from '../data/employers.ts';
-import { cities, genders, givenNames, surnames } from '../data/veyra.ts';
-import { contactIdentity } from './appearance.ts';
+import { cities, genders } from '../data/veyra.ts';
+import { contactIdentity, generateAppearance } from './appearance.ts';
 import { recordContactDeath } from './death.ts';
 import { recordNotice } from './eventNotices.ts';
 import { clamp } from './journal.ts';
 import { indexedCents, localExpense, marketSalaryFactor } from './pricing.ts';
+import { npcNamePicker } from './npcNames.ts';
 import { seededRandom } from './random.ts';
 import { national } from './world.ts';
 import type { WorldState } from './worldTypes.ts';
@@ -19,7 +20,7 @@ export const interests = ['reading', 'cooking', 'hiking', 'music', 'sketching', 
 const savings = { 'working-class': 15500, 'middle-income': 41500, affluent: 82000 };
 
 export function allContacts(life: Life): Contact[] {
-  return [...life.family, ...life.schoolContacts, ...life.career.contacts, ...life.communityFriends, ...(life.social?.people ?? [])];
+  return [...life.family, ...life.schoolContacts, ...(life.career?.contacts ?? []), ...(life.communityFriends ?? []), ...(life.social?.people ?? [])];
 }
 
 export function newSocial(life: Pick<Life, 'family'>): SocialState {
@@ -98,8 +99,9 @@ export function cloneSocial(social: SocialState): SocialState {
 export function makeNpc(life: Life, id: string, age: number, role: SocialPerson['role'], name?: string): SocialPerson {
   const random = npcRandom(life, id);
   const gender = random.pick(genders);
-  const display = name ?? `${random.pick(givenNames[gender])} ${random.pick(surnames)}`;
-  return { id, name: display, role, ...contactIdentity(life.seed, id, display, role), friend: false, age,
+  const identity = name ? { name, ...contactIdentity(life.seed, id, name, role) } :
+    { ...npcNamePicker(life)(random, gender), appearance: generateAppearance(life.seed, id) };
+  return { id, role, ...identity, friend: false, age,
     city: life.character.city, alive: true, health: random.integer(75, 96), occupation: age < 6 ? 'At home' : age < 18 ? 'Student' : 'Job seeker',
     bond: { affection: role === 'Acquaintance' ? 40 : 73, trust: role === 'Acquaintance' ? 35 : 73,
       familiarity: 20, compatibility: random.integer(48, 88), respect: 48, resentment: 0 } };

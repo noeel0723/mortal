@@ -1,4 +1,5 @@
-import { genders, givenNames } from '../data/veyra.ts';
+import { npcGivenNames } from '../data/npcNames.ts';
+import { genders } from '../data/veyra.ts';
 import { seededRandom } from './random.ts';
 import type { Gender, Life } from './types.ts';
 
@@ -41,7 +42,7 @@ export const creationAppearance: Appearance = {
 export function contactIdentity(seed: number, id: string, name: string, role: string) {
   const given = name.split(' ')[0];
   const gender: Gender = role === 'Mother' ? 'woman' : role === 'Father' ? 'man' :
-    genders.find((candidate) => givenNames[candidate].some((first) => first === given)) ?? options(seed, id).pick(genders);
+    genders.find((candidate) => npcGivenNames[candidate].includes(given ?? '')) ?? options(seed, id).pick(genders);
   return { gender, appearance: generateAppearance(seed, id) };
 }
 

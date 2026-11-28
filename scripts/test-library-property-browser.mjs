@@ -5,6 +5,7 @@ import { createLife } from '../src/engine/create.ts';
 import { postTransaction } from '../src/engine/journal.ts';
 import { ensureNpc, makeNpc, npcRandom } from '../src/engine/npcs.ts';
 import { advance } from '../src/engine/simulation.ts';
+import { assetArtSize } from '../src/portraits/assetArt.ts';
 import { acknowledgeEvents, saveSlot, startBrowser, url } from './browserTestSupport.mjs';
 
 function atAge(age) {
@@ -48,6 +49,12 @@ try {
   const social = page.locator('.play-group').filter({ has: page.getByRole('heading', { name: 'Social Activities', exact: true }) });
   const socialLabels = ['Meet a Neighbor', 'Join a Hobby Group', 'Go to Library'];
   for (const name of socialLabels) await social.getByRole('button', { name, exact: true }).waitFor();
+  assert.equal(await social.evaluate((group) => group.nextElementSibling.querySelector('h2').textContent), 'Skill Training');
+  assert.equal(await button('Go to the Cinema').count(), 0);
+  assert.equal(await button('Relax in the Park').count(), 0);
+  const libraryDescription = button('Go to Library').locator('.play-row-detail');
+  assert.ok(await libraryDescription.evaluate((element) =>
+    element.getBoundingClientRect().height <= Number.parseFloat(getComputedStyle(element).lineHeight) + 1));
   await click('Go to Library');
   await dialog('A Shared Hobby').waitFor();
   const hobbyStory = await dialog('A Shared Hobby').locator('.event-story').textContent();
@@ -61,6 +68,8 @@ try {
   await dialog('Library Visit').getByRole('progressbar', { name: 'Smarts' }).waitFor();
   await acknowledgeEvents(page);
   await click('Mind & Body');
+  await button('Go to the Cinema').waitFor();
+  await button('Relax in the Park').waitFor();
   await click('Take a Walk');
   const walk = dialog('A Walk Outside');
   await walk.getByRole('progressbar', { name: 'Health' }).waitFor();
@@ -116,7 +125,7 @@ try {
     await click(listing.name);
     const preview = page.getByRole('img', { name: `Pixel artwork of ${listing.name}` });
     await preview.waitFor();
-    assert.ok(await preview.evaluate((image) => image.complete && image.naturalWidth === 72));
+    assert.ok(await preview.evaluate((image, size) => image.complete && image.naturalWidth === size && image.naturalHeight === size, assetArtSize));
     const buy = await button('Buy').boundingBox();
     const frame = await page.locator('.mortal-frame').boundingBox();
     assert.ok(buy && frame && buy.y + buy.height <= frame.y + frame.height);

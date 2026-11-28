@@ -45,7 +45,7 @@ export function DatingOptions({ life, controls }: { life: Life; controls: Return
   const [source, setSource] = useState<DatingAppSource>();
   return <>
     {controls.map((item) => <ActionButton key={item.label} icon={item.icon} label={item.label}
-      detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onPress={() => {
+      compactDetail detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onPress={() => {
         if (item.action.type === 'dating-match' && isDatingApp(item.action.source)) setSource(item.action.source);
         else void dispatch(item.action);
       }} />)}

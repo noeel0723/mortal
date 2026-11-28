@@ -56,6 +56,20 @@ test('library visits can repeat without energy and a shared hobby choice persist
   assert.equal(findContact(older, friend.id)?.age, friend.age + 1);
 });
 
+test('an unresolved library encounter keeps the name shown in a save made before the expanded pool', () => {
+  const life = atAge(5);
+  life.random = 7;
+  const encounter = apply(life, { type: 'activity', activity: 'go-to-library' });
+  const intro = encounter.journal.at(-1)!;
+  intro.text = intro.text.replace(/^I met .+? while browsing/, 'I met Mara Forrest while browsing');
+  const restored = decodeLife(JSON.stringify(encounter));
+  const popup = eventPopup(restored)!;
+  assert.equal(popup.text, intro.text);
+  const friend = apply(restored, popup.actions[0]!.action).communityFriends[0]!;
+  assert.equal(friend.name, 'Mara Forrest');
+  assert.equal(friend.gender, 'woman');
+});
+
 test('adult housing choices honor age, parent affordability, and willingness', () => {
   const request = { type: 'ask-for-home', parent: 'parent-1' } as const;
   const young = atAge(17);

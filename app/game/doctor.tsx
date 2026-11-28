@@ -45,7 +45,7 @@ export default function Doctor() {
     <Heading title="Doctors" back={() => router.dismissTo('/game/activities')} />
     {careSections.map(({ title, services }) => <Section key={title} title={title}>
       {services.map((id) => <ActionButton key={id} label={careServices[id].title} icon={careServices[id].icon}
-        detail={careServices[id].detail} onPress={() => { clearMessage(); setSelection({ service: id }); }} />)}
+        compactDetail detail={careServices[id].detail} onPress={() => { clearMessage(); setSelection({ service: id }); }} />)}
     </Section>)}
     {appointment()}
   </Page>;

@@ -1,14 +1,12 @@
 import { institutionById } from '../data/academics.ts';
-import { educationLabels, genders, givenNames, surnames } from '../data/veyra.ts';
+import { educationLabels } from '../data/veyra.ts';
 import { seededRandom } from './random.ts';
-import { contactIdentity } from './appearance.ts';
+import { generateAppearance } from './appearance.ts';
+import { npcNamePicker } from './npcNames.ts';
 import type { Education, Life, SchoolContact, SchoolStage } from './types.ts';
 import type { Enrollment } from './academicTypes.ts';
 
 const entryAges: Record<SchoolStage, number> = { primary: 6, secondary: 12, high: 15 };
-const allNames = genders.flatMap((gender) =>
-  givenNames[gender].flatMap((firstName) => surnames.map((lastName) => `${firstName} ${lastName}`)),
-);
 
 export function isSchoolStage(value: unknown): value is SchoolStage {
   return value === 'primary' || value === 'secondary' || value === 'high';
@@ -21,26 +19,18 @@ export function educationAt(age: number): Education {
   return age < 18 ? 'high' : 'completed';
 }
 
-function classNames(life: Life) {
-  const personal = new Set([`${life.character.firstName} ${life.character.lastName}`, ...life.family.map(({ name }) => name)]);
-  const available = allNames.filter((name) => !personal.has(name));
-  const previous = new Set(life.schoolContacts.map(({ name }) => name));
-  const unused = available.filter((name) => !previous.has(name));
-  return unused.length >= 7 ? unused : available;
-}
-
 export function createSchoolClass(life: Life, stage: SchoolStage): SchoolContact[] {
   const { character } = life;
   const random = seededRandom(life.seed ^ Math.imul(entryAges[stage], 0x9e3779b9));
-  const names = classNames(life);
+  const pickName = npcNamePicker(life);
   const yearsEnrolled = Math.max(0, character.age - entryAges[stage]);
   return Array.from({ length: 7 }, (_, index) => {
     const teacher = index === 0;
     const id = `school-${stage}-${index}`;
-    const name = names.splice(random.integer(0, names.length - 1), 1)[0]!;
+    const identity = pickName(seededRandom(random.integer(0, 0xffffffff)));
     const role = teacher ? 'Teacher' : 'Classmate';
     return {
-      id, name, role, ...contactIdentity(life.seed, id, name, role),
+      id, role, ...identity, appearance: generateAppearance(life.seed, id),
       age: teacher ? random.integer(27, 48) + yearsEnrolled : character.age,
       occupation: teacher ? `${educationLabels[stage]} teacher` : 'Student',
       city: character.city,
@@ -60,16 +50,16 @@ export function createSchoolClass(life: Life, stage: SchoolStage): SchoolContact
 export function createProgramClass(life: Life, enrollment: Enrollment): SchoolContact[] {
   const seed = Array.from(enrollment.id).reduce((state, letter) => Math.imul(state ^ letter.charCodeAt(0), 16777619), life.seed);
   const random = seededRandom(seed);
-  const names = classNames(life);
+  const pickName = npcNamePicker(life);
   const city = institutionById.get(enrollment.institutionId)?.city ?? life.character.city;
   return Array.from({ length: 7 }, (_, index) => {
     const professor = index === 0;
     const age = professor ? random.integer(31, 58) : random.integer(enrollment.level === 'postgraduate' ? 22 : 18, 32);
     const id = `class-${enrollment.id}-${index}`;
-    const name = names.splice(random.integer(0, names.length - 1), 1)[0]!;
+    const identity = pickName(seededRandom(random.integer(0, 0xffffffff)));
     const role = professor ? 'Professor' : 'Student';
     return {
-      id, name, role, ...contactIdentity(life.seed, id, name, role), cohortId: enrollment.id, stage: enrollment.level,
+      id, role, ...identity, appearance: generateAppearance(life.seed, id), cohortId: enrollment.id, stage: enrollment.level,
       occupation: role,
       age, ...(professor ? {} : { graduationAge: age + enrollment.duration }), friend: false,
       city, health: random.integer(70, 98), alive: true,

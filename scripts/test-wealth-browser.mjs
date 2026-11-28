@@ -75,6 +75,9 @@ try {
   assert.equal((await read()).wealth.savings, 22500);
 
   await click('Back to Assets');
+  assert.equal(await button('Loans & Debts').count(), 0);
+  await click('Close Assets');
+  await click('Activities');
   await click('Loans & Debts');
   await confirm('Apply for $50.00', 'Personal Loan Offer');
   await page.getByRole('heading', { name: 'Fixed-Rate Loan Offer' }).waitFor();
@@ -86,7 +89,9 @@ try {
   await confirm('Repay in Full', 'Personal Loan Repaid');
   assert.equal((await read()).wealth.loans[0].status, 'paid');
 
-  await click('Back to Assets');
+  await click('Back to Activities');
+  await click('Close Activities');
+  await click('Assets');
   await click('Properties');
   await click('Cedar Starter House');
   assert.ok(await button('Sell Property').isDisabled());

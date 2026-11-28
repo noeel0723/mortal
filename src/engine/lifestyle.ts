@@ -7,21 +7,21 @@ import { lifestyleIds, skillLimits } from './skillTypes.ts';
 import type { LifestyleId } from './skillTypes.ts';
 import type { Effect, Life, Stat } from './types.ts';
 
-type LifestyleDefinition = { label: string; section: string; icon: Emoji; age: number; cost: number; effects: Effect;
+type LifestyleDefinition = { label: string; description: string; section: 'Mind & Body' | 'Travel'; icon: Emoji; age: number; cost: number; effects: Effect;
   meter: Stat; stories: readonly [string, string, ...string[]] };
 
 export const lifestyle: Record<LifestyleId, LifestyleDefinition> = {
-  exercise: { label: 'Exercise', section: 'Mind & Body', icon: 'fitness', age: 8, cost: 0, effects: { health: 3, athleticism: 2, stress: -3, energy: -6 },
+  exercise: { label: 'Exercise', description: 'Build fitness', section: 'Mind & Body', icon: 'fitness', age: 8, cost: 0, effects: { health: 3, athleticism: 2, stress: -3, energy: -6 },
     meter: 'health', stories: ['I followed a short circuit and stopped for water between sets.', 'I took an easy jog and stretched when I got home.'] },
-  'balanced-meal': { label: 'Eat a Balanced Meal', section: 'Mind & Body', icon: 'food', age: 6, cost: 0, effects: { health: 3, energy: 4 },
+  'balanced-meal': { label: 'Eat a Balanced Meal', description: 'Boost health and energy', section: 'Mind & Body', icon: 'food', age: 6, cost: 0, effects: { health: 3, energy: 4 },
     meter: 'health', stories: ['I put together a meal with vegetables, rice, and a source of protein.', 'I sat down to eat instead of rushing through a snack.'] },
-  meditate: { label: 'Meditate', section: 'Mind & Body', icon: 'meditation', age: 8, cost: 0, effects: { stress: -6, happiness: 2 },
+  meditate: { label: 'Meditate', description: 'Clear your mind', section: 'Mind & Body', icon: 'meditation', age: 8, cost: 0, effects: { stress: -6, happiness: 2 },
     meter: 'stress', stories: ['I spent ten quiet minutes paying attention to my breathing.', 'I took a break from my phone and sat quietly before bed.'] },
-  movie: { label: 'Go to the Cinema', section: 'Entertainment', icon: 'cinema', age: 8, cost: 625, effects: { happiness: 5, stress: -3, energy: -2 },
+  movie: { label: 'Go to the Cinema', description: 'Watch a movie', section: 'Mind & Body', icon: 'cinema', age: 8, cost: 625, effects: { happiness: 5, stress: -3, energy: -2 },
     meter: 'happiness', stories: ['I bought a ticket for a matinee and came out humming the theme.', 'I watched a comedy at the local cinema and laughed louder than I expected.'] },
-  park: { label: 'Relax in the Park', section: 'Entertainment', icon: 'park', age: 5, cost: 0, effects: { happiness: 3, stress: -3 },
+  park: { label: 'Relax in the Park', description: 'Unwind outdoors', section: 'Mind & Body', icon: 'park', age: 5, cost: 0, effects: { happiness: 3, stress: -3 },
     meter: 'happiness', stories: ['I found a shady bench and watched people play in the park.', 'I packed a snack and spent an afternoon under the trees.'] },
-  'day-trip': { label: 'Take a Day Trip', section: 'Travel', icon: 'train', age: 16, cost: 1600, effects: { happiness: 6, stress: -4, energy: -7 },
+  'day-trip': { label: 'Take a Day Trip', description: 'Explore out of town', section: 'Travel', icon: 'train', age: 16, cost: 1600, effects: { happiness: 6, stress: -4, energy: -7 },
     meter: 'happiness', stories: ['I took the train out of town and spent the afternoon exploring a market.', 'I spent the day near the coast and made it home on the last train.'] },
 };
 

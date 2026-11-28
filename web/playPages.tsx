@@ -164,7 +164,7 @@ const parentPages: Partial<Record<DetailPage, GamePage>> = {
   'asset-records': 'owned-assets',
   'owned-detail': 'owned-assets',
   banking: 'assets',
-  loans: 'assets',
+  loans: 'activities',
   retirement: 'assets',
   investments: 'assets',
   transactions: 'assets',
@@ -836,7 +836,6 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
         <PageGroup title="Banking">
           <MenuRow icon="bank" title="Finances" detail="Net worth" value={money(estate(life).total)} onClick={() => go('finances')} />
           <MenuRow icon="savings" title="Savings Account" value={money(life.wealth.savings)} onClick={() => go('banking')} />
-          <MenuRow icon="work" title="Loans & Debts" onClick={() => go('loans')} />
           <MenuRow icon="assets" title="Owned Assets" value={String(ownedListings(life).length)} onClick={() => go('owned-assets')} />
           <MenuRow icon="history" title="Transaction History" onClick={() => go('transactions')} />
         </PageGroup>
@@ -904,22 +903,22 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       return <WealthPage key={`${page}-${detail ?? ''}`} page={page} detail={detail} life={life} go={go} />;
     case 'activities':
       return <>
-        <PageGroup title="Love"><MenuRow icon="health" title="Love" detail="Meet people and find a date." onClick={() => go('love')} /></PageGroup>
-        <PageGroup title="Healthcare"><MenuRow icon="medical" title="Doctors" detail="Browse healthcare services." onClick={() => go('doctor')} /></PageGroup>
+        <PageGroup title="Love"><MenuRow icon="health" title="Love" detail="Meet someone new" onClick={() => go('love')} /></PageGroup>
+        <PageGroup title="Healthcare"><MenuRow icon="medical" title="Doctors" detail="Get medical care" onClick={() => go('doctor')} /></PageGroup>
         {!character.causeOfDeath && <PageGroup title="Appearance">
           <MenuRow icon="hair" title={canEditFace(character.age) ? 'Customize Appearance' : 'Change Hairstyle'}
             onClick={() => go('appearance')} />
         </PageGroup>}
         <PageGroup title="Wellbeing">
-          <MenuRow icon="meditation" title="Mind & Body" detail="Rest, exercise, and build healthy habits." onClick={() => go('mind-body')} />
+          <MenuRow icon="meditation" title="Mind & Body" detail="Rest, exercise, and unwind" onClick={() => go('mind-body')} />
         </PageGroup>
+        <PageGroup title="Social Activities">{socialActivities(life).map(activityRow)}</PageGroup>
         <PageGroup title="Skill Training">
           {activitySkillCategories.map(({ category, label, icon }) => <MenuRow key={category} icon={icon} title={label}
             onClick={() => go('skill-training', category)} />)}
         </PageGroup>
-        <PageGroup title="Entertainment">{lifestyleActivities(life, 'Entertainment').map(activityRow)}</PageGroup>
-        <PageGroup title="Social Activities">
-          {socialActivities(life).map(activityRow)}
+        <PageGroup title="Finance">
+          <MenuRow icon="work" title="Loans & Debts" detail="Review loans and repayments" onClick={() => go('loans')} />
         </PageGroup>
         <PageGroup title="Travel">{lifestyleActivities(life, 'Travel').map(activityRow)}</PageGroup>
       </>;
@@ -927,7 +926,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       const issue = intimacyIssue(life, { encounter: 'threesome' });
       return <>
         <PageGroup title="Dating">{datingControls(life).map(activityRow)}
-          <MenuRow icon="classroom" title="Threesome" detail={issue ?? 'Choose two adults to invite.'}
+          <MenuRow icon="classroom" title="Threesome" detail={issue ?? 'Invite two adults'}
             disabled={busy || !!issue} onClick={() => go('threesome')} />
         </PageGroup>
         {datingDialog}

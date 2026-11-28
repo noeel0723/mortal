@@ -18,7 +18,7 @@ export default function Wealth() {
   if (!slot) return null;
   const { life } = slot;
   const id = findFund(fund);
-  const back = () => router.canGoBack() ? router.back() : router.replace('/game/assets');
+  const back = () => router.canGoBack() ? router.back() : router.replace(screen === 'loans' ? '/game/activities' : '/game/assets');
   const controls = (items: FinanceControl[]) => items.map((item) => <ActionButton key={item.label} icon={item.icon} label={item.label}
     detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onPress={() => setConfirm(item)} />);
   const detail = confirm && <DetailModal title={confirm.label} open onDismiss={() => setConfirm(null)}>

@@ -1,8 +1,8 @@
 import { employerById } from '../data/employers.ts';
-import { genders, givenNames, surnames } from '../data/veyra.ts';
-import { contactIdentity } from './appearance.ts';
+import { generateAppearance } from './appearance.ts';
 import { recordContactDeath } from './death.ts';
 import { clamp } from './journal.ts';
+import { npcNamePicker } from './npcNames.ts';
 import { seededRandom } from './random.ts';
 import type { WorkContact } from './careerTypes.ts';
 import type { Contact, Life } from './types.ts';
@@ -32,18 +32,14 @@ export function ensureWorkplace(life: Life, employerId: string) {
   const seed = [...employerId].reduce((value, char) => Math.imul(value ^ char.charCodeAt(0), 16777619), life.seed);
   const random = seededRandom(seed);
   const employer = employerById.get(employerId)!;
-  const occupied = new Set([...life.family, ...life.schoolContacts, ...life.career.contacts].map(({ name }) => name));
-  occupied.add(`${life.character.firstName} ${life.character.lastName}`);
-  const names = genders.flatMap((gender) => givenNames[gender].flatMap((first) => surnames.map((last) => `${first} ${last}`)));
-  const available = names.filter((name) => !occupied.has(name));
-  const pool = available.length >= 5 ? available : names;
+  const pickName = npcNamePicker(life);
   const roles = ['Supervisor', 'Manager', 'Co-worker', 'Co-worker', 'Co-worker'] as const;
   const occupation = ['Team Supervisor', 'Department Manager', 'Staff Associate', 'Staff Associate', 'Staff Associate'] as const;
   roles.forEach((role, index) => {
     const id = `work-${employerId}-${index}`;
-    const name = pool.splice(random.integer(0, pool.length - 1), 1)[0]!;
+    const identity = pickName(seededRandom(random.integer(0, 0xffffffff)));
     life.career.contacts.push({
-      id, name, ...contactIdentity(life.seed, id, name, role), employerId, role, friend: false,
+      id, ...identity, appearance: generateAppearance(life.seed, id), employerId, role, friend: false,
       age: random.integer(index < 2 ? 30 : 21, index < 2 ? 57 : 49), occupation: occupation[index]!,
       city: employer.city, health: random.integer(74, 98), alive: true,
       bond: { affection: random.integer(25, 52), trust: random.integer(25, 51), respect: random.integer(36, 62),

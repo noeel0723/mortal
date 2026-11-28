@@ -5,9 +5,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, emoji, radius, space } from '../theme/tokens';
 import type { Emoji } from '../theme/tokens';
 
-export function ActionButton({ icon, label, onPress, variant = 'secondary', disabled = false, compact = false, selected, style, testID, leading, detail }: {
+export function ActionButton({ icon, label, onPress, variant = 'secondary', disabled = false, compact = false, compactDetail = false,
+  selected, style, testID, leading, detail }: {
   icon: Emoji; label: string; onPress: () => void; variant?: 'primary' | 'secondary' | 'plain' | 'danger';
-  disabled?: boolean; compact?: boolean; selected?: boolean; style?: StyleProp<ViewStyle>; testID?: string; leading?: ReactNode; detail?: string;
+  disabled?: boolean; compact?: boolean; compactDetail?: boolean; selected?: boolean; style?: StyleProp<ViewStyle>;
+  testID?: string; leading?: ReactNode; detail?: string;
 }) {
   const labelStyle = [styles.buttonLabel, variant === 'primary' && styles.whiteLabel, variant === 'danger' && styles.errorLabel];
   return (
@@ -19,7 +21,8 @@ export function ActionButton({ icon, label, onPress, variant = 'secondary', disa
     >
       {leading ?? <Text accessibilityElementsHidden importantForAccessibility="no" style={[styles.emoji, compact && styles.compactEmoji]}>{emoji[icon]}</Text>}
       {!compact && (detail ? <View style={styles.buttonText}>
-        <Text style={[labelStyle, styles.rowLabel]}>{label}</Text><Text style={shared.small}>{detail}</Text>
+        <Text style={[labelStyle, styles.rowLabel]}>{label}</Text>
+        <Text style={[shared.small, compactDetail && styles.compactDetail]}>{detail}</Text>
       </View> : <Text style={labelStyle}>{label}</Text>)}
     </Pressable>
   );
@@ -117,6 +120,7 @@ const styles = StyleSheet.create({
   compactEmoji: { fontSize: 19, lineHeight: 25 },
   buttonLabel: { color: colors.ink, fontSize: 14, textAlign: 'center', fontWeight: '600', flexShrink: 1 },
   buttonText: { flex: 1, gap: 2 },
+  compactDetail: { lineHeight: 15 },
   rowLabel: { textAlign: 'left' },
   whiteLabel: { color: colors.white },
   errorLabel: { color: colors.errorText },

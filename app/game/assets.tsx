@@ -23,7 +23,6 @@ export default function Assets() {
         onPress={() => router.push({ pathname: '/game/assets', params: { screen: 'finances' } })} />
       <ActionButton icon="savings" label="Savings Account" detail={money(life.wealth.savings)}
         onPress={() => router.push({ pathname: '/game/wealth', params: { screen: 'banking' } })} />
-      <ActionButton icon="work" label="Loans & Debts" onPress={() => router.push({ pathname: '/game/wealth', params: { screen: 'loans' } })} />
       <ActionButton icon="assets" label="Owned Assets" detail={String(ownedAssets(life).length)}
         onPress={() => router.push({ pathname: '/game/property', params: { mode: 'owned' } })} />
       <ActionButton icon="history" label="Transaction History" onPress={() => router.push({ pathname: '/game/assets', params: { screen: 'history' } })} />
