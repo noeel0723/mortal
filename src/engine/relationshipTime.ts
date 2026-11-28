@@ -5,7 +5,7 @@ import { clamp, record } from './journal.ts';
 import { isFamily, remember } from './npcs.ts';
 import { relationshipGroups } from './relationshipDirectory.ts';
 import { timeTogetherStory } from './relationshipStories.ts';
-import { inPersonIssue, meaningfulTime, takingSpace } from './relationships.ts';
+import { inPersonIssue, meaningfulTime, takingSpace, trackConnection } from './relationships.ts';
 import { availability, contextualOutcome } from './socialContext.ts';
 import type { Life } from './types.ts';
 
@@ -18,7 +18,6 @@ function availableContacts(life: Life) {
 export function spendTimeAllIssue(life: Life) {
   if (life.character.causeOfDeath || life.pending) return 'Resolve the current life event first.';
   if (life.character.age < 3) return 'Available from age 3.';
-  if (life.usedActions.includes('spend-time-all')) return 'Available again next year.';
   if (!availableContacts(life).length) return 'Nobody is available to spend time with.';
   return null;
 }
@@ -28,13 +27,13 @@ export function spendTimeWithAll(life: Life) {
   if (issue) return issue;
   const contacts = availableContacts(life);
   const stories = new Set<string>();
-  life.usedActions.push('spend-time-all');
   let enjoyed = 0;
   for (const person of contacts) {
     const story = timeTogetherStory(life, person, !!inPersonIssue(life, person), stories);
     const occasion = { key: 'spend-time-all', location: 'remote' } as const;
     const unavailable = availability(life, person, occasion);
     const outcome = contextualOutcome(life, person, occasion);
+    trackConnection(life, person.id);
     const reception = unavailable ? 0 : outcome.weight;
     person.bond.affection = clamp(person.bond.affection + Math.round(4 * reception));
     person.bond.familiarity = clamp(person.bond.familiarity + Math.round(3 * reception));

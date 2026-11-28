@@ -11,10 +11,10 @@ import { allContacts, isFamily } from './npcs.ts';
 import { activeFor } from './relationships.ts';
 import { isReproductiveService, reproductiveQuote, visitReproductiveCare } from './reproductiveHealth.ts';
 
-const effects: Record<IllnessLevel, { health: number; energy: number; cost: number; recovery: number }> = {
-  mild: { health: 2, energy: 5, cost: 250, recovery: .88 },
-  moderate: { health: 4, energy: 10, cost: 750, recovery: .59 },
-  severe: { health: 9, energy: 16, cost: 1600, recovery: .25 },
+const effects: Record<IllnessLevel, { health: number; cost: number; recovery: number }> = {
+  mild: { health: 2, cost: 250, recovery: .88 },
+  moderate: { health: 4, cost: 750, recovery: .59 },
+  severe: { health: 9, cost: 1600, recovery: .25 },
 };
 
 const severityPenalty: Record<IllnessLevel, number> = { mild: 0, moderate: 8, severe: 16 };
@@ -142,13 +142,13 @@ export function startIllness(life: Life, illness: IllnessId, npc?: Contact) {
   if (activeIllness(life, patient)) return;
   const definition = illnesses[illness];
   const level = definition.onset;
-  const { health, energy } = effects[level];
+  const { health } = effects[level];
   life.illnesses.push({ patient, illness, level, started: life.year });
   if (npc) npc.health = Math.max(1, npc.health - health);
   recordNotice(life, 'health', npc ? `${npc.name} Is Ill` : 'I Fell Ill', npc ?
     `${npc.name} came down with an illness. Condition: ${definition.name}. Severity: ${level}.` :
     `I came down with an illness. Condition: ${definition.name}. Severity: ${level}.`,
-  npc ? undefined : { health: -Math.min(health, Math.max(0, life.character.attributes.health - 1)), energy: -energy });
+  npc ? undefined : { health: -Math.min(health, Math.max(0, life.character.attributes.health - 1)) });
 }
 
 function progressIllness(life: Life, condition: IllnessCase, random: ReturnType<typeof seededRandom>) {
@@ -177,7 +177,7 @@ function progressIllness(life: Life, condition: IllnessCase, random: ReturnType<
   const level = illnessLevels.indexOf(condition.level);
   const getsWorse = level < illnessLevels.indexOf(definition.max) && random.next() < (age >= 60 ? .45 : .20);
   if (getsWorse) condition.level = illnessLevels[level + 1]!;
-  const { health, energy } = effects[condition.level];
+  const { health } = effects[condition.level];
   if (npc) npc.health = clamp(npc.health - health);
   const text = getsWorse ? `${npc ? `${npc.name}’s` : 'My'} ${definition.name.toLowerCase()} worsened to ${condition.level}.` :
     `${npc ? `${npc.name} is` : 'I am'} still dealing with ${definition.name.toLowerCase()}.`;
@@ -185,8 +185,8 @@ function progressIllness(life: Life, condition: IllnessCase, random: ReturnType<
     removeIllness(life, condition);
     recordContactDeath(life, npc, definition.name, 'health',
       canAccompany(life, npc) ? { happiness: -8, stress: 6 } : undefined);
-  } else if (getsWorse) recordNotice(life, 'health', 'Illness Worsened', text, npc ? undefined : { health: -health, energy: -energy });
-  else if (!npc) record(life, 'health', text, { health: -health, energy: -energy });
+  } else if (getsWorse) recordNotice(life, 'health', 'Illness Worsened', text, npc ? undefined : { health: -health });
+  else if (!npc) record(life, 'health', text, { health: -health });
 }
 
 function chooseIllness(age: number, health: number, random: ReturnType<typeof seededRandom>): IllnessId {

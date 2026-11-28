@@ -14,7 +14,7 @@ import { enqueueNotice, eventTitle, recordNotice, resultMeter } from './eventNot
 import { applyFamilyDriving, offerFirstDrivingLessons } from './familyDriving.ts';
 import { ageFamilyOpportunities, applyFamily, deliverPregnancies } from './familyLife.ts';
 import { respondToSurname } from './familyNames.ts';
-import { friendshipExperience, friendshipResponse, invitationKey } from './friendships.ts';
+import { friendshipExperience, friendshipResponse } from './friendships.ts';
 import { advanceIllnesses, startIllness, visitHealthcare } from './health.ts';
 import { playerPatient } from './healthTypes.ts';
 import { sharedHobbies, spendTimeOnHobby } from './hobbies.ts';
@@ -34,7 +34,7 @@ import { relocate } from './relocation.ts';
 import { conversationStory } from './relationshipStories.ts';
 import { spendTimeWithAll } from './relationshipTime.ts';
 import { answerSocialEvent, applyIntimacy, isSocialEvent, offerSocialEvent } from './socialEvents.ts';
-import { activeFor, advanceEarlyConnections, advanceRelationships, applyRelationshipCare, inPersonIssue, meaningfulTime, openConcern, takingSpace } from './relationships.ts';
+import { activeFor, advanceEarlyConnections, advanceRelationships, applyRelationshipCare, inPersonIssue, meaningfulTime, openConcern, takingSpace, trackConnection } from './relationships.ts';
 import { advanceContactOccupation, currentClass, findContact, isPeer, isSchoolStage } from './school.ts';
 import { ageSkills, cloneSkills, incidentalPractice, setHobby, trainSkill } from './skills.ts';
 import { developAcademicSkills } from './skillIntegration.ts';
@@ -48,18 +48,17 @@ import { stats } from './types.ts';
 import type { Action, Life } from './types.ts';
 
 export const maxAge = 115;
-export const friendshipEnergyCost = 6;
 
 export const activities = {
   'go-to-library': { age: 5, effects: { smarts: 2, happiness: 1 }, title: 'Library Visit', meter: 'smarts' },
-  rest: { age: 4, energy: 0, effects: { energy: 20, stress: -8 }, title: 'Time to Rest', meter: 'energy' },
+  rest: { age: 4, effects: { stress: -8 }, title: 'Time to Rest', meter: 'stress' },
   walk: { age: 4, effects: { health: 3, stress: -3 }, title: 'A Walk Outside', meter: 'health' },
-  study: { age: 6, energy: 16, effects: { smarts: 4, discipline: 3, stress: 3 }, title: 'Study Session', meter: 'smarts' },
-  library: { age: 6, energy: 8, effects: { smarts: 1 }, title: 'School Library Visit', meter: 'smarts' },
-  socialize: { age: 6, energy: 8, effects: { happiness: 3 }, title: 'Time with Classmates', meter: 'happiness' },
-  extracurricular: { age: 6, energy: 12, effects: { discipline: 2, happiness: 2 }, title: 'Club Activity', meter: 'discipline' },
-  'academic-talk': { age: 6, energy: 7, effects: { stress: -2 }, title: 'Academic Feedback', meter: 'stress' },
-  exams: { age: 6, energy: 14, effects: { discipline: 1, stress: 4 }, title: 'Exam Practice', meter: 'discipline' },
+  study: { age: 6, effects: { smarts: 4, discipline: 3, stress: 3 }, title: 'Study Session', meter: 'smarts' },
+  library: { age: 6, effects: { smarts: 1 }, title: 'School Library Visit', meter: 'smarts' },
+  socialize: { age: 6, effects: { happiness: 3 }, title: 'Time with Classmates', meter: 'happiness' },
+  extracurricular: { age: 6, effects: { discipline: 2, happiness: 2 }, title: 'Club Activity', meter: 'discipline' },
+  'academic-talk': { age: 6, effects: { stress: -2 }, title: 'Academic Feedback', meter: 'stress' },
+  exams: { age: 6, effects: { discipline: 1, stress: 4 }, title: 'Exam Practice', meter: 'discipline' },
 } as const;
 type Activity = keyof typeof activities;
 
@@ -86,7 +85,6 @@ function ageUp(life: Life) {
   life.usedActions = [];
   delete life.social.datingCycle;
   ageSkills(life);
-  character.attributes.energy = 100;
   character.attributes.stress = clamp(character.attributes.stress - 5);
   const age = character.age;
   character.attributes.health = clamp(character.attributes.health + (
@@ -197,8 +195,7 @@ export function activityIssue(life: Life, activity: Activity) {
     if (!isSchoolStage(enrollment.level) && (activity === 'library' || activity === 'extracurricular')) return 'Only offered in school.';
     if (activity === 'academic-talk' && !currentClass(life).some((person) => person.alive && !isPeer(person))) return 'Your adviser is unavailable.';
     if (activity === 'socialize' && !currentClass(life).some((person) => person.alive && isPeer(person))) return 'No classmates are available.';
-    if (life.usedActions.includes(activity)) return 'Already done this year.';
-    if (life.character.attributes.energy < activities[activity].energy) return 'You need more energy.';
+    if (activity !== 'socialize' && activity !== 'academic-talk' && activity !== 'extracurricular' && life.usedActions.includes(activity)) return 'Already done this year.';
   }
   return null;
 }
@@ -212,8 +209,6 @@ export function talkIssue(life: Life, id: string) {
   if (activeFor(life, id) && inPersonIssue(life, person)) return 'Call or video call when you’re apart.';
   if (life.character.age < 3) return 'Available from age 3.';
   if (person.age < 3) return 'They are too young for a conversation.';
-  if (life.usedActions.includes(`talk:${id}`)) return 'Already done this year.';
-  if (life.character.attributes.energy < 8) return 'You need more energy.';
   return null;
 }
 
@@ -221,13 +216,11 @@ export function befriendIssue(life: Life, id: string) {
   const person = findContact(life, id);
   if (!person || !('friend' in person) || !canMakeFriend(person)) return 'You can only befriend a classmate or co-worker.';
   if (person.friend && !life.social.profiles[person.id]?.formerFriend) return 'You are already friends.';
-  if (life.usedActions.includes(invitationKey(id))) return 'You already discussed friendship with them this year.';
   const issue = contactIssue(life, person);
   if (issue) return issue;
   if (isWorkContact(person) && !person.friend && !isWorkAcquaintance(person)) {
     return `Affection must be above ${coworkerAcquaintanceThreshold}% to become friends.`;
   }
-  if (life.character.attributes.energy < friendshipEnergyCost) return 'You need more energy.';
   return null;
 }
 
@@ -403,7 +396,7 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       const item = activities[activity];
       const academic = isAcademicActivity(activity);
       if (academic && life.academic.enrollment) {
-        life.usedActions.push(activity);
+        if (!life.usedActions.includes(activity)) life.usedActions.push(activity);
         const effect = academicEffects[activity];
         const enrollment = life.academic.enrollment;
         enrollment.performance = clamp(enrollment.performance + effect.performance);
@@ -418,14 +411,13 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       const repeatable = activity === 'walk' || activity === 'go-to-library' || activity === 'rest';
       const repeatKey = `repeat:${activity}`;
       const count = repeatable ? life.usedActions.filter((key) => key === repeatKey).length : 0;
-      if (repeatable && count >= 6 && (activity !== 'rest' || life.character.attributes.energy >= 100)) return { life: previous };
+      if (repeatable && count >= 6) return { life: previous };
       if (repeatable && count < 6) life.usedActions.push(repeatKey);
       if (activity === 'go-to-library' && count < 4) incidentalPractice(life, 'writing', 1, 25);
       const effects = activity === 'walk' ? { health: Math.max(0, 3 - Math.floor(count / 2)), stress: -Math.max(0, 3 - Math.floor(count / 2)) } :
         activity === 'go-to-library' ? { smarts: Math.max(0, 2 - Math.floor(count / 2)), happiness: count < 4 ? 1 : 0 } :
-          activity === 'rest' ? { energy: 20, stress: -Math.max(0, 8 - count * 2) } : item.effects;
-      record(life, academic ? 'school' : 'life', activityStory(life, activity, adviser?.name),
-        academic ? { energy: -activities[activity].energy, ...effects } : effects);
+          activity === 'rest' ? { stress: -Math.max(0, 8 - count * 2) } : item.effects;
+      record(life, academic ? 'school' : 'life', activityStory(life, activity, adviser?.name), effects);
       if (activity !== 'go-to-library' || !visitLibrary(life)) {
         enqueueNotice(life, item.title, resultMeter(eventTitle(item.meter), before, life.character.attributes[item.meter]));
       }
@@ -435,14 +427,13 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       const issue = talkIssue(life, action.person);
       if (issue) return { error: issue };
       const person = findContact(life, action.person)!;
-      life.usedActions.push(`talk:${person.id}`);
       const previousAffection = person.bond.affection;
       const shared = sharedHobbies(life, person)[0];
       const occasion = { key: 'conversation', location: 'remote' } as const;
       const unavailable = availability(life, person, occasion);
       const outcome = contextualOutcome(life, person, occasion);
       const reception = unavailable ? 0 : outcome.weight;
-      life.usedActions.push(`connection:${person.id}`);
+      trackConnection(life, person.id);
       person.bond.affection = clamp(person.bond.affection + Math.round((shared ? 4 : 3) * reception));
       person.bond.trust = clamp(person.bond.trust + Math.round(2 * reception));
       if (!unavailable) person.bond.familiarity = clamp(person.bond.familiarity + Math.max(1, Math.round(4 * reception)));
@@ -455,7 +446,7 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       remember(life, person, story, reception <= -.60);
       friendshipExperience(life, person, reception);
       const notice = recordNotice(life, isWorkContact(person) ? 'career' : 'friend' in person ? 'community' : 'family',
-        'A Conversation', story, { energy: -8, happiness: Math.round(3 * reception) });
+        'A Conversation', story, { happiness: Math.round(3 * reception) });
       notice.meter = resultMeter('Affection', previousAffection, person.bond.affection);
       break;
     }
@@ -463,7 +454,7 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       const issue = befriendIssue(life, action.person);
       if (issue) return { error: issue };
       const person = findContact(life, action.person)!;
-      friendshipResponse(life, person, friendshipEnergyCost);
+      friendshipResponse(life, person);
       break;
     }
     case 'seek-work': case 'work-harder': case 'request-raise': case 'resign': case 'retire':

@@ -4,7 +4,7 @@ import type { SkillId } from '../data/skills.ts';
 import { recordNotice, resultMeter } from './eventNotices.ts';
 import { friendshipExperience } from './friendships.ts';
 import { contactIssue } from './interactions.ts';
-import { activeFor, inPersonIssue, meaningfulTime } from './relationships.ts';
+import { activeFor, inPersonIssue, meaningfulTime, trackConnection } from './relationships.ts';
 import { clamp } from './journal.ts';
 import { allContacts, isFamily, npcProfile, remember } from './npcs.ts';
 import { incidentalPractice, openingIssue, skillRandom } from './skills.ts';
@@ -57,8 +57,6 @@ export function sharedHobbyIssue(life: Life, person: Contact, id: SkillId) {
   const meeting = inPersonIssue(life, person);
   if (meeting) return meeting;
   if (Math.min(person.age, life.character.age) < skills[id].age) return `Available from age ${skills[id].age}.`;
-  if (life.usedActions.includes(`shared-hobby:${person.id}`)) return 'Available again next year.';
-  if (life.character.attributes.energy < 6) return 'You need 6 energy.';
   return null;
 }
 
@@ -68,12 +66,12 @@ export function spendTimeOnHobby(life: Life, person: Contact, id: SkillId) {
   const name = skills[id].name;
   const occasion = { key: `hobby:${id}`, location: 'local', demanding: true } as const;
   const unavailable = availability(life, person, occasion);
-  life.usedActions.push(`shared-hobby:${person.id}`);
   if (unavailable) {
-    recordNotice(life, 'community', 'Maybe Another Time', `I invited ${person.name} to practice ${name}. ${unavailable.reason}`, { energy: -6 });
+    recordNotice(life, 'community', 'Maybe Another Time', `I invited ${person.name} to practice ${name}. ${unavailable.reason}`);
     return null;
   }
   const outcome = contextualOutcome(life, person, occasion);
+  trackConnection(life, person.id);
   const random = skillRandom(life.seed, `share:${person.id}:${id}:${life.year}`);
   const story = `${random.pick([`I spent an afternoon practicing ${name} with ${person.name}.`,
     `${person.name} and I set ourselves a small ${name} challenge and compared how we did.`])} ${outcome.note}`;
@@ -87,7 +85,7 @@ export function spendTimeOnHobby(life: Life, person: Contact, id: SkillId) {
   if (outcome.weight > 0) meaningfulTime(life, person, 'time', 5);
   friendshipExperience(life, person, outcome.weight);
   recordNotice(life, 'community', 'A Shared Interest', story, { happiness: Math.round(3 * outcome.weight),
-    stress: Math.round(-2 * outcome.weight), energy: -6 }).meter =
+    stress: Math.round(-2 * outcome.weight) }).meter =
     resultMeter('Affection', before, bond.affection);
   return null;
 }

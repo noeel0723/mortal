@@ -161,6 +161,10 @@ try {
   for (const { name } of [...beforeTime.family.filter(({ alive }) => alive), neighbor]) {
     assert.ok(stories.some(({ text }) => text.includes(name)));
   }
+  await click('Spend Time with All');
+  await dialog('Time With Everyone').waitFor();
+  await acknowledgeEvents(page);
+  assert.equal((await read('shopping-test')).year, beforeTime.year);
   await click('Close Relationships');
   await click('Assets');
   const topGroup = page.locator('.play-group').first();

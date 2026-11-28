@@ -78,7 +78,6 @@ export function trainingIssue(life: Life, id: SkillId, method: TrainingMethod) {
   if (trainingUsed(life) >= skillLimits.yearlySessions) return 'Your training schedule is full this year.';
   if ((life.skills.annual.sessions[id] ?? 0) >= skillLimits.yearlyPerSkill) return 'You have finished your sessions for this skill this year.';
   if (life.character.bank < training.fee) return `You need ${money(training.fee)} for this session.`;
-  if (life.character.attributes.energy < training.energy) return 'You need more energy.';
   return null;
 }
 
@@ -142,7 +141,7 @@ export function trainSkill(life: Life, id: SkillId, method: TrainingMethod) {
     course: `I finished a short ${definition.name} course and tried the final exercise.`,
     coaching: `I took a private ${definition.name} lesson and worked on the coach’s feedback.`,
   }[method];
-  recordNotice(life, 'life', title, `${story}${context}`, { bank: -training.fee, energy: -training.energy,
+  recordNotice(life, 'life', title, `${story}${context}`, { bank: -training.fee,
     stress: overtrained ? 4 : method === 'practice' ? 0 : 1, health: overtrained ? -2 : 0 }, 'training').meter =
     resultMeter(definition.name, before.proficiency, after.proficiency);
   return null;

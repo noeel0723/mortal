@@ -201,7 +201,7 @@ export function eventPopup(life: Life): EventPopup | undefined {
       category: { label: 'Family', icon: 'pregnancy' }, dismiss, actions: [{ label: 'Continue', icon: 'next', tone: 'primary', action: dismiss }] };
   }
   return { key: `notice-${notice.entry}`, title: notice.title, text: entry.text, category: categories[entry.category],
-    meter: notice.meter, dismiss, actions: [{ label: 'Continue', icon: 'next', action: dismiss }] };
+    meter: notice.meter?.label === 'Energy' ? undefined : notice.meter, dismiss, actions: [{ label: 'Continue', icon: 'next', action: dismiss }] };
 }
 
 export function resultChange(change: number) {

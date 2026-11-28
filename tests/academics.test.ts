@@ -81,7 +81,7 @@ test('school records progress in sequence and the high school plan must be resol
   for (const path of ['university', 'vocational', 'workforce']) assert.equal(resolve(loaded, path).academic.path, path);
 });
 
-test('academic activities use energy, record actual effects independently of Smarts, and respect bounds', () => {
+test('academic feedback records actual effects without energy and respects bounds', () => {
   const school = resolve(ageTo(createLife(8), 6));
   const enrollment = school.academic.enrollment!;
   enrollment.attendance = 99;
@@ -91,10 +91,10 @@ test('academic activities use energy, record actual effects independently of Sma
   const next = act(school, activity);
   assert.deepEqual((['performance', 'attendance', 'stress'] as const).map((key) => next.academic.enrollment![key]), [100, 100, 0]);
   assert.equal(next.character.attributes.smarts, school.character.attributes.smarts);
-  assert.equal(next.character.attributes.energy, school.character.attributes.energy - 7);
+  assert.equal(next.character.attributes.energy, school.character.attributes.energy);
   assert.match(next.journal.at(-1)?.text ?? '', /academic feedback/);
   assert.equal(enrollment.performance, 99);
-  expectIssue(next, activity, /already done/i);
+  assert.ok(advance(next, activity).life);
   expectIssue(createLife(8), activity, /age 6/);
 });
 

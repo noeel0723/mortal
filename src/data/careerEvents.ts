@@ -44,7 +44,7 @@ export const careerEvents: LifeEvent[] = [
   event('recognition', 'My work was singled out for praise at a team meeting.',
     (life) => (life.career.current?.performance ?? 0) >= 66, { effects: { happiness: 4 }, careerEffects: { reputation: 5 } }),
   event('exhaustion', 'I struggled to switch off after work and woke up tired the next morning.',
-    (life) => (life.career.current?.stress ?? 0) >= 57, { effects: { energy: -8 }, careerEffects: { satisfaction: -3 } }),
+    (life) => (life.career.current?.stress ?? 0) >= 57, { careerEffects: { satisfaction: -3 } }),
   event('career-change', 'I considered whether a different industry would suit me better.',
     (life) => life.career.seeking && life.career.experience >= 2, { effects: { discipline: 2 } }),
   event('redundancy-rumor', 'There was talk of restructuring. I thought about what I would do if my role changed.',

@@ -24,6 +24,7 @@ export function validateLocalSocial(life: Life, ids: ReadonlySet<string>) {
     for (const [key, member] of Object.entries(local.memberships)) {
       if (!record(member) || !cities.includes(member.city) || !Object.hasOwn(clubs, member.club) || key !== membershipKey(member.city, member.club) ||
         !date(member.joined) || typeof member.active !== 'boolean' || !integer(member.standing, 0, 100) || !history(member.history, 12) ||
+        (member.attended !== undefined && member.attended !== true) ||
         !Array.isArray(member.members) || member.members.length !== 3 || new Set(member.members).size !== member.members.length) return false;
       const city = member.city.toLowerCase().replaceAll(' ', '-');
       if (!member.members.every((id, slot) => typeof id === 'string' && (ids.has(id) ||

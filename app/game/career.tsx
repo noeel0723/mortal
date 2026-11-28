@@ -85,7 +85,7 @@ export default function Career() {
   }
   if (screen === 'hours') return <Page inGame><Heading title="Working Hours" back={back} />
     {job ? <Controls items={workHours(jobById.get(job.jobId)!).map((hours) =>
-      careerControl(life, { type: 'work-hours', hours }, `${hours} Hours`, 'hours', 'Workload affects performance, stress, and energy.'))} /> :
+      careerControl(life, { type: 'work-hours', hours }, `${hours} Hours`, 'hours', 'Workload affects performance and stress.'))} /> :
       <Text style={shared.body}>You are not currently employed.</Text>}
   </Page>;
   if (screen === 'coworkers') return <Page inGame><Heading title="Co-workers" back={back} />
@@ -134,7 +134,7 @@ export default function Career() {
     {((canFindJob && !!job) || canRetire) && <Section title="Career Actions">
       {canFindJob && job && <>
         <Controls items={[
-          careerControl(life, { type: 'work-harder' }, 'Work Harder', 'harder', 'Uses 16 energy. Improves performance and increases stress.'),
+          careerControl(life, { type: 'work-harder' }, 'Work Harder', 'harder', 'Improve performance at the cost of stress.'),
           careerControl(life, { type: 'request-raise' }, 'Request a Raise', 'bank'),
         ]} />
         <ActionButton icon="hours" label="Working Hours" detail={`${job.hours} hours per week`} onPress={() => open('hours')} />

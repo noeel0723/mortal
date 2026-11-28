@@ -22,8 +22,6 @@ export function friendshipStage(life: Life, person: Contact): FriendshipStage {
   return 'friend';
 }
 
-export const invitationKey = (id: string) => `friendship-invite:${id}`;
-
 export function friendshipWillingness(life: Life, person: Contact) {
   const { affection, trust, respect, familiarity, compatibility, resentment } = person.bond;
   const profile = npcProfile(life, person);
@@ -32,24 +30,23 @@ export function friendshipWillingness(life: Life, person: Contact) {
     resentment * .55 + Math.min(12, (profile.friendship?.experiences ?? 0) * 2);
 }
 
-export function friendshipResponse(life: Life, person: Contact, cost: number) {
+export function friendshipResponse(life: Life, person: Contact) {
   const issue = availability(life, person, { key: 'friendship', location: 'remote' });
   const score = friendshipWillingness(life, person);
   const disposition = npcRandom(life, `friendship-willingness:${person.id}`, life.year).integer(-16, 16);
   const accepted = !issue && score + disposition >= 47;
-  life.usedActions.push(invitationKey(person.id));
   if (accepted) {
-    acceptFriendship(life, person, cost);
+    acceptFriendship(life, person);
     return;
   }
   const text = issue ? `${person.name} said this wasn’t a good time. ${issue.reason}` : score >= 35 ?
     `${person.name} wanted to stay acquaintances for now. We agreed to keep getting to know each other.` :
     `${person.name} said they didn’t feel ready for a friendship. I respected their answer.`;
   remember(life, person, text);
-  recordNotice(life, 'community', issue ? 'Maybe Another Time' : 'A Friendship Offer', text, { energy: -cost });
+  recordNotice(life, 'community', issue ? 'Maybe Another Time' : 'A Friendship Offer', text);
 }
 
-export function acceptFriendship(life: Life, person: Contact, cost = 0) {
+export function acceptFriendship(life: Life, person: Contact) {
   if (!('friend' in person)) return;
   const profile = ensureNpc(life, person);
   const experiences = profile.friendship?.experiences ?? 0;
@@ -59,7 +56,7 @@ export function acceptFriendship(life: Life, person: Contact, cost = 0) {
   profile.friendship = { stage: 'casual', experiences, changed: life.year, last: life.year };
   const story = `${friendshipStory(life, person)} We both wanted to stay in touch.`;
   remember(life, person, story);
-  recordNotice(life, 'community', 'A New Friend', story, { energy: -cost, happiness: 5 }).meter =
+  recordNotice(life, 'community', 'A New Friend', story, { happiness: 5 }).meter =
     resultMeter('Affection', person.bond.affection, person.bond.affection);
 }
 

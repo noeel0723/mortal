@@ -6,6 +6,7 @@ import { assetById, assetCatalog, assetKinds, starterHome } from '../src/data/sh
 import { createLife } from '../src/engine/create.ts';
 import { canAccompany } from '../src/engine/health.ts';
 import { postTransaction } from '../src/engine/journal.ts';
+import { npcRandom } from '../src/engine/npcs.ts';
 import { makeOwnership, propertyIssue, propertyQuote, rentMovingFee } from '../src/engine/property.ts';
 import { findContact } from '../src/engine/school.ts';
 import { advance } from '../src/engine/simulation.ts';
@@ -85,7 +86,7 @@ test('adult housing choices honor age, parent affordability, and willingness', (
   adult.character.background = 'working-class';
   assert.match(propertyIssue(adult, request) ?? '', /cannot afford/);
   adult.social.profiles[adult.family[0]!.id]!.savings = 82000;
-  adult.random = 0;
+  while (npcRandom(adult, `housing-request:${request.parent}`, adult.year).next() >= .5) adult.seed++;
   Object.assign(adult.family[0]!.bond, { affection: 95, trust: 99, resentment: 0 });
   const gifted = apply(adult, request);
   assert.equal(gifted.property.residence, gifted.property.owned[0]?.ownershipId);
@@ -96,7 +97,8 @@ test('adult housing choices honor age, parent affordability, and willingness', (
   Object.assign(adult.family[0]!.bond, { affection: 30, trust: 12, resentment: 60 });
   const declined = apply(adult, request);
   assert.equal(declined.property.residence, 'family');
-  assert.match(propertyIssue(declined, request) ?? '', /already asked/);
+  assert.equal(apply(declined, request).notices.at(-1)?.title, 'Housing Request Declined');
+  assert.match(propertyIssue(gifted, request) ?? '', /already own/);
   const movingFee = rentMovingFee(adult);
   postTransaction(adult, 'Savings', movingFee, 'other');
   const renter = apply(adult, { type: 'rent-home' });

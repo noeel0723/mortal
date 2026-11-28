@@ -52,7 +52,7 @@ export function skillDetails(life: Life, id: SkillId) {
   if (progress.discovered !== null) rows.push({ label: 'Natural aptitude', value: `${progress.aptitude}%` });
   const controls: ActivityControl[] = (Object.keys(trainingMethods) as TrainingMethod[]).map((method) => {
     const item = trainingMethods[method];
-    return { label: item.name, icon: item.icon, detail: `${item.fee ? money(item.fee) : 'Free'} · ${item.energy} energy`,
+    return { label: item.name, icon: item.icon, detail: `${item.fee ? money(item.fee) : 'Free'}`,
       issue: trainingIssue(life, id, method), action: { type: 'train-skill', skill: id, method } };
   });
   const publicEvent = showcasePlan(life, id);

@@ -184,11 +184,19 @@ export function meaningfulTime(life: Life, person: Contact, act: 'time' | 'suppo
   conflict.updated = life.year;
 }
 
+export function recentConnections(life: Life, id: string) {
+  return Math.min(8, life.usedActions.filter((key) => key === `connection:${id}`).length);
+}
+
+export function trackConnection(life: Life, id: string) {
+  if (recentConnections(life, id) < 8) life.usedActions.push(`connection:${id}`);
+}
+
 export function responseScale(life: Life, person: Contact, action: string) {
   if (!knownRelationship(life, person) || life.character.age < 18) return 1;
   const conflict = visibleConcerns(life, person.id)[0]?.severity ?? 0;
-  const used = life.usedActions.filter((key) => key === `connection:${person.id}`).length;
-  life.usedActions.push(`connection:${person.id}`);
+  const used = recentConnections(life, person.id);
+  trackConnection(life, person.id);
   const quality = relationshipSatisfaction(life, person);
   const interest = npcProfile(life, person).traits.empathy;
   const chance = 35 + quality * .44 + interest * .15 - conflict * .27 - life.character.attributes.stress * .12;
@@ -213,7 +221,6 @@ export function careIssue(life: Life, person: Contact, action: RelationshipCareA
   const state = relationshipState(life, person.id);
   const apart = (state?.apartUntil ?? 0) > life.year;
   const concern = visibleConcerns(life, person.id)[0];
-  if (life.usedActions.includes(`care:${person.id}:${action}`)) return 'Available again next year.';
   if (apart && action !== 'space' && action !== 'end-contact') return 'They’ve asked for time apart. Give them until next year.';
   if (early && action === 'conversation') return inPersonIssue(life, person);
   if ((action === 'phone' || action === 'video') && activeFor(life, person.id) && togetherInPerson(life, person)) {
@@ -363,7 +370,8 @@ export function applyRelationshipCare(life: Life, action: RelationshipCareAction
   const concern = visibleConcerns(life, id)[0];
   const { name } = person;
   const kind = action.action;
-  life.usedActions.push(`care:${id}:${kind}`);
+  const key = `care:${id}:${kind}`;
+  if (!life.usedActions.includes(key)) life.usedActions.push(key);
   if ((earlyConnection(life, id) || (casualConnection(life, id) && !activeFor(life, id))) && isEarlyAction(kind)) {
     earlyCare(life, person, kind);
     return null;

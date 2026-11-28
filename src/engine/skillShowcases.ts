@@ -31,7 +31,6 @@ export function showcaseIssue(life: Life, id: SkillId) {
   if (progress.lastYear == null || life.year - progress.lastYear > 1) return 'Practice again before entering an event.';
   if (physicalSkill(id) && life.character.attributes.health < 40) return 'You need better health for this competition.';
   if (life.character.bank < plan.fee) return `You need ${money(plan.fee)} for entry.`;
-  if (life.character.attributes.energy < 10) return 'You need more energy.';
   return null;
 }
 
@@ -61,7 +60,7 @@ export function holdShowcase(life: Life, id: SkillId) {
   life.skills.entries[id] = { ...progress, lastShowcase: life.year, awards: progress.awards + Number(award),
     experience: progress.experience + 12, showcases: [...progress.showcases, { year: life.year, outcome, score }].slice(-skillLimits.recentShowcases) };
   recordNotice(life, 'community', award ? (plan.competition ? 'Amateur Champion' : 'Local Recognition') : 'A Public Performance',
-    story, { bank: -plan.fee, energy: -10, happiness: award ? 5 : 2, reputation: award ? 3 : 0 }, 'training').meter =
+    story, { bank: -plan.fee, happiness: award ? 5 : 2, reputation: award ? 3 : 0 }, 'training').meter =
     resultMeter(skill.name, progress.proficiency, progress.proficiency);
   return null;
 }

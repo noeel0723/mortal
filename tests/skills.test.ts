@@ -45,7 +45,7 @@ test('all individual skills start at zero and aptitudes are seeded with a matchi
   assert.deepEqual([14, 15, 30, 55, 75, 90].map(skillTier), ['Novice', 'Beginner', 'Intermediate', 'Advanced', 'Expert', 'Elite']);
 });
 
-test('training verifies age, energy and funds, books the fee once and persists the result', () => {
+test('training verifies age and funds, books the fee once and persists the result', () => {
   const birth = createLife(118);
   assert.match(trainingIssue(birth, 'programming', 'course') ?? '', /age 10/);
   const adult = atAge(20);
@@ -54,8 +54,7 @@ test('training verifies age, energy and funds, books the fee once and persists t
   assert.match(trainingIssue(adult, 'programming', 'course') ?? '', /need \$/);
   postTransaction(adult, 'Savings', 1000, 'other');
   adult.character.attributes.energy = 0;
-  assert.match(trainingIssue(adult, 'programming', 'course') ?? '', /energy/);
-  adult.character.attributes.energy = 100;
+  assert.equal(trainingIssue(adult, 'programming', 'course'), null);
   const trained = apply(adult, { type: 'train-skill', skill: 'programming', method: 'course' });
   const progress = skillAt(trained, 'programming');
   assert.ok(progress.proficiency > 0);
@@ -164,7 +163,7 @@ test('shared hobbies reuse contacts and improve compatibility, conversations, an
   const together = apply(talked, practice);
   assert.ok(findContact(together, contact.id)!.bond.affection > findContact(talked, contact.id)!.bond.affection);
   assert.equal(skillAt(together, 'chess').proficiency, skillAt(talked, 'chess').proficiency + 1);
-  assert.match(advance(together, practice).error ?? '', /next year/);
+  assert.equal(apply(together, practice).notices.at(-1)?.title, 'A Shared Interest');
 });
 
 test('parental support develops age-appropriate child interests with optional lessons charged once', () => {
@@ -183,7 +182,8 @@ test('parental support develops age-appropriate child interests with optional le
   const supported = apply(encouraged, lesson);
   assert.equal(supported.skills.children[child.id]?.[0]?.proficiency, 7);
   assert.equal(supported.character.bank, life.character.bank - 750);
-  assert.match(advance(supported, lesson).error ?? '', /next year/);
+  const supportedAgain = apply(supported, lesson);
+  assert.equal(supportedAgain.character.bank, supported.character.bank - 750);
   const nextYear = apply(supported, { type: 'age' });
   assert.ok(nextYear.skills.children[child.id]![0]!.proficiency > 7);
   assert.equal(nextYear.skills.children[child.id]?.length, 1);

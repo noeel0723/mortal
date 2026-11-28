@@ -9,7 +9,7 @@ export type ActivityControl = { label: string; icon: Emoji; detail?: string; iss
 
 const wellbeing = [
   { id: 'walk', icon: 'walk', label: 'Take a Walk', detail: 'Get moving and ease stress' },
-  { id: 'rest', icon: 'rest', label: 'Rest', detail: 'Recover energy' },
+  { id: 'rest', icon: 'rest', label: 'Rest', detail: 'Reduce stress' },
 ] as const;
 
 function personalActivity(life: Life, item: typeof wellbeing[number]) {

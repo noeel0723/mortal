@@ -2,7 +2,7 @@ import { socialEventCatalog } from '../data/socialEvents.ts';
 import { answerDatingDiscovery, discoveryEvent } from './datingDiscovery.ts';
 import { datingIntent } from './dating.ts';
 import { recordNotice } from './eventNotices.ts';
-import { acceptFriendship, friendshipExperience, friendshipWillingness, invitationKey } from './friendships.ts';
+import { acceptFriendship, friendshipExperience, friendshipWillingness } from './friendships.ts';
 import { answerIntimacy, isIntimacyEvent, prepareIntimacy } from './intimacy.ts';
 import { clamp, record } from './journal.ts';
 import { activeRomances, canPropose, changeRomance, endRomance, romanceFor, romanceHistory } from './love.ts';
@@ -225,7 +225,6 @@ export function answerSocialEvent(life: Life, id: string, choice: string) {
   delete life.social.pendingEncounter;
   if (!person?.alive) return;
   if (id === 'social-friendship') {
-    life.usedActions.push(invitationKey(person.id));
     if (accepted) acceptFriendship(life, person);
     else {
       const story = `I told ${person.name} I wanted to stay acquaintances for now.`;

@@ -232,7 +232,8 @@ test('a 15-year-old learns to drive before borrowing and returning an owned vehi
   assert.equal(life.notices.at(-1)?.title, 'Vehicle Returned');
   assert.equal(life.property.owned[0]!.condition, before.condition - 2);
   assert.equal(life.property.owned[0]!.history.at(-1)?.action, 'borrow');
-  assert.match(advance(life, action).error ?? '', /next year/);
+  const returnedAgain = act(life, action);
+  assert.equal(returnedAgain.property.owned[0]!.condition, before.condition - 4);
   assert.deepEqual(decodeLife(JSON.stringify(life)), life);
 });
 
@@ -325,7 +326,9 @@ test('spending time with all writes a different story for each available contact
   assert.ok(stories.every(({ text }) => !text.includes(deceased.name)));
   assert.equal(batch.character.attributes.energy, 0);
   assert.equal(batch.notices.at(-1)?.title, 'Time With Everyone');
-  assert.match(advance(batch, { type: 'spend-time-all' }).error ?? '', /next year/);
+  const repeated = act(batch, { type: 'spend-time-all' });
+  assert.equal(repeated.notices.at(-1)?.title, 'Time With Everyone');
+  assert.equal(repeated.year, batch.year);
   assert.deepEqual(decodeLife(JSON.stringify(batch)), batch);
 });
 
@@ -364,7 +367,8 @@ test('Make Love works with a current partner or adult friend and respects a refu
   assert.equal(declined.notices.at(-1)?.title, 'Invitation Declined');
   assert.equal(declined.notices.at(-1)?.details, undefined);
   assert.deepEqual(findContact(declined, friend.id)!.bond, friend.bond);
-  assert.match(advance(declined, action).error ?? '', /already declined/);
+  const declinedAgain = completeEncounter(act(declined, action), choice);
+  assert.equal(declinedAgain.notices.at(-1)?.title, 'Invitation Declined');
 });
 
 test('Hook Up keeps the match and choice through reload and remains a one-night encounter', () => {
@@ -950,7 +954,7 @@ test('cross-city mutual matches communicate, book an accepted visit, and keep th
   assert.equal(life.notices.at(-1)?.title, 'Getting to Know Each Other');
   assert.ok(findContact(life, id)!.bond.familiarity > remote.bond.familiarity);
   assert.ok(romanceFor(life, id)?.history.at(-1)?.text.includes(remote.name));
-  assert.match(advance(life, care('message')).error ?? '', /next year/);
+  assert.ok(advance(life, care('message')).life);
   life = act(life, care('phone'));
   life = act(life, care('interests'));
   const balance = life.character.bank;
@@ -1186,7 +1190,8 @@ test('consent, age, kinship and rejected advances cannot be bypassed by reloadin
   const rejected = act(life, ask);
   assert.equal(activeRomance(rejected), undefined);
   assert.equal(rejected.notices.at(-1)?.title, 'Date Declined');
-  assert.match(loveIssue(decodeLife(JSON.stringify(rejected)), ask) ?? '', /next year/);
+  const declinedAgain = act(decodeLife(JSON.stringify(rejected)), ask);
+  assert.equal(declinedAgain.notices.at(-1)?.title, 'Date Declined');
   assert.equal(allContacts(rejected).filter(({ id }) => id === friend.id).length, 1);
 });
 

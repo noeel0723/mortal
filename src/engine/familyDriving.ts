@@ -8,7 +8,6 @@ import { pickStory } from './stories.ts';
 import type { Action, Life } from './types.ts';
 
 type DrivingAction = Extract<Action, { type: 'family-driving' }>;
-const borrowKey = (person: string, asset: string) => `borrow:${person}:${asset}`;
 
 function drivingContext(life: Life, action: DrivingAction) {
   const asset = ownedAssets(life).find(({ ownershipId }) => ownershipId === action.asset);
@@ -31,7 +30,6 @@ export function drivingIssue(life: Life, action: DrivingAction, fromNotice = fal
       return 'A driving lesson is already waiting for your answer.';
     }
   } else if (!trained) return 'Teach them to drive this type of vehicle first.';
-  else if (life.usedActions.includes(borrowKey(child.id, asset.ownershipId))) return 'They can borrow this vehicle again next year.';
   return null;
 }
 
@@ -73,7 +71,6 @@ export function applyFamilyDriving(life: Life, action: DrivingAction, fromNotice
     const history = [...asset.history, { year: life.year, action: 'borrow' as const, amount: 0, condition }].slice(-40);
     life.property.owned = life.property.owned.map((item) => item === asset ? { ...item, condition,
       reliability: clamp((asset.reliability ?? 0) - 1), history } : item);
-    life.usedActions.push(borrowKey(child.id, asset.ownershipId));
     const story = pickStory(life, `borrow:${child.id}`, [
       `${child.name} borrowed my ${listing.name} to visit a friend and brought it back before dinner.`,
       `I lent ${child.name} my ${listing.name} for an afternoon outing. They returned it that evening.`,

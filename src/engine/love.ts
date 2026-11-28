@@ -122,11 +122,6 @@ export function datingCompatibility(life: Life, person: Contact) {
   return clamp(Math.round(compatibility * .6 + affection * .17 + familiarity * .12 + profile.traits.empathy * .11 + Math.min(8, sharedHobbies(life, person).length * 4)));
 }
 
-function loveKey(action: Exclude<LoveAction, { type: 'meet' | 'dating-match' }>) {
-  if (action.type === 'wedding') return 'wedding';
-  return action.action === 'ask' || action.action === 'propose' ? 'romantic-advance' : `romance-${action.action}`;
-}
-
 export function loveIssue(life: Life, action: LoveAction, checkPartnerPrice = true): string | null {
   if (life.character.causeOfDeath) return 'This life has ended.';
   if (life.pending) return 'Resolve the pending decision first.';
@@ -146,8 +141,6 @@ export function loveIssue(life: Life, action: LoveAction, checkPartnerPrice = tr
   if (!person?.alive) return 'This person is unavailable.';
   if (life.character.age < 18 || person.age < 18) return 'Both people must be adults.';
   const romance = romanceFor(life, person.id);
-  const key = loveKey(action);
-  if (life.usedActions.includes(key) || life.usedActions.includes(`${key}:${person.id}`)) return 'Available again next year.';
   if (action.type === 'wedding') {
     if (romance?.status !== 'engaged') return 'You need to be engaged first.';
     return inPersonIssue(life, person) ?? (life.character.bank < weddingPlans[action.plan].cost ? 'Your balance does not cover this wedding.' : null);
@@ -178,7 +171,6 @@ export function loveIssue(life: Life, action: LoveAction, checkPartnerPrice = tr
     life.character.bank < partnerDatePrice(life, person, kind, 'tier' in action ? action.tier : undefined)) {
     return 'Your balance does not cover this activity.';
   }
-  if (kind !== 'interest' && kind !== 'breakup' && kind !== 'divorce' && life.character.attributes.energy < 6) return 'You need 6 energy.';
   return null;
 }
 
@@ -204,7 +196,6 @@ export function applyLove(life: Life, action: Extract<LoveAction, { type: 'roman
   const person = findContact(life, action.person)!;
   const profile = ensureNpc(life, person);
   const previous = person.bond.affection;
-  life.usedActions.push(`${loveKey(action)}:${person.id}`);
   let title: string;
   let story: string;
   let effect: Effect = {};
@@ -247,19 +238,19 @@ export function applyLove(life: Life, action: Extract<LoveAction, { type: 'roman
       person.bond.trust = clamp(person.bond.trust + (date.outcome === 'positive' ? 3 : 0));
       person.bond.familiarity = clamp(person.bond.familiarity + 3);
       if (date.outcome !== 'disappointing') meaningfulTime(life, person, 'time');
-      effect = { bank: -firstDatePrice(life, person, venue), energy: -6, happiness: warmth };
+      effect = { bank: -firstDatePrice(life, person, venue), happiness: warmth };
     } else if (accepted) {
       story = `${person.name} accepted my proposal.`;
       changeRomance(life, person.id, 'engaged', story);
       person.bond.affection = clamp(previous + 4);
-      effect = { energy: -6, happiness: 4 };
+      effect = { happiness: 4 };
     } else {
       story = proposing ? `${person.name} said they were not ready to get engaged.` :
         !intention.allowed ? `${person.name} said they aren’t looking to date right now. I respected their answer.` :
           `${person.name} declined my invitation. I respected their answer.`;
       if (!romanceFor(life, person.id)) changeRomance(life, person.id, 'interest', story);
       else romanceHistory(life, person.id, story);
-      effect = { energy: -6, happiness: -2 };
+      effect = { happiness: -2 };
     }
   } else if (action.action === 'breakup' || action.action === 'divorce') {
     const divorce = action.action === 'divorce';
@@ -293,7 +284,7 @@ export function applyLove(life: Life, action: Extract<LoveAction, { type: 'roman
     }
     romanceHistory(life, person.id, story);
     const cost = isPaidRomanticActivity(action.action) ? partnerDatePrice(life, person, action.action, tier) : item.cost;
-    effect = { bank: -cost, energy: -6, happiness: Math.round(3 * resistance) };
+    effect = { bank: -cost, happiness: Math.round(3 * resistance) };
   }
   remember(life, person, story);
   const notice = recordNotice(life, 'community', title, story, effect, 'relationships');

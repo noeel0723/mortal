@@ -14,7 +14,7 @@ import { clubActivities, libraryActivities, neighborActivities } from './localSo
 import type { ClubMembership, LocalSocialAction } from './localSocialTypes.ts';
 import { allContacts, communicationCapacity, ensureNpc, initialNpcProfile, isFamily, makeNpc, npcRandom, remember } from './npcs.ts';
 import { localExpense } from './pricing.ts';
-import { activeFor, communicationEnded, meaningfulTime, openConcern, relationshipMemory } from './relationships.ts';
+import { activeFor, communicationEnded, meaningfulTime, openConcern, relationshipMemory, trackConnection } from './relationships.ts';
 import { findContact } from './school.ts';
 import { incidentalPractice } from './skills.ts';
 import { availability, contextualOutcome } from './socialContext.ts';
@@ -143,7 +143,7 @@ function register(life: Life, visitor: Visitor) {
 }
 
 const neighborhoodTexts = {
-  introduce: (name: string) => `I introduced myself to ${name} outside our homes.`,
+  introduce: (name: string, known = false) => known ? `I stopped to say hello to ${name} outside our homes.` : `I introduced myself to ${name} outside our homes.`,
   visit: (name: string) => `I stopped by ${name}’s place and we caught up.`,
   invite: (name: string) => `I invited ${name} over for an afternoon at my place.`,
   help: (name: string) => `I offered to help ${name} carry supplies and finish a few errands.`,
@@ -157,6 +157,7 @@ function individual(life: Life, visitor: Visitor, occasion: SocialOccasion, scen
   const person = register(life, visitor);
   if (!person) return { text: 'I joined the activity without adding new contacts to my social circle.', weight: 0 };
   const outcome = contextualOutcome(life, person, occasion);
+  trackConnection(life, person.id);
   const text = `${scene} ${outcome.note}`;
   person.bond.affection = clamp(person.bond.affection + Math.round(outcome.weight * 5));
   person.bond.trust = clamp(person.bond.trust + Math.round(outcome.weight * 3));
@@ -191,7 +192,6 @@ export function localSocialIssue(life: Life, action: LocalSocialAction) {
   if (life.character.causeOfDeath || life.pending) return 'Resolve the current life event first.';
   const age = action.type === 'library-visit' ? 5 : 8;
   if (life.character.age < age) return `Available from age ${age}.`;
-  const key = activityKey(action);
   if (action.type === 'neighborhood') {
     if (!neighborActivities.includes(action.activity)) return 'Choose a neighborhood activity.';
     if (action.activity !== 'gathering') {
@@ -212,14 +212,17 @@ export function localSocialIssue(life: Life, action: LocalSocialAction) {
     if (action.activity === 'leave') return null;
     if (action.activity === 'meet' && !clubMembers(life, action.club).some(({ person }) =>
       person.id === action.person && !communicationEnded(life, person.id))) return 'This member is unavailable.';
-    if (action.activity === 'project' && !member.history.some(({ text }) => text.startsWith('I attended'))) return 'Attend a session before joining a project.';
+    if (action.activity === 'project' && !hasAttended(member)) return 'Attend a session before joining a project.';
   } else {
     if (!libraryActivities.includes(action.activity)) return 'Choose a library activity.';
     if (action.activity === 'read' && (!action.book || !Object.hasOwn(books, action.book))) return 'Choose an available book.';
     return null;
   }
-  return life.usedActions.includes(key) ? 'Try this again next year.' : null;
+  return null;
 }
+
+const hasAttended = (member: ClubMembership) => member.attended || member.history.some(({ text }) =>
+  text.startsWith('I attended a session') || text.startsWith('I joined a project'));
 
 export function performLocalSocial(life: Life, action: LocalSocialAction) {
   const issue = localSocialIssue(life, action);
@@ -236,7 +239,6 @@ export function performLocalSocial(life: Life, action: LocalSocialAction) {
       const rotations = Object.fromEntries(Array.from({ length: neighborhoodSize }, (_, slot) => [slot, neighborhoodOrigin(life, site, slot)]));
       streets[site] = { rotations };
     }
-    life.usedActions.push(key);
     const people = neighbors(life);
     const occasion: SocialOccasion = { key, location: 'local', demanding: action.activity === 'gathering' || action.activity === 'visit' || action.activity === 'invite' };
     if (action.activity === 'gathering') {
@@ -244,7 +246,7 @@ export function performLocalSocial(life: Life, action: LocalSocialAction) {
       recordNotice(life, 'community', 'Neighborhood Gathering', visit.story, { happiness: Math.round(visit.total) });
     } else {
       const visitor = people.find(({ person }) => person.id === action.person)!;
-      const result = individual(life, visitor, occasion, neighborhoodTexts[action.activity](visitor.person.name));
+      const result = individual(life, visitor, occasion, neighborhoodTexts[action.activity](visitor.person.name, visitor.known));
       recordNotice(life, 'community', result.title ?? 'Maybe Another Time', result.text);
     }
     return null;
@@ -271,7 +273,7 @@ export function performLocalSocial(life: Life, action: LocalSocialAction) {
     recordNotice(life, 'community', 'Membership Ended', story);
     return null;
   }
-  life.usedActions.push(key);
+  if (activity === 'attend' || hasAttended(member)) member.attended = true;
   const people = clubMembers(life, club);
   const selected = activity === 'meet' ? people.filter(({ person }) => person.id === action.person) : people;
   const label = activity === 'project' ? venue.project : activity === 'attend' ? venue.session : 'got to know each other between sessions';
@@ -370,7 +372,7 @@ function performLibraryVisit(life: Life, action: Extract<LocalSocialAction, { ty
     recordNotice(life, 'life', 'Read a Book', story, benefit && book.mood ? { [book.mood]: repeats < 2 ? 2 : 1 } : undefined);
     return;
   }
-  if (used < 4) life.usedActions.push(key);
+  if (action.activity === 'research' && used < 2) life.usedActions.push(key);
   if (action.activity === 'socialize' && visitLibrary(life)) return;
   if (action.activity === 'research') {
     if (used < 2 && life.character.age >= skills.writing.age) incidentalPractice(life, 'writing', 1, used === 0 ? 40 : 20);
@@ -380,13 +382,10 @@ function performLibraryVisit(life: Life, action: Extract<LocalSocialAction, { ty
     return;
   }
   const readers = libraryReaders(life);
-  if (used >= 3) {
-    recordNotice(life, 'community', 'At the Library', 'I spent some more time at the library and browsed the shelves.');
-    return;
-  }
   const scene = (name: string) => action.activity === 'circle' ?
     `${name} and I compared our notes on the reading circle’s book.` : `I caught up with ${name} near the library noticeboard.`;
-  const visit = gathering(life, action.activity === 'circle' ? readers : readers.slice(used % 3, used % 3 + 1),
+  const guest = readers.length ? readers[npcRandom(life, `library-reader:${life.journal.length}`, life.year).integer(0, readers.length - 1)]! : undefined;
+  const visit = gathering(life, action.activity === 'circle' ? readers : guest ? [guest] : [],
     { key, location: 'local' }, 'at the library', scene);
   recordNotice(life, 'community', action.activity === 'circle' ? 'Reading Circle' : 'At the Library', visit.story);
 }

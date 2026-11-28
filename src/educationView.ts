@@ -7,7 +7,7 @@ import {
   highestQualification, institutionName, isTuitionDue, latestApplication, termCost,
 } from './engine/academics.ts';
 import { isSchoolStage } from './engine/school.ts';
-import { activities, activityIssue } from './engine/simulation.ts';
+import { activityIssue } from './engine/simulation.ts';
 import type { AcademicAction, EducationPath, Enrollment, ProgramLevel } from './engine/academicTypes.ts';
 import type { Action, Life } from './engine/types.ts';
 import { money } from './i18n/en.ts';
@@ -96,7 +96,7 @@ export function academicActivities(life: Life): EducationControl[] {
     label, icon, action: { type: 'activity', activity },
     issue: life.pending ? 'Resolve the pending decision first.' :
       life.character.causeOfDeath ? 'This life has already ended.' : activityIssue(life, activity),
-    detail: `${activities[activity].energy} energy · ${detail}`,
+    detail,
   }));
 }
 

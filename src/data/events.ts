@@ -88,7 +88,7 @@ export const events: readonly LifeEvent[] = [
       { id: 'help', label: 'Help collect stories', emoji: 'support', outcome: 'I helped other residents record their memories.', effects: { charisma: 4, reputation: 4 } },
     ],
   },
-  { id: 'sleep-routine', ages: [43, 68], category: 'health', probability: .25, eligible: (life) => life.character.attributes.stress >= 18, text: 'I set a regular bedtime after several restless weeks and felt more rested.', effects: { stress: -8, energy: 8 } },
+  { id: 'sleep-routine', ages: [43, 68], category: 'health', probability: .25, eligible: (life) => life.character.attributes.stress >= 18, text: 'I set a regular bedtime after several restless weeks and felt more rested.', effects: { stress: -8 } },
   { id: 'old-diary', ages: [50, 76], category: 'life', probability: .22, text: 'I found an old diary and read the plans I had made as a teenager.', effects: { happiness: 3, creativity: 3 } },
   { id: 'new-route', ages: [55, 80], category: 'health', probability: .22, text: 'I found a quieter walking route with benches where I could stop and rest.', effects: { health: 3, stress: -3 } },
   { id: 'family-album', ages: [56, 82], category: 'family', probability: .25, text: 'I labeled the people and places in my family’s oldest photo album.', effects: { happiness: 5 } },

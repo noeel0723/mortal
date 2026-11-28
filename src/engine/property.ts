@@ -3,8 +3,7 @@ import type { AssetListing } from '../data/shops.ts';
 import { recordNotice } from './eventNotices.ts';
 import { moveHousehold } from './household.ts';
 import { clamp, postTransaction } from './journal.ts';
-import { seededRandom } from './random.ts';
-import { ensureNpc, isParent, npcProfile } from './npcs.ts';
+import { ensureNpc, isParent, npcProfile, npcRandom } from './npcs.ts';
 import { indexedCents, localExpense } from './pricing.ts';
 import { national } from './world.ts';
 import { skillRandom } from './skills.ts';
@@ -192,7 +191,7 @@ export function propertyIssue(life: Life, action: PropertyAction) {
       if (!parent || !isParent(life, parent.id)) return 'This parent is unavailable.';
       if (ownedAssets(life).some(isHouse)) return 'You already own a home.';
       if (npcProfile(life, parent).savings < propertyQuote(life, starterHome).price) return 'They cannot afford to buy a home right now.';
-      return life.usedActions.includes('ask-for-home') ? 'You already asked your family this year.' : null;
+      return null;
     }
     case 'manage-asset': return managementIssue(life, action.id, action.operation);
   }
@@ -223,10 +222,8 @@ export function applyPropertyAction(life: Life, action: PropertyAction) {
     case 'ask-for-home': {
       const parent = life.family.find(({ id }) => id === action.parent)!;
       const { affection, trust, resentment } = parent.bond;
-      const random = seededRandom(life.random);
+      const random = npcRandom(life, `housing-request:${parent.id}`, life.year);
       const approved = random.next() * 100 < clamp(affection * .4 + trust * .55 - resentment * .7 - 8);
-      life.random = random.state;
-      life.usedActions.push('ask-for-home');
       if (approved) {
         const acquisition = propertyQuote(life, starterHome);
         ensureNpc(life, parent).savings -= acquisition.price;

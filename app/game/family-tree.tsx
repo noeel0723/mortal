@@ -11,7 +11,7 @@ export default function FamilyTree() {
   if (!life) return null;
   return (
     <Page inGame>
-      <Heading title="Family Tree" back={() => router.dismissTo('/game/relationships')} />
+      <Heading title="Family Tree" back={() => router.dismissTo({ pathname: '/game/person', params: { id: 'self' } })} />
       <Section title="You">
         <View style={styles.child}>
           <Portrait appearance={life.character.appearance} age={life.character.age} />

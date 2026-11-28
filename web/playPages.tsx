@@ -23,7 +23,7 @@ import { intimacyGuests, intimacyIssue } from '../src/engine/intimacy';
 import { isDatingApp } from '../src/engine/dating';
 import type { DatingAppSource } from '../src/engine/dating';
 import { childParents, datingCandidates, datingControls, datingSummary, familyTreeGroups, hookupControl, relationshipCareControls,
-  relationshipControls, relationshipDialog, relationshipGroups, relationshipOverview } from '../src/socialView';
+  relationshipControls, relationshipDialog, relationshipGroups, relationshipOverview, relationshipSections } from '../src/socialView';
 import type { RelationshipDialogKind } from '../src/socialView';
 import { accessoryIssue, accessoryOptions, canEditFace, noAccessories } from '../src/engine/appearance';
 import type { Accessories } from '../src/engine/appearance';
@@ -85,6 +85,8 @@ export const pageTitles = {
   'relationship-history': 'Relationship History',
   person: 'Family Member',
   'person-info': 'Character Profile',
+  'tree-person': 'Family Member',
+  'tree-person-info': 'Character Profile',
   'player-profile': 'My Profile',
   'family-tree': 'Family Tree',
   assets: 'Assets',
@@ -138,6 +140,7 @@ type DetailPage = Exclude<GamePage, 'journal'>;
 export function backgroundPage(page: GamePage): GamePage {
   if (page === 'career-info') return 'career';
   if (page === 'person-info') return 'person';
+  if (page === 'tree-person-info') return 'tree-person';
   if (page === 'class-person-info') return 'class-person';
   if (page === 'work-person-info') return 'work-person';
   if (page === 'institution-info') return 'education';
@@ -160,10 +163,11 @@ const parentPages: Partial<Record<DetailPage, GamePage>> = {
   class: 'education',
   'class-person': 'class',
   person: 'relationships',
+  'tree-person': 'family-tree',
   'love-life': 'relationships',
   'dating-profiles': 'love-life',
   'relationship-history': 'love-life',
-  'family-tree': 'relationships',
+  'family-tree': 'player-profile',
   neighborhood: 'activities',
   neighbor: 'neighborhood',
   communities: 'activities',
@@ -237,8 +241,8 @@ export function PlayPageHeader({ life, page, person, schoolTitle, detail, go }: 
     if (category) return skillCategories[category];
     const skill = target === 'skill' ? value?.split('~')[0] : undefined;
     if (isSkillId(skill)) return skills[skill].name;
-    if ((target === 'person' || target === 'class-person' || target === 'work-person') && person) {
-      return target === 'person' ? contactRole(person) : person.role;
+    if ((target === 'person' || target === 'tree-person' || target === 'class-person' || target === 'work-person') && person) {
+      return target === 'person' || target === 'tree-person' ? contactRole(person, life) : person.role;
     }
     return pageTitles[target];
   };
@@ -678,7 +682,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
         {((canFindJob && !!job) || canRetire) && <PageGroup title="Career Actions">
           {canFindJob && job && <>
             <ControlRows go={go} controls={[
-              careerControl(life, { type: 'work-harder' }, 'Work Harder', 'harder', 'Uses 16 energy. Improves performance and increases stress.'),
+              careerControl(life, { type: 'work-harder' }, 'Work Harder', 'harder', 'Improve performance at the cost of stress.'),
               careerControl(life, { type: 'request-raise' }, 'Request a Raise', 'bank'),
             ]} />
             <MenuRow icon="hours" title="Working Hours" detail={`${job.hours} hours per week`} onClick={() => go('work-hours')} />
@@ -711,7 +715,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
     case 'work-hours':
       return job ? <PageGroup title="Hours per week">
         <ControlRows go={go} controls={workHours(jobById.get(job.jobId)!).map((hours) =>
-          careerControl(life, { type: 'work-hours', hours }, `${hours} Hours`, 'hours', 'Workload affects performance, stress, and energy.'))} />
+          careerControl(life, { type: 'work-hours', hours }, `${hours} Hours`, 'hours', 'Workload affects performance and stress.'))} />
       </PageGroup> : <p className="play-empty">You are not currently employed.</p>;
     case 'coworkers':
       return job ? <PageGroup title="Your workplace">
@@ -816,34 +820,28 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       </>;
     }
     case 'relationships': {
-      const groups = relationshipGroups(life);
       const issue = spendTimeAllIssue(life);
-      return <>
-        <div className="play-group-content">
-          <MenuRow icon="together" title="Spend Time with All" detail={issue ?? 'Catch up with your relationships'}
-            disabled={busy || !!issue} onClick={() => void dispatch({ type: 'spend-time-all' })} />
+      return <div className="relationship-list">
+        <div className="relationship-directory">
+          {relationshipSections(life).map(({ title, people, loveLife }) => <PageGroup key={title} title={title}>
+            {people.map((person) => <button key={person.id} type="button" className="relationship-entry" aria-label={person.name}
+              aria-describedby={`relationship-role-${person.id}`} onClick={() => go('person', person.id)}>
+              <span className="relationship-avatar" aria-hidden="true"><Portrait appearance={person.appearance} age={person.age} /></span>
+              <span className="relationship-copy">
+                <span className="relationship-name"><strong>{person.name}</strong> <span id={`relationship-role-${person.id}`}>{contactRole(person, life)}</span></span>
+                {person.alive ? <span className="relationship-meter">
+                  <span>Relationship</span><progress aria-label="Relationship" max={100} value={person.bond.affection} />
+                </span> : <span className="relationship-meter">Deceased</span>}
+              </span>
+              <span className="relationship-chevron" aria-hidden="true">›</span>
+            </button>)}
+            {loveLife && <MenuRow icon="rose" title="Open Love Life" detail="Dating, connections, and relationship history." onClick={() => go('love-life')} />}
+          </PageGroup>)}
         </div>
-        {groups.parents.length > 0 && <PageGroup title="Parents">
-          {groups.parents.map((parent) => <PersonRow key={parent.id} life={life} person={parent} onClick={() => go('person', parent.id)} />)}
-        </PageGroup>}
-        <PageGroup title="Family">
-          {groups.family.map((relative) => <PersonRow key={relative.id} life={life} person={relative} onClick={() => go('person', relative.id)} />)}
-          <MenuRow icon="tree" title="Family Tree" onClick={() => go('family-tree')} />
-        </PageGroup>
-        <PageGroup title="Love Life">
-          {groups.partners.map((partner) => <PersonRow key={partner.id} life={life} person={partner} onClick={() => go('person', partner.id)} />)}
-          <MenuRow icon="rose" title="Open Love Life" detail="Dating, connections, and relationship history." onClick={() => go('love-life')} />
-        </PageGroup>
-        {groups.friends.length > 0 && <PageGroup title="Friends">
-          {groups.friends.map((friend) => <PersonRow key={friend.id} life={life} person={friend} onClick={() => go('person', friend.id)} />)}
-        </PageGroup>}
-        {groups.acquaintances.length > 0 && <PageGroup title="Acquaintances">
-          {groups.acquaintances.map((person) => <PersonRow key={person.id} life={life} person={person} onClick={() => go('person', person.id)} />)}
-        </PageGroup>}
-        {groups.former.length > 0 && <PageGroup title="Former Relationships">
-          {groups.former.map((person) => <PersonRow key={person.id} life={life} person={person} onClick={() => go('person', person.id)} />)}
-        </PageGroup>}
-      </>;
+        <button className="relationship-all" type="button" disabled={busy || !!issue} aria-describedby={issue ? 'relationship-all-issue' : undefined}
+          onClick={() => void dispatch({ type: 'spend-time-all' })}><Icon name="hours" /> Spend Time with All</button>
+        {issue && <p className="relationship-unavailable" id="relationship-all-issue">{issue}</p>}
+      </div>;
     }
     case 'family-tree':
       return <>
@@ -851,7 +849,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           title={`${character.firstName} ${character.lastName}`} detail={`Born ${character.birthYear}`} onClick={() => go('player-profile')} /></PageGroup>
         {familyTreeGroups(life).map(({ label, people }) => <PageGroup key={label} title={label}>
           {people.map((person) => <PersonRow key={person.id} life={life} person={person} detail={childParents(life, person)}
-            onClick={() => go('person', person.id)} />)}
+            onClick={() => go('tree-person', person.id)} />)}
         </PageGroup>)}
       </>;
     case 'love-life': {
@@ -899,10 +897,13 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           { label: 'Education', value: educationStatus(life) },
           ...profileHealthRows(life),
         ]} />
+        <MenuRow icon="tree" title="Family Tree" onClick={() => go('family-tree')} />
         <MenuRow icon="world" title="World" detail="News, cities, and relocation" onClick={() => go('world')} />
       </PageGroup>;
     case 'person':
     case 'person-info':
+    case 'tree-person':
+    case 'tree-person-info':
     case 'class-person':
     case 'work-person':
     case 'work-person-info':
@@ -921,9 +922,10 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           if (item.dialog) setRelationshipSelection({ person: contact.id, kind: item.dialog });
           else void dispatch(item.action);
         }} />;
-      const showingProfile = page === 'person-info' || page === 'class-person-info' || page === 'work-person-info';
+      const showingProfile = page.endsWith('-info');
       const base = page === 'work-person' || page === 'work-person-info' ? 'work-person' :
-        page === 'class-person' || page === 'class-person-info' ? 'class-person' : 'person';
+        page === 'class-person' || page === 'class-person-info' ? 'class-person' :
+          page === 'tree-person' || page === 'tree-person-info' ? 'tree-person' : 'person';
       return <>
         <PageGroup title="Character">
           <PersonRow person={contact} life={life} detail={overview?.summary} opensDialog onClick={() => go(`${base}-info`, contact.id)} />

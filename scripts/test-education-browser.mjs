@@ -101,7 +101,7 @@ try {
   await click('Ask for Academic Help');
   await page.getByRole('dialog', { name: 'Help with Coursework' }).waitFor();
   await acknowledgeEvents(page);
-  assert.ok(await button('Ask for Academic Help').isDisabled());
+  assert.ok(await button('Ask for Academic Help').isEnabled());
   assert.equal(await button('Become Friends').count(), 0);
   await click('Back to Class');
   const student = page.locator('button.play-row').filter({ hasText: 'Student ·' }).first();
@@ -143,7 +143,7 @@ try {
   await click('Spend Time Together');
   await page.getByRole('dialog', { name: /^(Time Together|Maybe Another Time)$/ }).getByText(new RegExp(mother)).waitFor();
   await acknowledgeEvents(page);
-  assert.ok(await button('Spend Time Together').isDisabled());
+  assert.ok(await button('Spend Time Together').isEnabled());
   assert.equal(await button('Ask for Academic Help').count(), 0);
   await click(mother);
   await profile.getByText('Occupation', { exact: true }).waitFor();

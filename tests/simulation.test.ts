@@ -6,7 +6,7 @@ import { eventPopup } from '../src/eventView.ts';
 import { createLife } from '../src/engine/create.ts';
 import { seededRandom } from '../src/engine/random.ts';
 import { currentClass, findContact } from '../src/engine/school.ts';
-import { activityIssue, advance, friendshipEnergyCost, maxAge, talkIssue } from '../src/engine/simulation.ts';
+import { activityIssue, advance, maxAge, talkIssue } from '../src/engine/simulation.ts';
 import { events, eventById } from '../src/data/events.ts';
 import type { Action, Life, ProfileInput } from '../src/engine/types.ts';
 
@@ -114,7 +114,7 @@ test('friends keep their identity and can still talk after graduation', () => {
   const talked = apply(ready, { type: 'talk', person: peer.id });
   assert.ok(findContact(talked, peer.id)!.bond.affection > readyPeer.bond.affection);
   const befriended = apply(talked, { type: 'befriend', person: peer.id });
-  assert.equal(befriended.character.attributes.energy, ready.character.attributes.energy - 8 - friendshipEnergyCost);
+  assert.equal(befriended.character.attributes.energy, ready.character.attributes.energy);
   assert.equal(befriended.schoolContacts.find((person) => person.id === peer.id)?.friend, true);
   assert.equal(starting.schoolContacts.find((person) => person.id === peer.id)?.friend, false);
   assert.match(befriended.journal.at(-1)?.text ?? '', /became friends/);
@@ -172,13 +172,20 @@ test('contextual events have unique IDs and honor city requirements', () => {
   assert.equal(eventById.get('market-stall')?.eligible?.(createLife(1, custom)), true);
 });
 
-test('personal activities can repeat at zero energy, while energy still resets on Age Up', () => {
+test('activities and repeated conversations ignore historical energy values', () => {
   const life = ageTo(5);
   life.character.attributes.energy = 0;
   const walk = { type: 'activity', activity: 'walk' } as const;
   const after = apply(apply(life, walk), walk);
   assert.equal(after.character.attributes.energy, 0);
-  assert.equal(apply(after, { type: 'age' }).character.attributes.energy, 100);
+  const parent = after.family[0]!;
+  const conversation = { type: 'talk', person: parent.id } as const;
+  const first = apply(after, conversation);
+  const second = apply(decodeLife(JSON.stringify(first)), conversation);
+  assert.equal(second.year, life.year);
+  assert.equal(second.journal.length, first.journal.length + 1);
+  assert.notEqual(second.journal.at(-1)?.text, first.journal.at(-1)?.text);
+  assert.equal(apply(second, { type: 'age' }).character.attributes.energy, 0);
 });
 
 test('activity result pop-ups preserve varied stories and the actual change after clamping and reload', () => {
@@ -198,7 +205,7 @@ test('activity result pop-ups preserve varied stories and the actual change afte
   assert.equal(second.journal.length, first.journal.length + 1);
 });
 
-test('complimenting a parent reports the actual affection change and does not create another result on rejection', () => {
+test('repeated compliments report the actual affection change at the stat limit', () => {
   const school = ageTo(6);
   const life = apply(school, { type: 'choose', event: 'first-classroom', choice: 'join' });
   life.notices = [];
@@ -211,8 +218,9 @@ test('complimenting a parent reports the actual affection change and does not cr
   assert.ok(popup.text.startsWith(`I complimented ${parent.name}`));
   assert.deepEqual(popup.meter, { label: 'Affection', value: 100, change: 2 });
   assert.equal(parent.bond.affection, 98);
-  assert.match(advance(after, action).error ?? '', /already done/i);
-  assert.equal(after.notices.length, 1);
+  const again = apply(after, action);
+  assert.equal(again.notices.length, 2);
+  assert.deepEqual(again.notices.at(-1)?.meter, { label: 'Affection', value: 100, change: 0 });
 });
 
 test('available family interactions update multiple bond dimensions', () => {
@@ -272,15 +280,17 @@ test('teacher conversations use classroom topics and time with a young classmate
   assert.match(playing.journal.at(-1)!.text, /paper boats|played tag|board game|drew a comic/);
 });
 
-test('parents give one allowance per year and gifts debit the full amount', () => {
+test('repeat allowances come from parent savings and gifts debit the full amount', () => {
   const life = ageUntil(createLife(4, custom), 8);
-  const [parent, other] = life.family;
-  assert.ok(parent && other);
+  const [parent] = life.family;
+  assert.ok(parent);
   const ask = { type: 'interact', person: parent.id, activity: 'ask-allowance' } as const;
   const paid = apply(life, ask);
   assert.equal(paid.character.bank, life.character.bank + 800);
   assert.equal(paid.transactions.at(-1)?.amount, 800);
-  assert.match(advance(paid, { ...ask, person: other.id }).error ?? '', /already done/i);
+  const paidAgain = apply(paid, ask);
+  assert.equal(paidAgain.character.bank, paid.character.bank + 800);
+  assert.equal(paidAgain.social.profiles[parent.id]?.savings, paid.social.profiles[parent.id]!.savings - 800);
   const gift = { type: 'interact', person: parent.id, activity: 'gift' } as const;
   const gifted = apply(paid, gift);
   assert.equal(gifted.character.bank, paid.character.bank - 500);
@@ -290,7 +300,7 @@ test('parents give one allowance per year and gifts debit the full amount', () =
   assert.match(advance(life, { type: 'interact', person: parent.id, activity: 'academic-help' }).error ?? '', /unavailable for this relationship/);
 });
 
-test('peer study and teacher help affect coursework and honor yearly limits', () => {
+test('peer study and teacher help can be repeated while enrolled in class', () => {
   const life = apply(ageTo(6), { type: 'choose', event: 'first-classroom', choice: 'join' });
   const [teacher, first, second] = currentClass(life);
   assert.ok(teacher && first && second);
@@ -298,10 +308,11 @@ test('peer study and teacher help affect coursework and honor yearly limits', ()
   const grade = life.academic.enrollment!.performance;
   const helped = apply(life, { type: 'interact', person: teacher.id, activity: 'academic-help' });
   assert.equal(helped.academic.enrollment?.performance, Math.min(100, grade + 3));
-  assert.match(advance(helped, { type: 'activity', activity: 'academic-talk' }).error ?? '', /already done/i);
+  assert.ok(advance(helped, { type: 'activity', activity: 'academic-talk' }).life);
   const studied = apply(helped, { type: 'interact', person: first.id, activity: 'study-together' });
   assert.equal(studied.academic.enrollment?.performance, Math.min(100, grade + 6));
-  assert.match(advance(studied, { type: 'interact', person: second.id, activity: 'study-together' }).error ?? '', /already done/i);
+  const studiedAgain = apply(studied, { type: 'interact', person: second.id, activity: 'study-together' });
+  assert.equal(studiedAgain.academic.enrollment?.performance, Math.min(100, grade + 9));
   const friend = apply(studied, { type: 'befriend', person: first.id });
   const older = ageUntil(friend, 12);
   assert.match(advance(older, { type: 'interact', person: first.id, activity: 'study-together' }).error ?? '', /current class/);

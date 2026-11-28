@@ -37,6 +37,7 @@ export default function Person() {
       <DataRow label="Education" value={educationStatus(life)} />
       {profileHealthRows(life).map((row) => <DataRow key={row.label} {...row} />)}
     </Section>
+    <ActionButton icon="tree" label="Family Tree" onPress={() => router.push('/game/family-tree')} />
     <ActionButton icon="world" label="World" detail="News, cities, and relocation" onPress={() => router.push('/game/world')} />
   </Page>;
   const person = findContact(life, id);

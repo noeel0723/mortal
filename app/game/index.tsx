@@ -65,18 +65,19 @@ export default function Journal() {
           <View style={styles.group}>
             <Text accessibilityRole="header" style={styles.age}>{en.age(item.age)}</Text>
             <View style={styles.entries}>
-              {item.events.map((entry, index) => (
-                <View key={index} style={styles.entry}>
+              {item.events.map((entry, index) => {
+                const changes = Object.entries(entry.changes).filter(([stat]) => stat !== 'energy');
+                return <View key={index} style={styles.entry}>
                   <Text style={styles.entryText}>{entry.text}
-                    {Object.entries(entry.changes).length > 0 && <Text style={styles.changes}>{' · '}
-                      {Object.entries(entry.changes).map(([name, value]) => {
+                    {changes.length > 0 && <Text style={styles.changes}>{' · '}
+                      {changes.map(([name, value]) => {
                         const stat = statLabels[name as keyof typeof statLabels];
                         return name === 'bank' ? `${value > 0 ? '+' : ''}${money(value)}` : `${stat} ${value > 0 ? '+' : ''}${value}`;
                       }).join(' · ')}
                     </Text>}
                   </Text>
-                </View>
-              ))}
+                </View>;
+              })}
             </View>
           </View>
         )}

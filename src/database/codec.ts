@@ -37,7 +37,7 @@ const strings = (value: unknown): value is string[] => Array.isArray(value) && v
 const bondKeys = ['affection', 'trust', 'respect', 'compatibility', 'resentment', 'familiarity'];
 const categories = ['life', 'family', 'school', 'health', 'community', 'decision', 'career', 'finance'];
 const effects = (value: unknown) => record(value) && Object.entries(value).every(([key, amount]) =>
-  (key === 'bank' || stats.some((stat) => stat === key)) && integer(amount, -Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER));
+  (key === 'bank' || key === 'energy' || stats.some((stat) => stat === key)) && integer(amount, -Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER));
 
 function savedPerson(person: unknown, withAppearance: boolean): person is Record<string, unknown> {
   if (!record(person)) return false;
@@ -163,7 +163,7 @@ export function decodeLife(json: string): Life {
   }
   const attributes = character.attributes;
   const age = character.age;
-  if (!record(attributes) || !stats.every((stat) => bounded(attributes[stat])) ||
+  if (!record(attributes) || !bounded(attributes.energy) || !stats.every((stat) => bounded(attributes[stat])) ||
     !Array.isArray(family) || !family.every((person: unknown) =>
       savedPerson(person, version >= 3) && (person.role === 'Mother' || person.role === 'Father')) ||
     ((version !== 1 || schoolContacts !== undefined) && (!Array.isArray(schoolContacts) ||

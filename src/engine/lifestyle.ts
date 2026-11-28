@@ -11,17 +11,17 @@ type LifestyleDefinition = { label: string; description: string; section: 'Mind 
   meter: Stat; stories: readonly [string, string, ...string[]] };
 
 export const lifestyle: Record<LifestyleId, LifestyleDefinition> = {
-  exercise: { label: 'Exercise', description: 'Build fitness', section: 'Mind & Body', icon: 'fitness', age: 8, cost: 0, effects: { health: 3, athleticism: 2, stress: -3, energy: -6 },
+  exercise: { label: 'Exercise', description: 'Build fitness', section: 'Mind & Body', icon: 'fitness', age: 8, cost: 0, effects: { health: 3, athleticism: 2, stress: -3 },
     meter: 'health', stories: ['I followed a short circuit and stopped for water between sets.', 'I took an easy jog and stretched when I got home.'] },
-  'balanced-meal': { label: 'Eat a Balanced Meal', description: 'Boost health and energy', section: 'Mind & Body', icon: 'food', age: 6, cost: 0, effects: { health: 3, energy: 4 },
+  'balanced-meal': { label: 'Eat a Balanced Meal', description: 'Take care of your health', section: 'Mind & Body', icon: 'food', age: 6, cost: 0, effects: { health: 3 },
     meter: 'health', stories: ['I put together a meal with vegetables, rice, and a source of protein.', 'I sat down to eat instead of rushing through a snack.'] },
   meditate: { label: 'Meditate', description: 'Clear your mind', section: 'Mind & Body', icon: 'meditation', age: 8, cost: 0, effects: { stress: -6, happiness: 2 },
     meter: 'stress', stories: ['I spent ten quiet minutes paying attention to my breathing.', 'I took a break from my phone and sat quietly before bed.'] },
-  movie: { label: 'Go to the Cinema', description: 'Watch a movie', section: 'Mind & Body', icon: 'cinema', age: 8, cost: 625, effects: { happiness: 5, stress: -3, energy: -2 },
+  movie: { label: 'Go to the Cinema', description: 'Watch a movie', section: 'Mind & Body', icon: 'cinema', age: 8, cost: 625, effects: { happiness: 5, stress: -3 },
     meter: 'happiness', stories: ['I bought a ticket for a matinee and came out humming the theme.', 'I watched a comedy at the local cinema and laughed louder than I expected.'] },
   park: { label: 'Relax in the Park', description: 'Unwind outdoors', section: 'Mind & Body', icon: 'park', age: 5, cost: 0, effects: { happiness: 3, stress: -3 },
     meter: 'happiness', stories: ['I found a shady bench and watched people play in the park.', 'I packed a snack and spent an afternoon under the trees.'] },
-  'day-trip': { label: 'Take a Day Trip', description: 'Explore out of town', section: 'Travel', icon: 'train', age: 16, cost: 1600, effects: { happiness: 6, stress: -4, energy: -7 },
+  'day-trip': { label: 'Take a Day Trip', description: 'Explore out of town', section: 'Travel', icon: 'train', age: 16, cost: 1600, effects: { happiness: 6, stress: -4 },
     meter: 'happiness', stories: ['I took the train out of town and spent the afternoon exploring a market.', 'I spent the day near the coast and made it home on the last train.'] },
 };
 
@@ -34,7 +34,6 @@ export function lifestyleIssue(life: Life, id: LifestyleId) {
   if (id === 'exercise' && life.character.attributes.health < 30) return 'You need better health for exercise.';
   if ((life.skills.annual.lifestyle[id] ?? 0) >= skillLimits.lifestyleBenefits) return null;
   if (life.character.bank < item.cost) return `You need ${money(item.cost)} for this activity.`;
-  if (life.character.attributes.energy < -(item.effects.energy ?? 0)) return 'You need more energy.';
   return null;
 }
 

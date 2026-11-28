@@ -22,6 +22,20 @@ import type { Emoji } from './theme/tokens.ts';
 
 export { friendshipLabel, relationshipGroups };
 
+export function relationshipSections(life: Life) {
+  const groups = relationshipGroups(life);
+  return [
+    { title: 'Parents', people: groups.parents },
+    { title: 'Family', people: groups.family },
+    { title: 'Siblings', people: groups.relatives.filter(({ role }) => role === 'Sibling') },
+    { title: 'Grandparents', people: groups.relatives.filter(({ role }) => role === 'Grandparent') },
+    { title: 'Love Life', people: groups.partners, loveLife: true },
+    { title: 'Friends', people: groups.friends },
+    { title: 'Acquaintances', people: groups.acquaintances },
+    { title: 'Former Relationships', people: groups.former },
+  ].filter(({ people, loveLife }) => people.length || loveLife);
+}
+
 export function socialRole(life: Life, person: Contact) {
   const relationship = romanceFor(life, person.id);
   if (relationship?.status === 'married') return { woman: 'Wife', man: 'Husband', nonbinary: 'Spouse' }[person.gender];

@@ -69,7 +69,7 @@ function Journal({ life, go }: { life: Life; go: Navigate }) {
           <section key={age} className="timeline-group">
             <h2>{en.age(age)}</h2>
             {entries.map((entry, index) => {
-              const changes = Object.entries(entry.changes);
+              const changes = Object.entries(entry.changes).filter(([stat]) => stat !== 'energy');
               return <article className="timeline-event" key={index}>
                 <p><span>{entry.text}</span>{changes.length > 0 && <span className="event-changes">{' · '}{changes.map(([stat, amount]) =>
                   stat === 'bank' ? `${amount > 0 ? '+' : ''}${money(amount)}` : `${statLabels[stat as Stat]} ${amount > 0 ? '+' : ''}${amount}`

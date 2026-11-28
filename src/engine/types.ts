@@ -13,8 +13,8 @@ import type { SkillAction, SkillState } from './skillTypes.ts';
 import type { WorldState } from './worldTypes.ts';
 import type { WealthAction, WealthState } from './wealthTypes.ts';
 
-export const stats = ['health', 'happiness', 'smarts', 'looks', 'charisma', 'discipline', 'athleticism', 'creativity', 'stress', 'energy', 'reputation'] as const;
-export type Stat = typeof stats[number];
+export const stats = ['health', 'happiness', 'smarts', 'looks', 'charisma', 'discipline', 'athleticism', 'creativity', 'stress', 'reputation'] as const;
+export type Stat = typeof stats[number] | 'energy'; // Existing saves retain their historical energy value and effects.
 export type Gender = 'woman' | 'man' | 'nonbinary';
 export type Background = 'working-class' | 'middle-income' | 'affluent';
 export type Talent = 'academic' | 'athletic' | 'creative' | 'social';

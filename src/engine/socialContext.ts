@@ -1,6 +1,6 @@
 import { sharedHobbies } from './hobbies.ts';
 import { npcProfile, npcRandom } from './npcs.ts';
-import { inPersonIssue, visibleConcerns } from './relationships.ts';
+import { inPersonIssue, recentConnections, visibleConcerns } from './relationships.ts';
 import type { Contact, Life } from './types.ts';
 
 export type SocialOccasion = { key: string; location?: 'local' | 'remote'; cost?: number; group?: readonly string[]; demanding?: boolean };
@@ -44,9 +44,6 @@ export function availability(life: Life, person: Contact, occasion: SocialOccasi
   if (profile.status === 'student' && random < .23) return {
     reason: 'They had schoolwork to finish.', alternative: 'They suggested a different day.',
   };
-  if (life.usedActions.filter((action) => action === `connection:${person.id}`).length >= 4 && profile.traits.sociability < 45) {
-    return { reason: 'They had already spent a lot of time socializing and wanted a break.' };
-  }
   return null;
 }
 
@@ -68,7 +65,7 @@ export function contextualOutcome(life: Life, person: Contact, occasion: SocialO
   const past = profile.memories.slice(-4).reduce((total, { text }) =>
     total + (text.includes(socialOutcomes[5].note) ? 3 : text.includes(socialOutcomes[0].note) ? -4 : 0), 0);
   const shared = Math.min(12, sharedHobbies(life, person).length * 5);
-  const recent = life.usedActions.filter((action) => action === `connection:${person.id}`).length;
+  const recent = recentConnections(life, person.id);
   const context = occasion.group?.length ? profile.traits.sociability * .06 : profile.traits.empathy * .06;
   const score = 15 + affection * .10 + trust * .13 + respect * .09 + familiarity * .08 + compatibility * .12 +
     profile.traits.empathy * .09 + charisma * .04 + (health + person.health) * .065 + shared + context + past -

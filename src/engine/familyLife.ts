@@ -131,8 +131,6 @@ export function familyIssue(life: Life, action: FamilyAction): string | null {
   if (person.age < parenting[action.action].age) return `Available when your child turns ${parenting[action.action].age}.`;
   if (action.action === 'school' && person.age >= 18) return 'Available while your child is in school.';
   if (action.action === 'lesson' && person.age >= 18) return 'Available to children under 18.';
-  if (life.usedActions.includes(`parenting:${person.id}:${action.action}`)) return 'Available again next year.';
-  if (life.character.attributes.energy < 5) return 'You need 5 energy.';
   return life.character.bank < parenting[action.action].cost ? 'Your balance does not cover this activity.' : null;
 }
 
@@ -180,9 +178,8 @@ export function applyFamily(life: Life, action: FamilyAction) {
   if (action.action === 'read' || action.action === 'school') child.learning = clamp(child.learning + (action.action === 'school' ? 5 : 3));
   else if (action.action === 'hobby' || action.action === 'lesson' || action.action === 'future') child.confidence = clamp(child.confidence + 4);
   else child.wellbeing = clamp(child.wellbeing + 3);
-  life.usedActions.push(`parenting:${person.id}:${action.action}`);
   remember(life, person, story);
-  const notice = recordNotice(life, 'family', item.label, story, { happiness: 3, energy: -5, bank: -item.cost }, action.action === 'lesson' ? 'training' : 'relationships');
+  const notice = recordNotice(life, 'family', item.label, story, { happiness: 3, bank: -item.cost }, action.action === 'lesson' ? 'training' : 'relationships');
   notice.meter = hobby ? resultMeter(hobby.name, hobby.before, hobby.proficiency) : resultMeter('Trust', before, person.bond.trust);
   return null;
 }

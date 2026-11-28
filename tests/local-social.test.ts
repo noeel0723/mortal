@@ -64,7 +64,9 @@ test('six neighbors retain identities and portraits after reload, repeated conta
   assert.equal(life.social.people.length, 1);
   assert.deepEqual(neighbors(restore(life)).map(({ person }) => person.id), initial.map(({ person }) => person.id));
   assert.deepEqual(acquaintance.appearance, neighbor.appearance);
-  assert.match(advance(life, greet).error ?? '', /next year/);
+  const greetedAgain = apply(life, greet);
+  assert.equal(greetedAgain.social.people.length, 1);
+  assert.match(greetedAgain.journal.at(-1)?.text ?? '', /stopped to say hello/);
   const visit = { ...greet, activity: 'help' } as const;
   assert.deepEqual(apply(restore(life), visit), apply(life, visit));
 
@@ -118,10 +120,11 @@ test('clubs persist their roster, charge joining fees once, and keep participati
   assert.equal(member.notices.at(-1)?.title, 'Club Session');
   member = apply(member, project);
   assert.equal(member.notices.at(-1)?.title, 'Community Project');
-  assert.match(advance(member, project).error ?? '', /next year/);
+  member = apply(restore(member), project);
+  assert.equal(member.notices.at(-1)?.title, 'Community Project');
   const left = apply(member, { ...join, activity: 'leave' });
   assert.equal(membership(left, club)?.active, false);
-  assert.equal(membership(left, club)?.history.length, 4);
+  assert.equal(membership(left, club)?.history.length, 5);
   assert.deepEqual(membership(left, club)?.members, roster);
   assert.deepEqual(restore(left), left);
 });
@@ -153,7 +156,8 @@ test('friendship decisions and natural progression reuse bonds and survive refus
   const ask = { type: 'befriend', person: person.id } as const;
   const declined = apply(life, ask);
   assert.equal(friendshipStage(declined, findContact(declined, person.id)!), 'acquaintance');
-  assert.match(advance(declined, ask).error ?? '', /already discussed/);
+  const declinedAgain = apply(declined, ask);
+  assert.equal(friendshipStage(declinedAgain, findContact(declinedAgain, person.id)!), 'acquaintance');
   Object.assign(person.bond, warmBond);
   let accepted = apply(life, ask);
   assert.deepEqual(findContact(accepted, person.id)?.bond, person.bond);

@@ -117,7 +117,6 @@ export function careerActionIssue(life: Life, action: CareerAction) {
     return current.hours === action.hours ? 'These are already your hours.' : null;
   }
   if (life.usedActions.includes(action.type)) return 'Already done this year.';
-  if (action.type === 'work-harder' && character.attributes.energy < 16) return 'You need 16 energy.';
   return null;
 }
 
@@ -228,7 +227,7 @@ export function performCareerAction(life: Life, action: CareerAction) {
       const job = jobById.get(career.current!.jobId)!;
       applyCareerEffect(life, { performance: 9 + Math.floor(jobSkillStrength(life, job) / 25), stress: 6 });
       developJobSkills(life, job, 1);
-      record(life, 'career', 'I put in extra effort at work.', { energy: -16, stress: 4 });
+      record(life, 'career', 'I put in extra effort at work.', { stress: 4 });
     }
   }
   return null;
@@ -270,7 +269,6 @@ export function advanceCareer(life: Life, random: ReturnType<typeof seededRandom
     satisfaction: Math.round((employer.culture - current.satisfaction) * .12 - overtime * .55 - current.stress / 25),
     reputation: current.performance >= 65 ? 3 : current.performance < 38 ? -2 : 0,
   });
-  attributes.energy = clamp(attributes.energy - Math.max(3, Math.round(current.hours * .32)));
   attributes.health = clamp(attributes.health - (overtime > 2 && current.stress >= 65 ? 2 : 0));
   attributes.stress = clamp(attributes.stress + Math.round(current.stress / 18));
   current.review = current.performance >= 70 ? 'strong' : 'steady';

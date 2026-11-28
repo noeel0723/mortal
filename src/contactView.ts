@@ -4,7 +4,7 @@ import { isSkillId, skills } from './data/skills.ts';
 import { canShareHobby, sharedHobbies, sharedHobbyIssue } from './engine/hobbies.ts';
 import { canStudyWith, contactGroup, giftCost, relationshipActivities, relationshipIssue } from './engine/interactions.ts';
 import type { RelationshipActivity } from './engine/interactions.ts';
-import { befriendIssue, friendshipEnergyCost, talkIssue } from './engine/simulation.ts';
+import { befriendIssue, talkIssue } from './engine/simulation.ts';
 import { canMakeFriend, isWorkContact } from './engine/workplace.ts';
 import type { Action, Contact, Life } from './engine/types.ts';
 import { money } from './i18n/en.ts';
@@ -97,14 +97,14 @@ export function contactInteractions(life: Life, person: Contact) {
     detail: 'Meet someone from their social circle.', issue: introductionIssue(life, person),
     action: { type: 'social-introduction', person: person.id } });
   if ('friend' in person && canMakeFriend(person) && (!person.friend || reconnect)) {
-    rows.push({ label: reconnect ? 'Reconnect' : 'Become Friends', icon: 'relationships', detail: `Uses ${friendshipEnergyCost} energy. Ask how they feel.`,
+    rows.push({ label: reconnect ? 'Reconnect' : 'Become Friends', icon: 'relationships', detail: 'Ask how they feel about becoming friends.',
       issue: blocked ?? befriendIssue(life, person.id), action: { type: 'befriend', person: person.id } });
   }
   const partner = activeFor(life, person.id);
-  if (person.age >= 3 && !earlyConnection(life, person.id) && (partner ? togetherInPerson(life, person) : !casualConnection(life, person.id))) rows.push({ label: 'Have a Conversation', icon: 'talk', detail: 'Uses 8 energy. Strengthens affection and trust.',
+  if (person.age >= 3 && !earlyConnection(life, person.id) && (partner ? togetherInPerson(life, person) : !casualConnection(life, person.id))) rows.push({ label: 'Have a Conversation', icon: 'talk', detail: 'Catch up and get to know each other.',
     issue: blocked ?? talkIssue(life, person.id), action: { type: 'talk', person: person.id } });
   if (canShareHobby(life, person)) for (const id of sharedHobbies(life, person)) {
-    rows.push({ label: `Practice ${skills[id].name} Together`, icon: skills[id].icon, detail: 'Uses 6 energy. Develop a shared interest.',
+    rows.push({ label: `Practice ${skills[id].name} Together`, icon: skills[id].icon, detail: 'Develop a shared interest.',
       issue: sharedHobbyIssue(life, person, id), action: { type: 'share-hobby', person: person.id, skill: id } });
   }
 
@@ -118,7 +118,7 @@ export function contactInteractions(life: Life, person: Contact) {
     if (activity === 'discuss-work' && (!isWorkContact(person) || person.employerId !== life.career.current?.employerId)) continue;
     const item = presentation[activity];
     const label = activity === 'hang-out' && life.character.age < 12 ? 'Play Together' : item.label;
-    rows.push({ ...item, label, detail: `${item.detail} Uses ${rule.energy} energy.`,
+    rows.push({ ...item, label,
       issue: blocked ?? relationshipIssue(life, person, activity), action: { type: 'interact', person: person.id, activity } });
   }
   return rows;

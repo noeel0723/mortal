@@ -5,7 +5,8 @@ import { friendshipExperience } from './friendships.ts';
 import { hobbyGroupContact, personalizedLibraryHobbies, sharedHobbies } from './hobbies.ts';
 import { clamp, record } from './journal.ts';
 import { ensureNpc, makeNpc, newPeopleLimit, npcRandom, remember } from './npcs.ts';
-import { inPersonIssue, relationshipMemory } from './relationships.ts';
+import { communicationEnded, inPersonIssue, relationshipMemory, trackConnection } from './relationships.ts';
+import { findContact } from './school.ts';
 import { availability, contextualOutcome } from './socialContext.ts';
 import { meetingSources } from './socialTypes.ts';
 import type { MeetingSource } from './socialTypes.ts';
@@ -20,15 +21,13 @@ const sources = {
 const meetingKey = (source: MeetingSource) => `meeting:${source}`;
 
 function knownGuest(life: Life, source: MeetingSource) {
-  if (source !== 'hobbies') return undefined;
-  const person = hobbyGroupContact(life);
-  return person && !inPersonIssue(life, person) ? person : undefined;
+  const person = source === 'hobbies' ? hobbyGroupContact(life) : undefined;
+  return person && !inPersonIssue(life, person) ? person : findContact(life, `npc-meet-${source}-${life.year}`);
 }
 
 export function meetingIssue(life: Life, source: MeetingSource) {
   if (life.character.causeOfDeath || life.pending) return 'Resolve the current life event first.';
   if (life.character.age < sources[source].age) return `Available from age ${sources[source].age}.`;
-  if (life.usedActions.includes(meetingKey(source))) return 'You already used this activity to meet someone this year.';
   if (!knownGuest(life, source) && life.social.people.filter(({ role }) => role === 'Acquaintance').length >= newPeopleLimit - 8) {
     return 'Your social circle is full.';
   }
@@ -90,7 +89,7 @@ export function validPendingMeeting(life: Life) {
 export function startMeeting(life: Life, source: MeetingSource) {
   const issue = meetingIssue(life, source);
   if (issue) return issue;
-  life.usedActions.push(meetingKey(source));
+  if (!life.usedActions.includes(meetingKey(source))) life.usedActions.push(meetingKey(source));
   life.social.pendingMeeting = source;
   life.pending = 'social-meeting';
   if (!life.seen.includes(life.pending)) life.seen.push(life.pending);
@@ -113,6 +112,10 @@ export function answerMeeting(life: Life, accepted: boolean) {
     ]));
     return;
   }
+  if (communicationEnded(life, person.id)) {
+    recordNotice(life, 'community', 'Maybe Another Time', `${name} wanted to keep their distance.`);
+    return;
+  }
   const occasion = { key: `meeting:${source}`, location: 'local' } as const;
   const unavailable = availability(life, person, occasion);
   if (unavailable) {
@@ -126,6 +129,7 @@ export function answerMeeting(life: Life, accepted: boolean) {
   const profile = ensureNpc(life, person);
   if (newcomer && interest) profile.interests = [interest, ...profile.interests.filter((item) => item !== interest).slice(0, 1)];
   const outcome = contextualOutcome(life, person, occasion);
+  trackConnection(life, person.id);
   person.bond.affection = clamp(person.bond.affection + Math.round(outcome.weight * 3));
   person.bond.familiarity = clamp(person.bond.familiarity + 3);
   const conversations = {

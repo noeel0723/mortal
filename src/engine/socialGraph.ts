@@ -115,7 +115,6 @@ export function socialCircle(life: Life, person: Contact) {
 
 export function introductionIssue(life: Life, through: Contact) {
   if (life.pending || life.character.causeOfDeath) return 'Resolve the current life event first.';
-  if (life.usedActions.includes(`introduction:${through.id}`)) return 'Available again next year.';
   return possibleIntroduction(life, through) ? null : 'They have nobody new to introduce right now.';
 }
 
@@ -125,7 +124,6 @@ export function introduceThroughFriend(life: Life, id: string) {
   const issue = introductionIssue(life, through);
   if (issue) return issue;
   const person = possibleIntroduction(life, through)!;
-  life.usedActions.push(`introduction:${id}`);
   const unavailable = availability(life, person, { key: 'friend-introduction', location: 'local', demanding: true });
   const story = unavailable ? `${through.name} offered to introduce me to ${person.name}. ${unavailable.reason}` :
     `${through.name} introduced me to their friend ${person.name}. The three of us stayed to talk for a while.`;

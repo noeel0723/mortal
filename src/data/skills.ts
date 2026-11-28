@@ -57,9 +57,9 @@ export const isSkillId = (id: unknown): id is SkillId => typeof id === 'string' 
 export const physicalSkill = (id: SkillId) => skills[id].category === 'sports' || id === 'fitness';
 
 export const trainingMethods = {
-  practice: { name: 'Self Practice', icon: 'library', age: 0, fee: 0, energy: 5, quality: 1, experience: 10 },
-  class: { name: 'Join a Class', icon: 'classroom', age: 6, fee: 325, energy: 7, quality: 1.23, experience: 14 },
-  course: { name: 'Take a Course', icon: 'study', age: 10, fee: 850, energy: 9, quality: 1.43, experience: 18 },
-  coaching: { name: 'Private Coaching', icon: 'work', age: 12, fee: 1750, energy: 10, quality: 1.65, experience: 21 },
+  practice: { name: 'Self Practice', icon: 'library', age: 0, fee: 0, quality: 1, experience: 10 },
+  class: { name: 'Join a Class', icon: 'classroom', age: 6, fee: 325, quality: 1.23, experience: 14 },
+  course: { name: 'Take a Course', icon: 'study', age: 10, fee: 850, quality: 1.43, experience: 18 },
+  coaching: { name: 'Private Coaching', icon: 'work', age: 12, fee: 1750, quality: 1.65, experience: 21 },
 } as const;
 export type TrainingMethod = keyof typeof trainingMethods;

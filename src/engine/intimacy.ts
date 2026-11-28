@@ -28,7 +28,6 @@ function contactIssue(life: Life, person: Contact | undefined) {
   if (!person || !isIntimacyContact(life, person)) return 'Choose a current partner or adult friend.';
   const travel = inPersonIssue(life, person);
   if (travel) return travel;
-  if (life.usedActions.includes(`intimacy-declined:${person.id}`)) return 'They already declined this year.';
   return null;
 }
 
@@ -144,7 +143,6 @@ export function answerIntimacy(life: Life, event: IntimacyEvent, person: Contact
   }
   const declined = event === 'social-hookup' ? [] : participants.filter((contact) => !agrees(life, contact, contact === person ? guest : person));
   if (declined.length) {
-    for (const contact of declined) life.usedActions.push(`intimacy-declined:${contact.id}`);
     const names = declined.map(({ name }) => name).join(' and ');
     const story = pickStory(life, `intimacy-declined:${names}`, [
       `${names} said they would rather keep things as they were. I respected their answer and we changed the subject.`,

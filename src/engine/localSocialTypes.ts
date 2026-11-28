@@ -10,7 +10,7 @@ export type LocalSocialAction =
   | { type: 'library-visit'; activity: typeof libraryActivities[number]; book?: string };
 
 export type ClubMembership = { club: ClubId; city: City; joined: number; active: boolean; standing: number;
-  members: string[]; history: { year: number; text: string }[] };
+  members: string[]; attended?: true; history: { year: number; text: string }[] };
 export type LocalSocialState = {
   neighborhoods: Record<string, { rotations: Record<string, number> }>;
   memberships: Record<string, ClubMembership>;
