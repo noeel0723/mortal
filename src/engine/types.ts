@@ -5,6 +5,7 @@ import type { RelationshipActivity } from './interactions.ts';
 import type { CareerAction, CareerEffect, CareerState, WorkContact } from './careerTypes.ts';
 import type { FinanceState, Transaction } from './financeTypes.ts';
 import type { HealthVisit, IllnessCase, IllnessId } from './healthTypes.ts';
+import type { ReproductiveHealth } from './reproductiveHealth.ts';
 import type { libraryHobbies } from '../data/libraryEvents.ts';
 import type { PropertyAction, PropertyState } from './property.ts';
 import type { SocialAction, SocialPerson, SocialState } from './socialTypes.ts';
@@ -82,7 +83,9 @@ export type FamilyDetails =
   | { kind: 'birth'; person: string }
   | { kind: 'driving-lesson'; person: string; asset: string };
 export type FamilyResponse = 'keep' | 'first' | 'second' | 'teach' | 'later';
-export type LifeNotice = { entry: number; title: string; meter?: ResultMeter; details?: DeathDetails | EnjoymentDetails | FamilyDetails };
+export type CasualResponse = 'keep-in-touch' | 'acquaintances' | 'romantic-interest' | 'end-contact';
+export type CasualDetails = { kind: 'casual-followup'; person: string; enjoyment: number };
+export type LifeNotice = { entry: number; title: string; meter?: ResultMeter; details?: DeathDetails | EnjoymentDetails | FamilyDetails | CasualDetails };
 export type DeathResponse = 'honor' | 'skip' | 'surprise';
 export type EventChoice = {
   id: string;
@@ -128,6 +131,7 @@ export type Life = {
   journal: JournalEntry[];
   notices: LifeNotice[];
   illnesses: IllnessCase[];
+  reproductive?: ReproductiveHealth;
   seen: string[];
   pending: string | null;
   scheduled: { year: number; text: string; effects: Effect }[];
@@ -142,6 +146,7 @@ export type Action =
   | { type: 'acknowledge-event'; entry: number }
   | { type: 'respond-death'; entry: number; response: DeathResponse }
   | { type: 'respond-family'; entry: number; response: FamilyResponse }
+  | { type: 'respond-casual'; entry: number; response: CasualResponse }
   | { type: 'family-driving'; person: string; asset: string; mode: 'teach' | 'lend' }
   | { type: 'healthcare'; visit: HealthVisit }
   | { type: 'activity'; activity: 'go-to-library' | 'rest' | 'walk' | 'study' | 'library' | 'socialize' | 'extracurricular' | 'academic-talk' | 'exams' }

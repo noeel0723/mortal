@@ -1,4 +1,5 @@
 import type { DoctorId } from '../data/doctors.ts';
+import type { ReproductiveService } from './reproductiveHealth.ts';
 
 export const illnessLevels = ['mild', 'moderate', 'severe'] as const;
 export type IllnessLevel = typeof illnessLevels[number];
@@ -16,7 +17,7 @@ export type IllnessId = keyof typeof illnesses;
 export type IllnessCase = { patient: string; illness: IllnessId; level: IllnessLevel; started: number };
 export const playerPatient = 'self';
 export type PatientService = 'doctor' | 'emergency' | 'optometrist';
-export type PersonalService = 'psychiatrist' | 'donate-blood' | 'donate-plasma';
+export type PersonalService = 'psychiatrist' | 'donate-blood' | 'donate-plasma' | ReproductiveService;
 export type HealthService = PatientService | PersonalService;
 export type HealthVisit =
   | { service: 'doctor'; patient: string; provider: DoctorId }

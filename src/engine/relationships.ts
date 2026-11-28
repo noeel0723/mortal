@@ -4,7 +4,7 @@ import { outstanding } from './finance.ts';
 import { sharedHobbies } from './hobbies.ts';
 import { skills } from '../data/skills.ts';
 import { clamp } from './journal.ts';
-import { npcProfile, npcRandom, remember } from './npcs.ts';
+import { ensureNpc, npcProfile, npcRandom, remember } from './npcs.ts';
 import { localExpense } from './pricing.ts';
 import { findContact } from './school.ts';
 import { activeRomanceStatuses } from './socialTypes.ts';
@@ -27,9 +27,12 @@ export const activeFor = (life: Life, id: string) => life.social.romances.some((
 export const agreementFor = (life: Life, id: string): Agreement => relationshipState(life, id)?.agreement ?? 'legacy';
 const earlyStatus = (status: Romance['status']) => status === 'getting-to-know' || status === 'interest';
 export const earlyConnection = (life: Life, id: string) => life.social.romances.some((entry) => entry.person === id && earlyStatus(entry.status));
-export const communicationEnded = (life: Life, id: string) => life.social.romances.some((entry) => entry.person === id && entry.status === 'contact-ended');
+export const communicationEnded = (life: Life, id: string) => life.social.profiles[id]?.casualContact === 'closed' ||
+  life.social.romances.some((entry) => entry.person === id && entry.status === 'contact-ended');
+export const casualConnection = (life: Life, id: string) => life.social.profiles[id]?.casualContact === 'connected';
 export const knownRelationship = (life: Life, person: Contact) => !communicationEnded(life, person.id) &&
-  (activeFor(life, person.id) || earlyConnection(life, person.id) || ('friend' in person && person.friend && !npcProfile(life, person).formerFriend));
+  (activeFor(life, person.id) || earlyConnection(life, person.id) || casualConnection(life, person.id) ||
+    ('friend' in person && person.friend && !npcProfile(life, person).formerFriend));
 
 function stateFor(life: Life, id: string): RelationshipState {
   return life.social.relationships[id] ??= { agreement: 'legacy', conflicts: [], memories: [], milestones: {} };
@@ -196,7 +199,7 @@ export function careIssue(life: Life, person: Contact, action: RelationshipCareA
   if (life.pending) return 'Resolve the pending decision first.';
   if (communicationEnded(life, person.id)) return 'Communication with this person has ended.';
   if (life.character.age < 18 || person.age < 18 || !knownRelationship(life, person)) return 'Available with adult friends, matches, and partners.';
-  const early = earlyConnection(life, person.id);
+  const early = earlyConnection(life, person.id) || (casualConnection(life, person.id) && !activeFor(life, person.id));
   if (early && !isEarlyAction(action)) return 'Available after you get to know each other better.';
   if (!early && (action === 'conversation' || action === 'interests' || action === 'end-contact')) return 'Available with an early romantic connection.';
   const state = relationshipState(life, person.id);
@@ -247,18 +250,20 @@ export function negotiateAgreement(life: Life, person: Contact, agreement: 'excl
 }
 
 function rememberConnection(life: Life, person: Contact, story: string) {
-  const romance = life.social.romances.find(({ person: id }) => id === person.id)!;
-  romance.history = [...romance.history.slice(-29), { year: life.year, text: story }];
+  const romance = life.social.romances.find(({ person: id }) => id === person.id);
+  if (romance && romance.ended === null) romance.history = [...romance.history.slice(-29), { year: life.year, text: story }];
   remember(life, person, story);
 }
 
-function closeConnection(life: Life, person: Contact, story: string) {
-  const romance = life.social.romances.find(({ person: id }) => id === person.id)!;
-  romance.status = 'contact-ended';
-  romance.ended = life.year;
+export function closeConnection(life: Life, person: Contact, story: string) {
+  rememberConnection(life, person, story);
+  const romance = life.social.romances.find(({ person: id, status }) => id === person.id && earlyStatus(status));
+  if (romance) {
+    romance.status = 'contact-ended';
+    romance.ended = life.year;
+  } else ensureNpc(life, person).casualContact = 'closed';
   const state = relationshipState(life, person.id);
   if (state) delete state.visit;
-  rememberConnection(life, person, story);
   recordNotice(life, 'community', 'Communication Ended', story);
 }
 
@@ -278,7 +283,8 @@ function earlyCare(life: Life, person: Contact, action: EarlyAction) {
       `I asked ${name} what they enjoyed about ${profile.interests[0]} and told them about something I like doing.`,
     visit: `I asked ${name} if I could visit them in ${person.city} this year.`,
   }[action];
-  const accepted = profile.datingGoal !== 'not-looking' && !profile.localPartner && !takingSpace(life, person.id) &&
+  const available = !earlyConnection(life, person.id) || (profile.datingGoal !== 'not-looking' && !profile.localPartner);
+  const accepted = available && !takingSpace(life, person.id) &&
     responseScale(life, person, action) > 0;
   if (accepted && action === 'visit') stateFor(life, person.id).visit = { year: life.year, city: person.city };
   if (accepted) {
@@ -346,7 +352,7 @@ export function applyRelationshipCare(life: Life, action: RelationshipCareAction
   const { name } = person;
   const kind = action.action;
   life.usedActions.push(`care:${id}:${kind}`);
-  if (earlyConnection(life, id) && isEarlyAction(kind)) {
+  if ((earlyConnection(life, id) || (casualConnection(life, id) && !activeFor(life, id))) && isEarlyAction(kind)) {
     earlyCare(life, person, kind);
     return null;
   }

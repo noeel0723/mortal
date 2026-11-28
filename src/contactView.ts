@@ -11,7 +11,7 @@ import { money } from './i18n/en.ts';
 import { profileHealthRows } from './healthView.ts';
 import { npcProfile } from './engine/npcs.ts';
 import { isActiveRomance, romanceFor } from './engine/love.ts';
-import { communicationEnded, earlyConnection } from './engine/relationships.ts';
+import { activeFor, casualConnection, communicationEnded, earlyConnection } from './engine/relationships.ts';
 import { childParents, personalityLabels, relationshipOverview, socialRole } from './socialView.ts';
 import type { Emoji } from './theme/tokens.ts';
 
@@ -96,7 +96,7 @@ export function contactInteractions(life: Life, person: Contact) {
     rows.push({ label: reconnect ? 'Reconnect' : 'Become Friends', icon: 'relationships', detail: `Uses ${friendshipEnergyCost} energy. ${outcome}`,
       issue: blocked ?? befriendIssue(life, person.id), action: { type: 'befriend', person: person.id } });
   }
-  if (person.age >= 3 && !earlyConnection(life, person.id)) rows.push({ label: 'Have a Conversation', icon: 'talk', detail: 'Uses 8 energy. Strengthens affection and trust.',
+  if (person.age >= 3 && !earlyConnection(life, person.id) && !(casualConnection(life, person.id) && !activeFor(life, person.id))) rows.push({ label: 'Have a Conversation', icon: 'talk', detail: 'Uses 8 energy. Strengthens affection and trust.',
     issue: blocked ?? talkIssue(life, person.id), action: { type: 'talk', person: person.id } });
   if (canShareHobby(life, person)) for (const id of sharedHobbies(life, person)) {
     rows.push({ label: `Practice ${skills[id].name} Together`, icon: skills[id].icon, detail: 'Uses 6 energy. Develop a shared interest.',

@@ -2,6 +2,7 @@ import { doctors } from './data/doctors.ts';
 import { findContact } from './engine/school.ts';
 import { activeIllness, canAccompany, donations, healthcareQuote, matchesService } from './engine/health.ts';
 import { illnesses, playerPatient } from './engine/healthTypes.ts';
+import { isReproductiveService, reproductiveSummary } from './engine/reproductiveHealth.ts';
 import type { HealthService, HealthVisit, IllnessCase, PatientService } from './engine/healthTypes.ts';
 import type { Life } from './engine/types.ts';
 import { money } from './i18n/en.ts';
@@ -9,6 +10,7 @@ import type { Emoji } from './theme/tokens.ts';
 
 export const careSections = [
   { title: 'Treatment', services: ['doctor', 'emergency', 'optometrist', 'psychiatrist'] },
+  { title: 'Reproductive Health', services: ['sti-screening', 'sti-treatment', 'sti-prevention', 'birth-control'] },
   { title: 'Donations', services: ['donate-blood', 'donate-plasma'] },
 ] as const;
 
@@ -21,6 +23,14 @@ export const careServices = {
     prompt: 'An eye care visit can clear an active case of eye strain.', empty: 'No patient has active eye strain.' },
   psychiatrist: { title: 'Psychiatrist', icon: 'thoughts', detail: 'Book a session to manage stress.',
     prompt: 'A session reduces stress and improves happiness.' },
+  'sti-screening': { title: 'STI Screening', icon: 'search', detail: 'Check for chlamydia and hepatitis B.',
+    prompt: 'Screen for both infections, even when you feel well.' },
+  'sti-treatment': { title: 'STI Treatment', icon: 'medical', detail: 'Get care for a diagnosed infection.',
+    prompt: 'Treatment can clear chlamydia. Chronic hepatitis B receives ongoing care.' },
+  'sti-prevention': { title: 'Hepatitis B Vaccination', icon: 'syringe', detail: 'Protect against hepatitis B.',
+    prompt: 'Complete the vaccine program. Its protection is specific to hepatitis B.' },
+  'birth-control': { title: 'Birth Control Plan', icon: 'calendar', detail: 'Reduce pregnancy risk for this year.',
+    prompt: 'Start a plan for pregnancy prevention. It does not reduce STI risk.' },
   'donate-blood': { title: 'Donate Blood', icon: 'blood', detail: 'Help the community with a blood donation.',
     prompt: 'A blood donation improves happiness.' },
   'donate-plasma': { title: 'Donate Plasma', icon: 'syringe', detail: 'Make a compensated plasma donation.',
@@ -53,12 +63,17 @@ type VisitOption = { visit: HealthVisit; label: string; fee?: string; chance?: n
 export function careOptions(life: Life, service: HealthService, patient?: string): VisitOption[] {
   const option = (visit: HealthVisit, label: string, reputation?: number): VisitOption => {
     const { fee, chance, issue } = healthcareQuote(life, visit);
-    const showFee = 'patient' in visit ? chance !== undefined : visit.service === 'psychiatrist';
+    const showFee = 'patient' in visit ? chance !== undefined : visit.service === 'psychiatrist' || isReproductiveService(visit.service);
     return { visit, label, reputation, chance, issue,
       fee: showFee ? (fee ? money(fee) : 'Free') : undefined };
   };
 
-  if (!isPatientService(service)) return [option({ service }, service === 'psychiatrist' ? 'Book Session' : 'Confirm Donation')];
+  if (!isPatientService(service)) {
+    const labels = { 'sti-screening': 'Get Screened', 'sti-treatment': 'Start Treatment',
+      'sti-prevention': 'Complete Vaccination', 'birth-control': 'Start Birth Control', psychiatrist: 'Book Session',
+      'donate-blood': 'Confirm Donation', 'donate-plasma': 'Confirm Donation' };
+    return [option({ service }, labels[service])];
+  }
   if (service === 'doctor') return doctors.map((doctor) => option({ service, patient: patient ?? playerPatient, provider: doctor.id },
     doctor.names[life.character.city], doctor.reputation));
   return patient ? [option({ service, patient }, service === 'emergency' ? 'Visit Emergency Room' : 'Book Eye Care')] : [];
@@ -79,5 +94,6 @@ export function careSelection(life: Life, selection?: { service: HealthService; 
 
 export function profileHealthRows(life: Life, id = playerPatient) {
   const condition = activeIllness(life, id);
-  return condition ? [{ label: 'Illness', value: illnessSummary(condition) }] : [];
+  return [...(condition ? [{ label: 'Illness', value: illnessSummary(condition) }] : []),
+    ...(id === playerPatient ? reproductiveSummary(life) : [])];
 }

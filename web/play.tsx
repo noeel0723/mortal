@@ -164,8 +164,8 @@ export function Play({ life, page, personId, go, home, newLife }: {
           <p className="event-result-change">{resultChange(popup.meter.change)}</p>
         </div>}
         {!dismiss && !popup.special && <p className="event-question">What will you do?</p>}
-        <div className="event-options">{popup.actions.map(({ label, icon, action, tone, destination }) =>
-          <Button key={label} icon={icon} kind={tone ?? (dismiss ? 'primary' : 'plain')} disabled={busy}
+        <div className="event-options">{popup.actions.map(({ label, icon, action, tone, destination, disabled }) =>
+          <Button key={label} icon={icon} kind={tone ?? (dismiss ? 'primary' : 'plain')} disabled={busy || disabled}
             onClick={() => void dispatch(action).then((saved) => { if (saved && destination) go(destination); })}>{label}</Button>)}
         </div>
         <Feedback error={problem} />

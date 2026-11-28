@@ -8,6 +8,7 @@ import { activeRomances, canPropose, changeRomance, endRomance, romanceFor, roma
 import { discardSearchMatch } from './loveSearch.ts';
 import { answerMeeting } from './meetings.ts';
 import { allContacts, ensureNpc, npcProfile, npcRandom, remember } from './npcs.ts';
+import { barrierFee, protectionEvent } from './reproductiveHealth.ts';
 import { activeFor, agreementFor, agreementPhrase, boundaryEvidence, concernLabels, earlyConnection, inPersonIssue, knownRelationship, meaningfulTime, negotiateAgreement, relationshipMemory,
   relationshipSatisfaction, relationshipState, setAgreement, visibleConcerns } from './relationships.ts';
 import { findContact } from './school.ts';
@@ -190,12 +191,22 @@ export function answerSocialEvent(life: Life, id: string, choice: string) {
   }
   const person = findContact(life, life.social.pendingPerson ?? undefined);
   const guest = findContact(life, life.social.pendingGuest);
+  if (person?.alive && isIntimacyEvent(id) && accepted) {
+    life.pending = protectionEvent;
+    life.social.pendingEncounter = id;
+    if (!life.seen.includes(protectionEvent)) life.seen.push(protectionEvent);
+    return;
+  }
+  const encounter = id === protectionEvent ? life.social.pendingEncounter : isIntimacyEvent(id) ? id : undefined;
+  if (id === protectionEvent && choice === 'barrier' && life.character.bank < barrierFee(life)) return 'Your balance does not cover barrier protection.';
   life.social.pendingPerson = null;
   delete life.social.pendingGuest;
+  delete life.social.pendingEncounter;
   if (!person?.alive) return;
-  if (isIntimacyEvent(id)) {
-    answerIntimacy(life, id, person, guest, accepted);
-    if (id === 'social-hookup' && !accepted) discardSearchMatch(life, person.id);
+  if (encounter) {
+    const method = choice === 'barrier' || choice === 'no-barrier' ? choice : 'pass';
+    const completed = answerIntimacy(life, encounter, person, guest, method);
+    if (encounter === 'social-hookup' && !completed) discardSearchMatch(life, person.id);
     return;
   }
   if (id === 'social-dating-match' || id === 'social-casual-match') {

@@ -1,4 +1,5 @@
 import { activeRomances, romanceFor } from './love.ts';
+import { communicationEnded } from './relationships.ts';
 import { allContacts, isFamily, npcProfile } from './npcs.ts';
 import { isCurrentClassContact, isPeer } from './school.ts';
 import { isWorkAcquaintance, isWorkContact } from './workplace.ts';
@@ -20,9 +21,10 @@ export function relationshipGroups(life: Life) {
   const former = (person: Contact) => {
     const romance = romanceFor(life, person.id);
     const friendship = friendshipLabel(life, person);
-    return romance?.ended != null || friendship === 'Former Friend' || friendship === 'Rival';
+    return communicationEnded(life, person.id) || romance?.ended != null || friendship === 'Former Friend' || friendship === 'Rival';
   };
-  const matching = life.pending === 'social-dating-match' || life.pending === 'social-casual-match' || life.pending === 'social-hookup';
+  const matching = life.pending === 'social-dating-match' || life.pending === 'social-casual-match' || life.pending === 'social-hookup' ||
+    life.social.pendingEncounter === 'social-hookup';
   const known = allContacts(life).filter(({ id }) => !matching || id !== life.social.pendingPerson);
   const partnerIds = new Set(activeRomances(life).map(({ person }) => person));
   return {

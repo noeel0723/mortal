@@ -291,8 +291,9 @@ try {
   for (const person of partners) assert.ok(groupStory.includes(person.name));
   assert.equal((await read()).social.pendingGuest, partners[1].id);
   await click('Ask Both');
+  await dialog('Choose Protection').getByRole('button', { name: /^Use Barrier Protection/ }).click();
   const groupResult = dialog('Just the Three of Us');
-  await groupResult.or(dialog('Invitation Declined')).waitFor();
+  await groupResult.or(dialog('Invitation Declined')).or(dialog('Protection Choice Declined')).waitFor();
   if (await groupResult.isVisible()) assert.equal(await groupResult.getByRole('progressbar').count(), 3);
   await acknowledgeEvents(page);
   assert.equal((await read()).social.pendingGuest, undefined);
@@ -327,6 +328,14 @@ try {
   await looks.waitFor();
   assert.equal(await looks.getAttribute('value'), looksValue);
   await click('Spend the Night');
+  const protection = dialog('Choose Protection');
+  const barrier = protection.getByRole('button', { name: /^Use Barrier Protection/ });
+  await barrier.waitFor();
+  await page.reload();
+  await barrier.waitFor();
+  assert.equal((await read()).social.pendingPerson, matchId);
+  if (process.env.MORTAL_CAPTURE_DATING) await page.screenshot({ path: '.expo/web-qa/encounter-protection.png' });
+  await barrier.click();
   const night = dialog('A Night Together');
   const ownEnjoyment = night.getByRole('progressbar', { name: 'Your Enjoyment', exact: true });
   await ownEnjoyment.waitFor();
@@ -338,6 +347,13 @@ try {
   const popupBounds = await night.boundingBox();
   assert.ok(popupBounds && popupBounds.width < 390 && popupBounds.height < 500);
   if (process.env.MORTAL_CAPTURE_EVENT_DIALOGS) await page.screenshot({ path: '.expo/web-qa/enjoyment-dialog.png' });
+  await acknowledgeEvents(page, false, 'After the Encounter');
+  const followup = dialog('After the Encounter');
+  await followup.getByRole('img', { name: `Portrait of ${guest.name}` }).waitFor();
+  await page.reload();
+  for (const label of ['Stay in Touch', 'Remain Acquaintances', 'Express Romantic Interest', 'End Communication']) {
+    await followup.getByRole('button', { name: label, exact: true }).waitFor();
+  }
   await acknowledgeEvents(page);
   assert.ok((await read()).social.people.some(({ id }) => id === matchId));
   assert.deepEqual((await read()).social.romances, casualPartners);

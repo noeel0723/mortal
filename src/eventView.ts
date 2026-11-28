@@ -9,11 +9,12 @@ import { pendingMeeting } from './engine/meetings.ts';
 import { datingGoals, npcLooks, npcNetWorth } from './engine/dating.ts';
 import { discoveryEvent, pendingDatingProfile } from './engine/datingDiscovery.ts';
 import { candidateNetWorth } from './engine/datingPool.ts';
+import { barrierFee, birthControlActive, protectionEvent } from './engine/reproductiveHealth.ts';
 import { isSocialEvent, socialEventText } from './engine/socialEvents.ts';
 import { visibleConcerns } from './engine/relationships.ts';
 import { findContact } from './engine/school.ts';
 import type { Appearance } from './engine/appearance.ts';
-import type { Action, Category, FamilyResponse, Life, ResultMeter } from './engine/types.ts';
+import type { Action, CasualResponse, Category, FamilyResponse, Life, ResultMeter } from './engine/types.ts';
 import type { Emoji } from './theme/tokens.ts';
 import { en, money } from './i18n/en.ts';
 
@@ -29,7 +30,7 @@ type EventPopup = {
   title: string;
   text: string;
   category: { label: string; icon: Emoji };
-  actions: { label: string; icon: Emoji; action: Action; tone?: 'primary' | 'quiet'; destination?: 'summary' | 'journal' }[];
+  actions: { label: string; icon: Emoji; action: Action; disabled?: boolean; tone?: 'primary' | 'quiet'; destination?: 'summary' | 'journal' }[];
   dismiss?: Action;
   meter?: ResultMeter;
   special?: 'enjoyment' | 'death' | 'match' | 'family';
@@ -44,6 +45,21 @@ type EventPopup = {
 export function eventPopup(life: Life): EventPopup | undefined {
   const event = life.pending ? eventById.get(life.pending) : undefined;
   if (event?.choices?.length) {
+    if (event.id === protectionEvent) {
+      const quote = barrierFee(life);
+      const canPay = life.character.bank >= quote;
+      return {
+        key: `decision-${event.id}`, title: 'Choose Protection', category: categories.health,
+        text: 'Everyone must agree before continuing. Barrier protection reduces STI and pregnancy risk.' +
+          (birthControlActive(life) ? ' My birth control plan reduces pregnancy risk only.' : '') +
+          (canPay ? '' : ' My balance does not cover barrier protection.'),
+        actions: event.choices.map(({ id, label, emoji }) => ({
+          label: id === 'barrier' ? `${label} · ${money(quote)}` : label, icon: emoji,
+          tone: id === 'barrier' ? 'primary' : 'quiet', disabled: id === 'barrier' && !canPay,
+          action: { type: 'choose', event: protectionEvent, choice: id },
+        })),
+      };
+    }
     const discovery = event.id === discoveryEvent ? pendingDatingProfile(life) : undefined;
     if (discovery) {
       const { person, profile, intro } = discovery;
@@ -97,6 +113,21 @@ export function eventPopup(life: Life): EventPopup | undefined {
   const entry = life.journal[notice.entry]!;
   const dismiss = { type: 'acknowledge-event', entry: notice.entry } as const;
   const detail = notice.details;
+  if (detail?.kind === 'casual-followup') {
+    const person = findContact(life, detail.person);
+    const answer = (response: CasualResponse): Action => ({ type: 'respond-casual', entry: notice.entry, response });
+    return {
+      key: `notice-${notice.entry}`, title: notice.title, text: entry.text, category: categories.community,
+      ...(person && { special: 'match', portrait: { appearance: person.appearance, name: person.name,
+        age: person.age, role: `${en.age(person.age)} · ${person.occupation}` } }),
+      actions: life.character.causeOfDeath || !person?.alive ? [{ label: 'Continue', icon: 'next', action: dismiss }] : [
+        { label: 'Stay in Touch', icon: 'phone', action: answer('keep-in-touch'), tone: 'primary' },
+        { label: 'Remain Acquaintances', icon: 'person', action: answer('acquaintances') },
+        { label: 'Express Romantic Interest', icon: 'rose', action: answer('romantic-interest') },
+        { label: 'End Communication', icon: 'exit', action: answer('end-contact'), tone: 'quiet' },
+      ],
+    };
+  }
   const death = detail?.kind === 'death' ? detail : notice.title === 'End of Life' && life.character.causeOfDeath ?
     { person: 'self', age: life.character.age, role: 'Your Character', cause: life.character.causeOfDeath } : undefined;
   if (death) {

@@ -67,6 +67,12 @@ export const socialEventCatalog: readonly LifeEvent[] = [
       { id: 'accept', label: 'Ask Both', emoji: 'accept', outcome: '', effects: {} },
       { id: 'pass', label: 'Keep Our Plans', emoji: 'decline', outcome: '', effects: {} },
     ] },
+  { id: 'social-protection', category: 'community', ages: [18, 115], probability: 0, text: 'Everyone must agree before continuing.',
+    choices: [
+      { id: 'barrier', label: 'Use Barrier Protection', emoji: 'accept', outcome: '', effects: {} },
+      { id: 'no-barrier', label: 'Continue Without a Barrier', emoji: 'support', outcome: '', effects: {} },
+      { id: 'pass', label: 'Call It Off', emoji: 'decline', outcome: '', effects: {} },
+    ] },
   ...([
     ['social-expectations', 'wants to talk about what we expect from this relationship.', 'Agree Together'],
     ['social-space', 'asked for some time apart to think things through.', 'Respect Their Space'],

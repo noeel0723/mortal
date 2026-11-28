@@ -67,6 +67,7 @@ export function changeRomance(life: Life, id: string, status: Romance['status'],
   if (status === 'broken-up' || status === 'divorced' || status === 'widowed') romance.ended = life.year;
   romanceHistory(life, id, text);
   if (status === 'dating') {
+    delete life.social.profiles[id]?.casualContact;
     restartRelationship(life, id);
     relationshipMemory(life, id, 'date', 8, true);
     boundaryEvidence(life, [id], 'date');

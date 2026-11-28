@@ -9,6 +9,7 @@ import type { HealthVisit, IllnessCase, IllnessId, IllnessLevel, PatientService 
 import type { Contact, Life } from './types.ts';
 import { allContacts, isFamily } from './npcs.ts';
 import { activeFor } from './relationships.ts';
+import { isReproductiveService, reproductiveQuote, visitReproductiveCare } from './reproductiveHealth.ts';
 
 const effects: Record<IllnessLevel, { health: number; energy: number; cost: number; recovery: number }> = {
   mild: { health: 2, energy: 5, cost: 250, recovery: .88 },
@@ -44,6 +45,7 @@ export function matchesService(condition: IllnessCase, service: PatientService) 
 }
 
 export function healthcareQuote(life: Life, visit: HealthVisit): VisitQuote {
+  if (isReproductiveService(visit.service)) return reproductiveQuote(life, visit.service);
   const { character } = life;
   const blocked = character.causeOfDeath ? 'This life has already ended.' : life.pending ? 'Resolve the pending decision first.' : null;
   const affordable = (fee: number) => character.bank < fee ? 'Your balance does not cover this visit.' : null;
@@ -103,7 +105,9 @@ export function visitHealthcare(life: Life, visit: HealthVisit) {
   const { fee, chance, issue } = healthcareQuote(life, visit);
   if (issue) return issue;
 
-  if ('patient' in visit) {
+  if (isReproductiveService(visit.service)) {
+    visitReproductiveCare(life, visit.service, fee);
+  } else if ('patient' in visit) {
     const npc = visit.patient === playerPatient ? undefined : findContact(life, visit.patient);
     const random = seededRandom(life.random);
     const success = chance === 100 || random.next() * 100 < chance!;
@@ -119,8 +123,10 @@ export function visitHealthcare(life: Life, visit: HealthVisit) {
     recordNotice(life, 'health', 'Psychiatry Session', 'I talked through some of my stress during a psychiatry session.',
       { stress: -Math.max(4, 18 - visits * 4), happiness: Math.max(0, 4 - visits), bank: -fee }, 'medical');
   } else {
-    const { title, text, happiness } = donations[visit.service];
-    const reward = donationReward(life, visit.service);
+    const service = visit.service;
+    if (service !== 'donate-blood' && service !== 'donate-plasma') return 'This service is unavailable.';
+    const { title, text, happiness } = donations[service];
+    const reward = donationReward(life, service);
     if (reward) life.usedActions.push('paid-plasma');
     recordNotice(life, 'health', title, reward ? `${text} I received compensation for the donation.` : text, { happiness, bank: reward });
   }

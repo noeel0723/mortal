@@ -6,6 +6,7 @@ import { isActiveRomance } from '../engine/love.ts';
 import { datingGoals } from '../engine/dating.ts';
 import { discoveryEvent, validDatingState } from '../engine/datingDiscovery.ts';
 import { validSearchMatchId } from '../engine/loveSearch.ts';
+import { protectionEvent } from '../engine/reproductiveHealth.ts';
 import { validPendingMeeting } from '../engine/meetings.ts';
 import { canShareInvitation, isIntimacyContact, isIntimacyEvent } from '../engine/intimacy.ts';
 import { validateRelationships } from './relationshipCodec.ts';
@@ -42,6 +43,7 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
       !Array.isArray(profile.interests) || profile.interests.length !== 2 || !profile.interests.every((item) => typeof item === 'string') ||
       !Array.isArray(profile.preferences) || !profile.preferences.length || !profile.preferences.every((item) => genders.includes(item)) ||
       (profile.datingGoal !== undefined && (typeof profile.datingGoal !== 'string' || !Object.hasOwn(datingGoals, profile.datingGoal))) ||
+      (profile.casualContact !== undefined && profile.casualContact !== 'connected' && profile.casualContact !== 'closed') ||
       !npcEducation.includes(profile.education) || !employment.includes(profile.status) ||
       (profile.educationProgram !== undefined && !validNpcProgram(profile.educationProgram, profile.education, year - profile.born)) ||
       (profile.job !== null && !jobById.has(profile.job)) ||
@@ -103,21 +105,23 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
     seen.add(entry.person);
     if ((entry.status === 'engaged' || entry.status === 'married') && ++commitments > 1) return false;
   }
-  if (life.pending !== 'social-threesome' && social.pendingGuest !== undefined) return false;
+  if (life.pending === protectionEvent ? !isIntimacyEvent(social.pendingEncounter ?? null) : social.pendingEncounter !== undefined) return false;
+  const encounter = life.pending === protectionEvent ? social.pendingEncounter! : life.pending;
+  if (encounter !== 'social-threesome' && social.pendingGuest !== undefined) return false;
   if (!validPendingMeeting(life)) return false;
   if (life.pending === discoveryEvent) return true;
   if (life.pending === 'social-meeting') return !character.causeOfDeath;
   if (!socialEvents.some((event) => event === life.pending)) return social.pendingPerson === null;
   const participant = contacts.find(({ id, alive }) => id === social.pendingPerson && alive);
   if (!participant) return false;
-  if (isIntimacyEvent(life.pending)) {
-    if (character.age < 18 || participant.age < 18 || inPersonIssue(life, participant)) return false;
-    if (life.pending === 'social-hookup') {
+  if (isIntimacyEvent(encounter)) {
+    if (character.causeOfDeath || character.age < 18 || participant.age < 18 || inPersonIssue(life, participant)) return false;
+    if (encounter === 'social-hookup') {
       return validSearchMatchId(participant.id, year, 'hookup') && participant.role === 'Acquaintance' && !seen.has(participant.id) &&
         social.profiles[participant.id]!.preferences.includes(character.gender);
     }
     if (!isIntimacyContact(life, participant)) return false;
-    if (life.pending === 'social-make-love') return true;
+    if (encounter === 'social-make-love') return true;
     const guest = contacts.find(({ id }) => id === social.pendingGuest);
     return !!guest && !inPersonIssue(life, guest) && isIntimacyContact(life, guest) && canShareInvitation(life, participant, guest);
   }

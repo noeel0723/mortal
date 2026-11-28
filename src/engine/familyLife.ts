@@ -4,6 +4,7 @@ import { setSurname } from './familyNames.ts';
 import { clamp } from './journal.ts';
 import { romanceFor } from './love.ts';
 import { inPersonIssue } from './relationships.ts';
+import { pregnancyFactor } from './reproductiveHealth.ts';
 import { ensureNpc, makeNpc, newPeopleLimit, npcRandom, remember } from './npcs.ts';
 import { findContact } from './school.ts';
 import { pickStory } from './stories.ts';
@@ -81,7 +82,7 @@ export function registerChild(life: Life, child: SocialPerson, partner: Contact 
   if (!adopted) notice.details = { kind: 'birth', person: child.id };
 }
 
-export function chanceOfPregnancy(life: Life, partner: Contact, entry = life.journal.length) {
+export function chanceOfPregnancy(life: Life, partner: Contact, entry = life.journal.length, barrier = false) {
   const player = life.character;
   const mother = player.gender === 'woman' && partner.gender === 'man' ? 'self' :
     player.gender === 'man' && partner.gender === 'woman' ? partner.id : undefined;
@@ -89,7 +90,7 @@ export function chanceOfPregnancy(life: Life, partner: Contact, entry = life.jou
     (mother === 'self' ? player.age : partner.age) > 45 || !roomForChild(life) ||
     life.social.pregnancies?.some((entry) => entry.mother === mother)) return;
   const random = npcRandom(life, `pregnancy:${partner.id}:${entry}`, life.year);
-  if (random.next() >= .22) return;
+  if (random.next() >= .22 * pregnancyFactor(life, mother, barrier)) return;
   const father = mother === 'self' ? partner.id : 'self';
   life.social.pregnancies = [...(life.social.pregnancies ?? []), { mother, father, dueYear: life.year + 1 }];
   const news = mother === 'self' ? 'I found out I’m pregnant.' : `${partner.name} told me she’s pregnant.`;

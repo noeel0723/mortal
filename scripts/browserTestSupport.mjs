@@ -17,10 +17,11 @@ export async function acknowledgeEvents(page, chooseFirst = false, untilTitle) {
     const key = await popup.getAttribute('data-life-event');
     if (key.startsWith('decision-') && !chooseFirst) return;
     const kind = await popup.getAttribute('data-event-kind');
+    const remain = popup.getByRole('button', { name: 'Remain Acquaintances', exact: true });
     const button = key.startsWith('decision-') ? popup.locator('.event-options button').first() :
       kind === 'death' ? popup.getByRole('button', { name: /^(Skip Funeral|Continue|View Life Summary)$/ }) :
         kind === 'family' ? popup.getByRole('button', { name: /^(Continue$|Keep Our Names$|Maybe Later$|Mother’s Surname|Your Surname)/ }).first() :
-        popup.getByRole('button', { name: 'Continue', exact: true });
+        await remain.count() ? remain : popup.getByRole('button', { name: 'Continue', exact: true });
     await button.click();
     await page.locator(`dialog[data-life-event="${key}"]`).waitFor({ state: 'hidden' });
   }

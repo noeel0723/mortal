@@ -21,6 +21,7 @@ import { activeRomance, activeRomances, changeRomance, endRomance, loveIssue, ro
 import { annualLoveSearches, consumeLoveSearch } from '../src/engine/loveSearch.ts';
 import { pendingMeeting } from '../src/engine/meetings.ts';
 import { advanceNpcLives, allContacts, ensureNpc, initialNpcProfile, makeNpc, npcRandom, syncNpcs } from '../src/engine/npcs.ts';
+import { assessEncounterHealth, barrierFee, pregnancyFactor, protectionEvent } from '../src/engine/reproductiveHealth.ts';
 import { qualifiedNpc, validNpcProgram } from '../src/engine/npcQualifications.ts';
 import { createSchoolClass, findContact } from '../src/engine/school.ts';
 import { advanceEarlyConnections, agreementFor, attraction, boundaryEvidence, careIssue, knownRelationship, openConcern,
@@ -39,6 +40,12 @@ function act(life: Life, action: Action) {
   const result = advance(life, action);
   assert.ok(result.life, result.error);
   return result.life;
+}
+
+function completeEncounter(life: Life, choice: Extract<Action, { type: 'choose' }>, method = 'barrier') {
+  const protection = act(life, choice);
+  assert.equal(protection.pending, protectionEvent);
+  return act(protection, { type: 'choose', event: protectionEvent, choice: method });
 }
 
 function adult() {
@@ -165,13 +172,14 @@ test('pregnancy from Make Love persists until the next age up, followed by a new
     let life = act(initial, invite);
     for (;; life.seed++) {
       if (npcRandom(life, `intimacy:${partner.id}:private`, life.year).next() < .25 &&
+        npcRandom(life, `protection-consent:${partner.id}:no-barrier:social-make-love`, life.year).next() < .4 &&
         npcRandom(life, `pregnancy:${partner.id}:${life.journal.length + 1}`, life.year).next() < .22) break;
     }
-    life = act(life, choice);
+    life = completeEncounter(life, choice, 'no-barrier');
     const expected = { mother: playerGender === 'woman' ? 'self' : partner.id, father: playerGender === 'man' ? 'self' : partner.id, dueYear: life.year + 1 };
     assert.deepEqual(life.social.pregnancies, [expected]);
     assert.equal(Object.keys(life.social.children).length, 0);
-    assert.deepEqual(act(act(life, invite), choice).social.pregnancies, [expected]);
+    assert.deepEqual(completeEncounter(act(life, invite), choice, 'no-barrier').social.pregnancies, [expected]);
     life = openNotice(decodeLife(JSON.stringify(life)), 'Pregnancy');
     assert.match(eventPopup(life)!.text, /nine months/);
     life = act(life, eventPopup(life)!.actions[0]!.action);
@@ -331,15 +339,15 @@ test('Make Love works with a current partner or adult friend and respects a refu
   assert.ok(relationshipControls(single, friend).some((item) => item.label === 'Make Love'));
   forceRoll(single, `intimacy:${friend.id}:private`);
   const invited = act(single, action);
-  const first = act(decodeLife(JSON.stringify(invited)), choice);
-  const second = act(act(first, action), choice);
-  assert.equal(first.notices.at(-1)?.title, 'A Private Evening');
-  const scores = first.notices.at(-1)?.details;
+  const first = completeEncounter(decodeLife(JSON.stringify(invited)), choice);
+  const second = completeEncounter(act(first, action), choice);
+  const notice = first.notices.find(({ title }) => title === 'A Private Evening')!;
+  const scores = notice.details;
   assert.equal(scores?.kind, 'enjoyment');
   assert.deepEqual(scores.scores.map(({ person }) => person), ['self', friend.id]);
-  assert.deepEqual(decodeLife(JSON.stringify(first)).notices.at(-1)?.details, scores);
+  assert.deepEqual(decodeLife(JSON.stringify(first)).notices.find(({ entry }) => entry === notice.entry)?.details, scores);
   assert.equal(second.notices.at(-1)?.title, 'A Private Evening');
-  assert.notEqual(first.journal.at(-1)?.text, second.journal.at(-1)?.text);
+  assert.notEqual(first.journal[notice.entry]?.text, second.journal.at(-1)?.text);
   assert.deepEqual(second.social.romances, []);
   assert.equal(second.social.pregnancies, undefined);
 
@@ -347,12 +355,12 @@ test('Make Love works with a current partner or adult friend and respects a refu
   const spouse = findContact(life, id)!;
   assert.ok(relationshipControls(life, spouse).some((item) => item.label === 'Make Love'));
   forceRoll(life, `intimacy:${id}:private`);
-  const together = act(act(life, { ...action, person: id }), choice);
+  const together = completeEncounter(act(life, { ...action, person: id }), choice);
   assert.ok(together.notices.some(({ title }) => title === 'A Private Evening'));
   assert.equal(romanceFor(together, id)?.status, 'married');
 
   ensureNpc(single, friend).preferences = [single.character.gender === 'man' ? 'woman' : 'man'];
-  const declined = act(act(single, action), choice);
+  const declined = completeEncounter(act(single, action), choice);
   assert.equal(declined.notices.at(-1)?.title, 'Invitation Declined');
   assert.equal(declined.notices.at(-1)?.details, undefined);
   assert.deepEqual(findContact(declined, friend.id)!.bond, friend.bond);
@@ -372,13 +380,14 @@ test('Hook Up keeps the match and choice through reload and remains a one-night 
     role: `Age ${person.age} · ${person.occupation}` });
   assert.equal(popup.match?.looks, npcLooks(invited, person));
   assert.ok(popup.match.looks! >= 0 && popup.match.looks! <= 100);
-  const accepted = act(invited, { type: 'choose', event: 'social-hookup', choice: 'accept' });
-  assert.equal(accepted.notices.at(-1)?.title, 'A Night Together');
+  const accepted = completeEncounter(invited, { type: 'choose', event: 'social-hookup', choice: 'accept' });
+  assert.ok(accepted.notices.some(({ title }) => title === 'A Night Together'));
   const result = eventPopup(decodeLife(JSON.stringify(accepted)));
   assert.equal(result?.enjoyment?.length, 2);
   assert.deepEqual(result.enjoyment.map(({ key }) => key), ['self', id]);
   assert.ok(result.enjoyment.every(({ value }) => Number.isInteger(value) && value >= 0 && value <= 100));
   assert.equal(romanceFor(accepted, id), undefined);
+  assert.equal(accepted.character.bank, invited.character.bank - barrierFee(invited));
   assert.deepEqual(accepted.social.children, {});
   assert.ok(advance(accepted, action).life);
   assert.ok(advance(accepted, { type: 'dating-match', source: 'app' }).life);
@@ -386,6 +395,98 @@ test('Hook Up keeps the match and choice through reload and remains a one-night 
   assert.equal(passed.character.attributes.happiness, invited.character.attributes.happiness);
   assert.equal(passed.social.pendingPerson, null);
   assert.equal(findContact(passed, id), undefined);
+  const canceled = completeEncounter(invited, { type: 'choose', event: 'social-hookup', choice: 'accept' }, 'pass');
+  assert.equal(canceled.character.bank, invited.character.bank);
+  assert.equal(canceled.reproductive, undefined);
+  assert.equal(findContact(canceled, id), undefined);
+});
+
+test('protection is a saved choice, and a refusal or unavailable fee cannot trigger an encounter', () => {
+  const life = adult();
+  const person = knownFriend(life);
+  forceRoll(life, `intimacy:${person.id}:private`);
+  life.reproductive = { [person.id]: { cases: { chlamydia: { year: life.year, diagnosed: true } } } };
+  const invitation = act(life, { type: 'intimacy', encounter: 'make-love', person: person.id });
+  const protectedChoice = act(decodeLife(JSON.stringify(invitation)), { type: 'choose', event: 'social-make-love', choice: 'accept' });
+  assert.equal(protectedChoice.pending, protectionEvent);
+  assert.equal(protectedChoice.social.pendingPerson, person.id);
+  assert.equal(protectedChoice.social.pendingEncounter, 'social-make-love');
+  assert.deepEqual(decodeLife(JSON.stringify(protectedChoice)), protectedChoice);
+  assert.throws(() => decodeLife(JSON.stringify({ ...protectedChoice, social: { ...protectedChoice.social, pendingEncounter: undefined } })), /invalid social data/);
+  const refused = act(protectedChoice, { type: 'choose', event: protectionEvent, choice: 'no-barrier' });
+  assert.equal(refused.notices.at(-1)?.title, 'Protection Choice Declined');
+  assert.equal(refused.character.bank, life.character.bank);
+  assert.deepEqual(refused.reproductive, life.reproductive);
+  assert.equal(refused.social.pregnancies, undefined);
+  assert.deepEqual(findContact(refused, person.id)?.bond, person.bond);
+
+  const unpaid = decodeLife(JSON.stringify(protectedChoice));
+  postTransaction(unpaid, 'Spent my balance', -unpaid.character.bank, 'other');
+  assert.ok(eventPopup(unpaid)?.actions.find(({ action }) => action.type === 'choose' && action.choice === 'barrier')?.disabled);
+  assert.match(advance(unpaid, { type: 'choose', event: protectionEvent, choice: 'barrier' }).error ?? '', /balance/);
+  assert.equal(unpaid.pending, protectionEvent);
+});
+
+test('STI exposure uses partners and barrier protection independently of birth control and gender', () => {
+  const life = adult();
+  life.character.gender = 'woman';
+  const source = knownFriend(life);
+  source.gender = 'woman';
+  const entry = 12;
+  while (npcRandom(life, `clinic-exposure:${entry}:chlamydia:${source.id}:self`, life.year).next() < .07 ||
+    npcRandom(life, `clinic-exposure:${entry}:chlamydia:${source.id}:self`, life.year).next() >= .26) life.seed++;
+  life.reproductive = { [source.id]: { cases: { chlamydia: { year: life.year } } }, self: { cases: {}, birthControlYear: life.year } };
+  const barrier = decodeLife(JSON.stringify(life));
+  assessEncounterHealth(barrier, [findContact(barrier, source.id)!], true, entry);
+  assert.equal(barrier.reproductive?.self?.cases.chlamydia, undefined);
+  assert.equal(pregnancyFactor(barrier, 'self', false), .08);
+  assert.ok(pregnancyFactor(barrier, 'self', true) < .02);
+  const differentGender = decodeLife(JSON.stringify(life));
+  findContact(differentGender, source.id)!.gender = 'nonbinary';
+  assessEncounterHealth(differentGender, [findContact(differentGender, source.id)!], false, entry);
+  assessEncounterHealth(life, [source], false, entry);
+  assert.ok(life.reproductive.self?.cases.chlamydia);
+  assert.deepEqual(life.reproductive, differentGender.reproductive);
+  assert.deepEqual(decodeLife(JSON.stringify(life)), life);
+});
+
+test('casual follow-up keeps contact and romance distinct and respects a refusal from either person', () => {
+  const invitation = act(adult(), { type: 'intimacy', encounter: 'hookup' });
+  const id = invitation.social.pendingPerson!;
+  const accepted = completeEncounter(invitation, { type: 'choose', event: 'social-hookup', choice: 'accept' });
+  const prompted = openNotice(accepted, 'After the Encounter');
+  const followup = decodeLife(JSON.stringify(prompted));
+  const entry = followup.notices[0]!.entry;
+  const player = findContact(followup, id)!;
+  const answer = (response: 'keep-in-touch' | 'acquaintances' | 'romantic-interest' | 'end-contact') =>
+    ({ type: 'respond-casual', entry, response }) as const;
+  const portrait = eventPopup(followup)?.portrait;
+  assert.deepEqual(portrait?.appearance, player.appearance);
+  assert.equal(romanceFor(followup, id), undefined);
+
+  const closed = act(followup, answer('end-contact'));
+  assert.equal(closed.social.profiles[id]?.casualContact, 'closed');
+  assert.deepEqual(findContact(closed, id)?.appearance, player.appearance);
+  assert.deepEqual(closed.social.parents, followup.social.parents);
+  assert.match(careIssue(closed, player, 'message') ?? '', /ended/);
+  const acquaintance = act(followup, answer('acquaintances'));
+  assert.equal(acquaintance.social.profiles[id]?.casualContact, undefined);
+  assert.equal(romanceFor(acquaintance, id), undefined);
+  assert.match(advance(acquaintance, answer('end-contact')).error ?? '', /no longer/);
+
+  while (npcRandom(followup, `casual-contact:${id}:${entry}`, followup.year).next() >= .1 ||
+    npcRandom(followup, `casual-romance:${id}:${entry}`, followup.year).next() >= .1) followup.seed++;
+  const connected = act(followup, answer('keep-in-touch'));
+  assert.equal(romanceFor(connected, id), undefined);
+  assert.equal(careIssue(connected, player, 'message'), null);
+  const mutual = act(followup, answer('romantic-interest'));
+  assert.equal(romanceFor(mutual, id)?.status, 'getting-to-know');
+  assert.equal(activeRomance(mutual), undefined);
+  assert.deepEqual(act(decodeLife(JSON.stringify(followup)), answer('romantic-interest')), mutual);
+  while (npcRandom(followup, `casual-contact:${id}:${entry}`, followup.year).next() < .99) followup.seed++;
+  const declined = act(followup, answer('romantic-interest'));
+  assert.equal(romanceFor(declined, id), undefined);
+  assert.equal(declined.social.profiles[id]?.casualContact, 'closed');
 });
 
 test('the bounded pool is unchanged by player preferences and app filters only select existing profiles', () => {
@@ -488,25 +589,25 @@ test('a group invitation validates both saved adults and requires both to consen
   for (const person of [first, second]) assert.ok(story.includes(person.name));
   assert.throws(() => decodeLife(JSON.stringify({ ...invited, social: { ...invited.social, pendingGuest: first.id } })), /social|relationship/i);
   const choice = { type: 'choose', event: 'social-threesome', choice: 'accept' } as const;
-  const accepted = act(invited, choice);
+  const accepted = completeEncounter(invited, choice);
   assert.equal(accepted.social.pendingGuest, undefined);
-  assert.equal(accepted.notices.at(-1)?.title, 'Just the Three of Us');
-  const details = accepted.notices.at(-1)?.details;
+  const encounter = accepted.notices.find(({ title }) => title === 'Just the Three of Us')!;
+  const details = encounter.details;
   assert.equal(details?.kind, 'enjoyment');
   assert.deepEqual(details.scores.map(({ person }) => person), ['self', first.id, second.id]);
-  const reverse = act(act(life, { ...action, first: second.id, second: first.id }), choice);
+  const reverse = completeEncounter(act(life, { ...action, first: second.id, second: first.id }), choice);
   const reverseScores = reverse.notices.find(({ details }) => details?.kind === 'enjoyment')?.details;
   assert.equal(reverseScores?.kind, 'enjoyment');
   assert.deepEqual(Object.fromEntries(details.scores.map(({ person, value }) => [person, value])),
     Object.fromEntries(reverseScores.scores.map(({ person, value }) => [person, value])));
-  const invalid = { ...accepted, notices: [{ ...accepted.notices.at(-1), details: {
+  const invalid = { ...accepted, notices: [{ ...encounter, details: {
     ...details, scores: [...details.scores.slice(0, -1), { person: second.id, value: 101 }],
   } }] };
   assert.throws(() => decodeLife(JSON.stringify(invalid)), /invalid health or event/);
   for (const person of [first, second]) assert.equal(findContact(accepted, person.id)!.bond.trust, person.bond.trust + 2);
 
   ensureNpc(invited, findContact(invited, second.id)!).preferences = [life.character.gender === 'man' ? 'woman' : 'man'];
-  const declined = act(invited, choice);
+  const declined = completeEncounter(invited, choice);
   assert.equal(declined.notices.at(-1)?.title, 'Invitation Declined');
   for (const person of [first, second]) assert.deepEqual(findContact(declined, person.id)!.bond, person.bond);
   assert.equal(declined.character.attributes.happiness, life.character.attributes.happiness);
@@ -530,7 +631,7 @@ test('group outcomes keep individual benefit caps and preserve exclusive agreeme
   life.usedActions.push(...Array<string>(3).fill(`intimacy-accepted:${guest.id}`));
   while ([spouse, guest].some((person, i) => npcRandom(life, `intimacy:${person.id}:${[guest, spouse][i]!.id}`, life.year).next() >= .2)) life.seed++;
   const invite = { type: 'intimacy', encounter: 'threesome', first: spouse.id, second: guest.id } as const;
-  const result = act(act(life, invite), { type: 'choose', event: 'social-threesome', choice: 'accept' });
+  const result = completeEncounter(act(life, invite), { type: 'choose', event: 'social-threesome', choice: 'accept' });
   assert.ok(result.notices.some(({ title }) => title === 'Just the Three of Us'));
   assert.equal(findContact(result, guest.id)?.bond.trust, guest.bond.trust);
   assert.equal(relationshipState(result, guest.id)?.lastMeaningful, undefined);
@@ -561,13 +662,23 @@ test('an accepted group encounter applies pregnancy only to eligible participant
   const key = `pregnancy:${first.id}:${life.journal.length + 2}`;
   while (npcRandom(life, `intimacy:${first.id}:${second.id}`, life.year).next() >= .2 ||
     npcRandom(life, `intimacy:${second.id}:${first.id}`, life.year).next() >= .2 ||
+    [first, second].some(({ id }) => npcRandom(life, `protection-consent:${id}:no-barrier:social-threesome`, life.year).next() >= .4) ||
     npcRandom(life, key, life.year).next() >= .2) life.seed++;
   const invited = act(life, { type: 'intimacy', encounter: 'threesome', first: first.id, second: second.id });
   const choice = { type: 'choose', event: 'social-threesome', choice: 'accept' } as const;
-  const accepted = act(decodeLife(JSON.stringify(invited)), choice);
+  const accepted = completeEncounter(decodeLife(JSON.stringify(invited)), choice, 'no-barrier');
   assert.deepEqual(accepted.social.pregnancies, [{ mother: first.id, father: 'self', dueYear: life.year + 1 }]);
   assert.deepEqual(decodeLife(JSON.stringify(accepted)), accepted);
-  assert.deepEqual(act(invited, choice), accepted);
+  assert.deepEqual(completeEncounter(invited, choice, 'no-barrier'), accepted);
+  const followup = openNotice(accepted, 'After the Encounter');
+  assert.equal(followup.notices[0]?.details?.kind, 'casual-followup');
+  const closed = act(followup, { type: 'respond-casual', entry: followup.notices[0]!.entry, response: 'end-contact' });
+  assert.equal(closed.social.profiles[first.id]?.casualContact, 'closed');
+  assert.deepEqual(closed.social.pregnancies, accepted.social.pregnancies);
+  const born = age(decodeLife(JSON.stringify(closed)));
+  const child = born.social.people.find(({ role }) => role === 'Child');
+  assert.ok(child);
+  assert.deepEqual(born.social.parents[child.id], ['self', first.id]);
 });
 
 test('new candidate jobs fit the credential, age and experience, and an old pending pool uses its original background', () => {

@@ -7,6 +7,7 @@ import { accessoryIssue, appearanceChanged, appearanceIssue, mergeAppearance, va
 import { advanceCareer, applyCareerEffect, closeCareerYear, endEmployment, performCareerAction, studyWorkload } from './career.ts';
 import { developChildInterests } from './childSkills.ts';
 import { discoveryEvent, searchDatingPool, updateDatingProfile } from './datingDiscovery.ts';
+import { answerCasualFollowup } from './casualConnections.ts';
 import { recordContactDeath, recordPlayerDeath, respondToDeath } from './death.ts';
 import { annualFinance } from './finance.ts';
 import { enqueueNotice, eventTitle, recordNotice, resultMeter } from './eventNotices.ts';
@@ -26,6 +27,7 @@ import { advanceNpcLives, ageNewPeople, cloneSocial, ensureNpc, remember, syncNp
 import { applyPropertyAction, movingAge } from './property.ts';
 import { performSurgery } from './plasticSurgery.ts';
 import { seededRandom } from './random.ts';
+import { advanceReproductiveHealth, cloneReproductiveHealth, protectionEvent } from './reproductiveHealth.ts';
 import { relocate } from './relocation.ts';
 import { conversationStory, friendshipStory } from './relationshipStories.ts';
 import { spendTimeWithAll } from './relationshipTime.ts';
@@ -120,6 +122,7 @@ function ageUp(life: Life) {
   const elapsedWorld = life.world;
   life.world = advanceWorld(life.world, life.year);
   advanceIllnesses(life);
+  advanceReproductiveHealth(life);
   advanceNpcLives(life, elapsedWorld);
   developChildInterests(life);
   const dies = character.attributes.health === 0 || age >= maxAge ||
@@ -153,7 +156,7 @@ function ageUp(life: Life) {
     life.seen.push(photo.id);
     recordNotice(life, photo.category, eventTitle(photo.id), photo.text, photo.effects);
   }
-  const eligible = events.filter((event) => event.id !== discoveryEvent && age >= event.ages[0] && age <= event.ages[1] &&
+  const eligible = events.filter((event) => event.id !== discoveryEvent && event.id !== protectionEvent && age >= event.ages[0] && age <= event.ages[1] &&
     !life.seen.includes(event.id) && !(life.academic.leftSchool && age < 18 && event.category === 'school') &&
     (event.eligible?.(life) ?? true));
   const graduationDecision = graduated && !life.seen.includes('graduation-plan') ? eventById.get('graduation-plan') : undefined;
@@ -231,6 +234,11 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
   switch (action.type) {
     case 'respond-death': {
       const issue = respondToDeath(life, action.entry, action.response);
+      if (issue) return { error: issue };
+      break;
+    }
+    case 'respond-casual': {
+      const issue = answerCasualFollowup(life, action.entry, action.response);
       if (issue) return { error: issue };
       break;
     }
@@ -348,7 +356,8 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       if (life.pending !== action.event || !choice) return { error: 'This decision is no longer available.' };
       life.pending = null;
       if (isSocialEvent(action.event)) {
-        answerSocialEvent(life, action.event, action.choice);
+        const issue = answerSocialEvent(life, action.event, action.choice);
+        if (issue) return { error: issue };
         break;
       }
       if (choice.academicPath) chooseEducationPath(life, choice.academicPath);
@@ -519,6 +528,7 @@ function structuredCloneLife(life: Life): Life {
     journal: [...life.journal],
     notices: [...life.notices],
     illnesses: life.illnesses.map((condition) => ({ ...condition })),
+    ...(life.reproductive ? { reproductive: cloneReproductiveHealth(life.reproductive) } : {}),
     seen: [...life.seen],
     scheduled: [...life.scheduled],
     usedActions: [...life.usedActions],

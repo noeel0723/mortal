@@ -1,4 +1,5 @@
 import { recordNotice } from './eventNotices.ts';
+import { offerCasualFollowup } from './casualConnections.ts';
 import { chanceOfPregnancy } from './familyLife.ts';
 import { clamp, record } from './journal.ts';
 import { isActiveRomance, romanceFor, romanceHistory } from './love.ts';
@@ -6,12 +7,13 @@ import { consumeLoveSearch, hookupCandidateLimit, loveSearchIssue } from './love
 import { allContacts, ensureNpc, isFamily, makeNpc, newPeopleLimit, npcProfile, npcRandom, remember } from './npcs.ts';
 import { findContact } from './school.ts';
 import { boundaryEvidence, communicationEnded, inPersonIssue, meaningfulTime, relationshipMemory } from './relationships.ts';
+import { assessEncounterHealth, barrierFee, hasKnownInfection } from './reproductiveHealth.ts';
 import type { IntimacyAction } from './socialTypes.ts';
 import { pickStory } from './stories.ts';
 import type { Contact, Life } from './types.ts';
 
 export const intimacyEvents = ['social-make-love', 'social-hookup', 'social-threesome'] as const;
-type IntimacyEvent = typeof intimacyEvents[number];
+export type IntimacyEvent = typeof intimacyEvents[number];
 export const isIntimacyEvent = (id: string | null): id is IntimacyEvent => intimacyEvents.some((event) => event === id);
 const isPartner = (life: Life, person: Contact) => isActiveRomance(romanceFor(life, person.id));
 
@@ -130,14 +132,15 @@ function enjoyment(life: Life, event: IntimacyEvent, participants: readonly Cont
   ];
 }
 
-export function answerIntimacy(life: Life, event: IntimacyEvent, person: Contact, guest: Contact | undefined, accepted: boolean) {
-  if (event === 'social-threesome' && !guest?.alive) return;
+export function answerIntimacy(life: Life, event: IntimacyEvent, person: Contact, guest: Contact | undefined,
+  protection: 'barrier' | 'no-barrier' | 'pass') {
+  if (event === 'social-threesome' && !guest?.alive) return false;
   const participants = guest ? [person, guest] : [person];
-  if (!accepted) {
+  if (protection === 'pass') {
     const names = participants.map(({ name }) => name).join(' and ');
     record(life, 'decision', event === 'social-hookup' ? `I thanked ${names} for the invitation and went home.` :
       `I kept my plans with ${names} as they were and decided to leave the invitation for another time.`);
-    return;
+    return false;
   }
   const declined = event === 'social-hookup' ? [] : participants.filter((contact) => !agrees(life, contact, contact === person ? guest : person));
   if (declined.length) {
@@ -149,9 +152,26 @@ export function answerIntimacy(life: Life, event: IntimacyEvent, person: Contact
     ]);
     for (const contact of participants) remember(life, contact, story);
     recordNotice(life, 'community', 'Invitation Declined', story);
-    return;
+    return false;
   }
-  const story = pickStory(life, `intimacy:${event}:${person.id}`, privateStories(life, person, event, guest));
+  const refuses = participants.filter((contact) => {
+    const profile = npcProfile(life, contact);
+    const roll = npcRandom(life, `protection-consent:${contact.id}:${protection}:${event}`, life.year).next();
+    if (protection === 'barrier') return roll < .02;
+    if (hasKnownInfection(life, contact.id)) return true;
+    const willing = .54 + profile.traits.riskTolerance / 270 + contact.bond.trust / 460 - (guest ? .08 : 0);
+    return roll >= Math.min(.97, willing);
+  });
+  if (refuses.length) {
+    const names = refuses.map(({ name }) => name).join(' and ');
+    recordNotice(life, 'community', 'Protection Choice Declined',
+      `${names} didn’t agree to the protection choice. We stopped there, and nobody was charged.`);
+    return false;
+  }
+  const barrier = protection === 'barrier';
+  const agreement = barrier ? 'We agreed to use barrier protection.' : 'We agreed to continue without barrier protection.';
+  const stories = privateStories(life, person, event, guest).map((story) => `${story} ${agreement}`);
+  const story = pickStory(life, `intimacy:${event}:${person.id}`, stories);
   const scores = enjoyment(life, event, participants);
   for (const contact of participants) {
     const key = `intimacy-accepted:${contact.id}`;
@@ -170,8 +190,14 @@ export function answerIntimacy(life: Life, event: IntimacyEvent, person: Contact
   const titles = { 'social-hookup': 'A Night Together', 'social-make-love': 'A Private Evening', 'social-threesome': 'Just the Three of Us' };
   const enjoyed = scores[0]!.value >= 45 && life.usedActions.filter((item) => item === 'intimacy-player-benefit').length < 3;
   if (enjoyed) life.usedActions.push('intimacy-player-benefit');
-  const notice = recordNotice(life, 'community', titles[event], story, enjoyed ? { happiness: 3, stress: -2 } : undefined);
+  const notice = recordNotice(life, 'community', titles[event], story,
+    { ...(enjoyed ? { happiness: 3, stress: -2 } : {}), bank: barrier ? -barrierFee(life) : 0 }, 'medical');
   notice.details = { kind: 'enjoyment', scores };
   const entry = life.journal.length;
-  for (const contact of [...participants].sort((a, b) => a.id.localeCompare(b.id))) chanceOfPregnancy(life, contact, entry);
+  assessEncounterHealth(life, participants, barrier, entry);
+  for (const contact of [...participants].sort((a, b) => a.id.localeCompare(b.id))) {
+    chanceOfPregnancy(life, contact, entry, barrier);
+    if (!isPartner(life, contact)) offerCasualFollowup(life, contact, scores.find(({ person: id }) => id === contact.id)!.value);
+  }
+  return true;
 }

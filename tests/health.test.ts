@@ -5,6 +5,7 @@ import { decodeLife } from '../src/database/codec.ts';
 import { createLife } from '../src/engine/create.ts';
 import { advanceIllnesses, activeIllness, healthcareQuote, startIllness } from '../src/engine/health.ts';
 import { playerPatient } from '../src/engine/healthTypes.ts';
+import { advanceReproductiveHealth, pregnancyFactor, reproductiveSummary } from '../src/engine/reproductiveHealth.ts';
 import { postTransaction } from '../src/engine/journal.ts';
 import { seededRandom } from '../src/engine/random.ts';
 import { createSchoolClass } from '../src/engine/school.ts';
@@ -28,6 +29,59 @@ function atAge(age: number) {
   life.world = newWorld(life.seed, life.year, true);
   return life;
 }
+
+test('Doctors screen before treating, cure chlamydia, and keep managed chronic hepatitis B in the save', () => {
+  const life = atAge(28);
+  postTransaction(life, 'Savings', 14000, 'other');
+  life.reproductive = { self: { cases: { chlamydia: { year: life.year - 1 }, hepatitisB: { year: life.year - 2, chronic: true } } } };
+  const treatment = { service: 'sti-treatment' } as const;
+  assert.deepEqual(reproductiveSummary(life), []);
+  assert.match(healthcareQuote(life, treatment).issue ?? '', /diagnosed/);
+  assert.match(healthcareQuote(atAge(17), { service: 'sti-screening' }).issue ?? '', /age 18/);
+  const screened = apply(decodeLife(JSON.stringify(life)), { type: 'healthcare', visit: { service: 'sti-screening' } });
+  assert.match(screened.journal.at(-1)?.text ?? '', /Chlamydia and Hepatitis B/);
+  assert.equal(life.reproductive.self?.cases.chlamydia?.diagnosed, undefined);
+  const treated = apply(screened, { type: 'healthcare', visit: treatment });
+  assert.equal(treated.reproductive?.self?.cases.chlamydia, undefined);
+  assert.ok(treated.reproductive?.self?.cases.hepatitisB?.managed);
+  assert.equal(screened.reproductive?.self?.cases.hepatitisB?.managed, undefined);
+  assert.equal(treated.transactions.at(-1)?.amount, -healthcareQuote(screened, treatment).fee);
+  assert.equal(treated.transactions.at(-1)?.category, 'medical');
+  assert.deepEqual(reproductiveSummary(treated), [{ label: 'Hepatitis B', value: 'Chronic · in care' }]);
+  assert.deepEqual(decodeLife(JSON.stringify(treated)), treated);
+  assert.throws(() => decodeLife(JSON.stringify({ ...treated, reproductive: { self: { cases: { hepatitisB: { year: treated.year, managed: true } } } } })),
+    /invalid health or event data/);
+});
+
+test('vaccination and birth control are distinct and recent hepatitis B resolves or becomes chronic after aging', () => {
+  const life = atAge(29);
+  life.character.gender = 'woman';
+  postTransaction(life, 'Savings', 18000, 'other');
+  const vaccine = { service: 'sti-prevention' } as const;
+  const birthControl = { service: 'birth-control' } as const;
+  const vaccinated = apply(life, { type: 'healthcare', visit: vaccine });
+  assert.equal(pregnancyFactor(vaccinated, 'self', false), 1);
+  assert.match(healthcareQuote(vaccinated, vaccine).issue ?? '', /already on record/);
+  const plan = apply(vaccinated, { type: 'healthcare', visit: birthControl });
+  assert.ok(plan.reproductive?.self?.vaccinated);
+  assert.equal(pregnancyFactor(plan, 'self', false), .08);
+  assert.match(healthcareQuote(plan, birthControl).issue ?? '', /active/);
+  const aged = apply(plan, { type: 'age' });
+  assert.equal(pregnancyFactor(aged, 'self', false), 1);
+  assert.ok(aged.reproductive?.self?.vaccinated);
+
+  const courses = new Set<string>();
+  for (let seed = 1; seed <= 120 && courses.size < 2; seed++) {
+    const course = atAge(30);
+    course.seed = seed;
+    course.reproductive = { self: { cases: { hepatitisB: { year: course.year - 1, diagnosed: true } } } };
+    advanceReproductiveHealth(course);
+    if (course.reproductive.self?.cases.hepatitisB?.chronic) courses.add('chronic');
+    if (course.reproductive.self?.hepatitisBImmunity) courses.add('cleared');
+    assert.deepEqual(decodeLife(JSON.stringify(course)), course);
+  }
+  assert.deepEqual(courses, new Set(['chronic', 'cleared']));
+});
 
 test('player illnesses persist with severity and paid visits reconcile without changing the original state', () => {
   const life = atAge(30);

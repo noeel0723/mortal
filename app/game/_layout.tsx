@@ -89,10 +89,10 @@ export default function GameLayout() {
           <Text style={styles.resultChange}>{resultChange(popup.meter.change)}</Text>
         </View>}
         {!dismiss && !popup.special && <Text style={styles.eventQuestion}>What will you do?</Text>}
-        {popup.actions.map(({ label, icon, action, tone, destination }) => <ActionButton key={label} label={label} icon={icon}
+        {popup.actions.map(({ label, icon, action, tone, destination, disabled }) => <ActionButton key={label} label={label} icon={icon}
           variant={tone === 'quiet' ? 'plain' : tone}
           testID={action.type === 'choose' ? `choice-${action.choice}` : undefined}
-          disabled={busy} onPress={() => void dispatch(action).then((saved) => {
+          disabled={busy || disabled} onPress={() => void dispatch(action).then((saved) => {
             if (saved && destination) router.navigate(destination === 'summary' ? '/game/summary' : '/game');
           })} />)}
         {problem && <Feedback error={problem} />}

@@ -43,4 +43,5 @@ export function discardSearchMatch(life: Life, id: string) {
   life.social.people = life.social.people.filter((person) => person.id !== id);
   delete life.social.profiles[id];
   delete life.social.relationships[id];
+  delete life.reproductive?.[id];
 }

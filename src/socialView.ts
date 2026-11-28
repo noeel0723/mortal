@@ -7,7 +7,7 @@ import { friendshipLabel, relationshipGroups } from './engine/relationshipDirect
 import { allContacts, isFamily, npcProfile } from './engine/npcs.ts';
 import { intimacyIssue, isIntimacyContact } from './engine/intimacy.ts';
 import { annualLoveSearches, loveSearchCount } from './engine/loveSearch.ts';
-import { activeFor, agreementFor, agreementLabels, careIssue, communicationEnded, concernLabels, counselingFee, earlyConnection, knownRelationship, relationshipCondition,
+import { activeFor, agreementFor, agreementLabels, careIssue, casualConnection, communicationEnded, concernLabels, counselingFee, earlyConnection, knownRelationship, relationshipCondition,
   relationshipState, visibleConcerns, visitFee } from './engine/relationships.ts';
 import type { MemoryKind, RelationshipCareAction } from './engine/relationshipTypes.ts';
 import { findContact } from './engine/school.ts';
@@ -25,6 +25,8 @@ export function socialRole(life: Life, person: Contact) {
   if (relationship?.status === 'married') return 'Spouse';
   if (relationship) return romanceLabels[relationship.status];
   if (isFamily(life, person.id)) return person.role;
+  if (communicationEnded(life, person.id)) return 'Communication Ended';
+  if (casualConnection(life, person.id)) return 'Keeping in Touch';
   const status = friendshipLabel(life, person);
   return status === 'Acquaintance' && !isWorkAcquaintance(person) ? person.role : status;
 }
@@ -110,7 +112,7 @@ export function relationshipOverview(life: Life, person: Contact) {
 export function relationshipCareControls(life: Life, person: Contact): Control[] {
   if (!person.alive || life.character.age < 18 || person.age < 18 || !knownRelationship(life, person)) return [];
   const active = activeFor(life, person.id);
-  const early = earlyConnection(life, person.id);
+  const early = earlyConnection(life, person.id) || (casualConnection(life, person.id) && !active);
   const hasConcern = visibleConcerns(life, person.id).length > 0;
   const rows: Control[] = [];
   const add = (action: RelationshipCareAction['action'], label: string, icon: Emoji, detail?: string) => {

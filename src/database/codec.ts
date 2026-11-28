@@ -56,9 +56,23 @@ function validHealthAndNotices(life: Life) {
   const contacts = new Map(allContacts(life).map((person) => [person.id, person]));
   const patients = new Set([...contacts.values()].filter((person) => person.alive).map((person) => person.id));
   if (!life.character.causeOfDeath) patients.add(playerPatient);
+  if (life.reproductive !== undefined && (!record(life.reproductive) || !Object.entries(life.reproductive).every(([id, clinic]) => {
+    const born = id === playerPatient ? life.character.birthYear : life.social.profiles[id]?.born;
+    if (born === undefined || (id !== playerPatient && !contacts.has(id)) || born + 18 > life.year || !record(clinic) || !record(clinic.cases)) return false;
+    const date = (value: unknown) => integer(value, born + 18, life.year);
+    const flag = (value: unknown) => value === undefined || value === true;
+    return flag(clinic.vaccinated) && flag(clinic.hepatitisBImmunity) &&
+      (!clinic.hepatitisBImmunity || !Object.hasOwn(clinic.cases, 'hepatitisB')) &&
+      (clinic.birthControlYear === undefined || (id === playerPatient && life.character.gender === 'woman' && date(clinic.birthControlYear))) &&
+      Object.entries(clinic.cases).every(([infection, info]) => record(info) && date(info.year) && flag(info.diagnosed) &&
+        (infection === 'chlamydia' ? info.chronic === undefined && info.managed === undefined :
+          infection === 'hepatitisB' && flag(info.chronic) && flag(info.managed) && (!info.managed || (info.chronic && info.diagnosed))));
+  }))) return false;
   function validDetails(details: unknown) {
     if (details === undefined) return true;
     if (!record(details)) return false;
+    if (details.kind === 'casual-followup') return typeof details.person === 'string' && life.character.age >= 18 &&
+      (contacts.get(details.person)?.age ?? 0) >= 18 && bounded(details.enjoyment);
     if (details.kind === 'death') {
       if (typeof details.person !== 'string' || typeof details.role !== 'string' || !details.role.trim() || details.role.length > 64 ||
         typeof details.cause !== 'string' || !details.cause.trim() || details.cause.length > 100) return false;
