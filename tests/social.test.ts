@@ -3,7 +3,7 @@ import { localExpense } from '../src/engine/pricing.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decodeLife } from '../src/database/codec.ts';
-import { defaultDatingProfile, npcLooks } from '../src/engine/dating.ts';
+import { datingIntent, defaultDatingProfile, npcLooks } from '../src/engine/dating.ts';
 import { discoveryEvent, pendingDatingProfile } from '../src/engine/datingDiscovery.ts';
 import { candidateNetWorth, datingPool, matchesSearch } from '../src/engine/datingPool.ts';
 import type { DatingPreferences } from '../src/engine/dating.ts';
@@ -15,13 +15,16 @@ import { createLife } from '../src/engine/create.ts';
 import { ageFamilyOpportunities, annualChildcare } from '../src/engine/familyLife.ts';
 import { annualFinance } from '../src/engine/finance.ts';
 import { canAccompany, startIllness } from '../src/engine/health.ts';
+import { firstDateOutcome, firstDatePrice, firstDateVenues } from '../src/engine/firstDates.ts';
 import { postTransaction } from '../src/engine/journal.ts';
-import { activeRomance, activeRomances, loveIssue, romanceFor } from '../src/engine/love.ts';
+import { activeRomance, activeRomances, changeRomance, endRomance, loveIssue, romanceFor } from '../src/engine/love.ts';
 import { annualLoveSearches, consumeLoveSearch } from '../src/engine/loveSearch.ts';
 import { pendingMeeting } from '../src/engine/meetings.ts';
-import { advanceNpcLives, allContacts, ensureNpc, makeNpc, npcRandom, syncNpcs } from '../src/engine/npcs.ts';
+import { advanceNpcLives, allContacts, ensureNpc, initialNpcProfile, makeNpc, npcRandom, syncNpcs } from '../src/engine/npcs.ts';
+import { qualifiedNpc, validNpcProgram } from '../src/engine/npcQualifications.ts';
 import { createSchoolClass, findContact } from '../src/engine/school.ts';
-import { agreementFor, attraction, openConcern, relationshipMemory, relationshipState, setAgreement, visibleConcerns } from '../src/engine/relationships.ts';
+import { advanceEarlyConnections, agreementFor, attraction, boundaryEvidence, careIssue, knownRelationship, openConcern,
+  relationshipMemory, relationshipState, setAgreement, visibleConcerns, visitFee } from '../src/engine/relationships.ts';
 import { cities } from '../src/data/veyra.ts';
 import { advance } from '../src/engine/simulation.ts';
 import { offerSocialEvent } from '../src/engine/socialEvents.ts';
@@ -30,7 +33,7 @@ import { datingSources } from '../src/engine/socialTypes.ts';
 import type { Action, CommunityFriend, Life } from '../src/engine/types.ts';
 import { eventPopup } from '../src/eventView.ts';
 import { assetDetails, householdRows, ownedListings } from '../src/propertyView.ts';
-import { familyTreeGroups, friendshipLabel, relationshipControls, relationshipGroups } from '../src/socialView.ts';
+import { datingCandidates, familyTreeGroups, firstDateControls, friendshipLabel, relationshipCareControls, relationshipControls, relationshipGroups } from '../src/socialView.ts';
 
 function act(life: Life, action: Action) {
   const result = advance(life, action);
@@ -362,6 +365,7 @@ test('Hook Up keeps the match and choice through reload and remains a one-night 
   const id = invited.social.pendingPerson!;
   const person = findContact(invited, id)!;
   assert.ok(person.age >= 18);
+  assert.deepEqual(invited.social.profiles[id]?.preferences, initialNpcProfile(invited, person).preferences);
   const popup = eventPopup(invited);
   assert.equal(popup?.title, 'Hook Up');
   assert.deepEqual(popup.portrait, { appearance: person.appearance, name: person.name, age: person.age,
@@ -490,6 +494,11 @@ test('a group invitation validates both saved adults and requires both to consen
   const details = accepted.notices.at(-1)?.details;
   assert.equal(details?.kind, 'enjoyment');
   assert.deepEqual(details.scores.map(({ person }) => person), ['self', first.id, second.id]);
+  const reverse = act(act(life, { ...action, first: second.id, second: first.id }), choice);
+  const reverseScores = reverse.notices.find(({ details }) => details?.kind === 'enjoyment')?.details;
+  assert.equal(reverseScores?.kind, 'enjoyment');
+  assert.deepEqual(Object.fromEntries(details.scores.map(({ person, value }) => [person, value])),
+    Object.fromEntries(reverseScores.scores.map(({ person, value }) => [person, value])));
   const invalid = { ...accepted, notices: [{ ...accepted.notices.at(-1), details: {
     ...details, scores: [...details.scores.slice(0, -1), { person: second.id, value: 101 }],
   } }] };
@@ -502,6 +511,98 @@ test('a group invitation validates both saved adults and requires both to consen
   for (const person of [first, second]) assert.deepEqual(findContact(declined, person.id)!.bond, person.bond);
   assert.equal(declined.character.attributes.happiness, life.character.attributes.happiness);
   assert.deepEqual(decodeLife(JSON.stringify(declined)), declined);
+});
+
+test('group outcomes keep individual benefit caps and preserve exclusive agreements and participant evidence', () => {
+  const { life, id } = marry();
+  const spouse = findContact(life, id)!;
+  const guest = knownFriend(life);
+  for (const person of [spouse, guest]) {
+    Object.assign(person.bond, { affection: 95, trust: 96, compatibility: 90, resentment: 0 });
+    ensureNpc(life, person).preferences = [...new Set([life.character.gender, spouse.gender, guest.gender])];
+  }
+  const outsider = makeNpc(life, 'npc-other-exclusive', 27, 'Acquaintance');
+  life.social.people.push(outsider);
+  ensureNpc(life, outsider);
+  changeRomance(life, outsider.id, 'committed', 'We were together.');
+  setAgreement(life, outsider.id, 'exclusive');
+  openConcern(life, guest.id, 'argument', 32);
+  life.usedActions.push(...Array<string>(3).fill(`intimacy-accepted:${guest.id}`));
+  while ([spouse, guest].some((person, i) => npcRandom(life, `intimacy:${person.id}:${[guest, spouse][i]!.id}`, life.year).next() >= .2)) life.seed++;
+  const invite = { type: 'intimacy', encounter: 'threesome', first: spouse.id, second: guest.id } as const;
+  const result = act(act(life, invite), { type: 'choose', event: 'social-threesome', choice: 'accept' });
+  assert.ok(result.notices.some(({ title }) => title === 'Just the Three of Us'));
+  assert.equal(findContact(result, guest.id)?.bond.trust, guest.bond.trust);
+  assert.equal(relationshipState(result, guest.id)?.lastMeaningful, undefined);
+  assert.equal(visibleConcerns(result, guest.id)[0]?.severity, 32);
+  assert.equal(agreementFor(result, spouse.id), 'exclusive');
+  assert.equal(agreementFor(result, outsider.id), 'exclusive');
+  const evidenceFor = (person: string) => relationshipState(result, person)?.conflicts.find(({ kind }) => kind === 'boundary')?.breach;
+  assert.deepEqual(evidenceFor(spouse.id)?.evidence, [{ who: guest.id, year: life.year, kind: 'intimacy' }]);
+  const [who, second] = [spouse.id, guest.id].sort();
+  assert.deepEqual(evidenceFor(outsider.id)?.evidence, [{ who, others: [second], year: life.year, kind: 'intimacy' }]);
+  boundaryEvidence(result, [guest.id, spouse.id], 'intimacy');
+  assert.equal(evidenceFor(outsider.id)?.count, 1);
+  assert.equal(evidenceFor(spouse.id)?.count, 1);
+  assert.deepEqual(decodeLife(JSON.stringify(result)), result);
+});
+
+test('an accepted group encounter applies pregnancy only to eligible participants and retains the scheduled birth after reload', () => {
+  const life = adult();
+  life.character.gender = 'man';
+  const first = knownFriend(life);
+  first.gender = 'woman';
+  const second = { ...makeNpc(life, 'npc-ineligible-parent', 26, 'Acquaintance'), gender: 'man' as const, friend: true };
+  life.social.people.push(second);
+  for (const person of [first, second]) {
+    Object.assign(person.bond, { affection: 94, trust: 94, compatibility: 86 });
+    ensureNpc(life, person).preferences = ['woman', 'man'];
+  }
+  const key = `pregnancy:${first.id}:${life.journal.length + 2}`;
+  while (npcRandom(life, `intimacy:${first.id}:${second.id}`, life.year).next() >= .2 ||
+    npcRandom(life, `intimacy:${second.id}:${first.id}`, life.year).next() >= .2 ||
+    npcRandom(life, key, life.year).next() >= .2) life.seed++;
+  const invited = act(life, { type: 'intimacy', encounter: 'threesome', first: first.id, second: second.id });
+  const choice = { type: 'choose', event: 'social-threesome', choice: 'accept' } as const;
+  const accepted = act(decodeLife(JSON.stringify(invited)), choice);
+  assert.deepEqual(accepted.social.pregnancies, [{ mother: first.id, father: 'self', dueYear: life.year + 1 }]);
+  assert.deepEqual(decodeLife(JSON.stringify(accepted)), accepted);
+  assert.deepEqual(act(invited, choice), accepted);
+});
+
+test('new candidate jobs fit the credential, age and experience, and an old pending pool uses its original background', () => {
+  const life = adult();
+  const pool = datingPool(life);
+  const offers = pool.filter(({ profile }) => profile.status === 'employed');
+  assert.ok(offers.some(({ profile }) => jobById.get(profile.job!)!.tags.length > 0));
+  for (const candidate of pool) {
+    const { person, profile } = candidate;
+    assert.ok(candidateNetWorth(candidate) >= 0);
+    if (profile.educationProgram) assert.ok(validNpcProgram(profile.educationProgram, profile.education, person.age));
+    if (profile.status === 'employed') {
+      const job = jobById.get(profile.job!)!;
+      assert.ok(qualifiedNpc(person.age, profile, job));
+      assert.equal(person.occupation, job.title);
+      assert.ok(profile.income >= job.salary[0] && profile.income <= job.salary[1]);
+    } else {
+      assert.equal(profile.job, null);
+      assert.equal(profile.income > 0, profile.status === 'retired');
+      if (profile.status === 'retired') assert.ok(person.age >= 65);
+    }
+    if (person.age >= 70) assert.equal(profile.status, 'retired');
+  }
+  const shown = act(life, { type: 'dating-match', source: 'date' });
+  const improved = pendingDatingProfile(shown)!;
+  assert.equal(shown.social.datingCycle?.background, 2);
+  const old = decodeLife(JSON.stringify({ ...shown, social: { ...shown.social,
+    datingCycle: { ...shown.social.datingCycle, background: undefined } } }));
+  const legacy = pendingDatingProfile(old)!;
+  assert.deepEqual([legacy.person.id, legacy.person.name, legacy.person.appearance], [improved.person.id, improved.person.name, improved.person.appearance]);
+  assert.equal(legacy.profile.educationProgram, undefined);
+  assert.deepEqual(pendingDatingProfile(decodeLife(JSON.stringify(old))), legacy);
+  const passed = act(old, { type: 'choose', event: discoveryEvent, choice: 'pass' });
+  assert.equal(passed.social.datingCycle?.background, undefined);
+  assert.equal(age(passed).social.datingCycle, undefined);
 });
 
 test('Love introductions are adult-only and keep the match and response after reload', () => {
@@ -647,6 +748,145 @@ test('distance separates physical visits from remote calls, and blocked promises
   assert.equal(relationshipState(after, friend.id)?.promise?.status, 'broken');
   assert.ok(visibleConcerns(after, friend.id).some(({ kind }) => kind === 'promise'));
   assert.deepEqual(decodeLife(JSON.stringify(after)), after);
+});
+
+test('cross-city mutual matches communicate, book an accepted visit, and keep their history after closing contact', () => {
+  let life: Life | undefined;
+  let id = '';
+  for (let seed = 1; seed < 80; seed++) {
+    const base = adult();
+    base.seed = seed;
+    const configured = act(base, { type: 'dating-profile', profile: { ...defaultDatingProfile, distance: 'distant' } });
+    const shown = act(configured, { type: 'dating-match', source: 'app' });
+    const candidate = pendingDatingProfile(shown);
+    if (!candidate) continue;
+    const liked = act(shown, { type: 'choose', event: discoveryEvent, choice: 'like' });
+    if (romanceFor(liked, candidate.person.id)?.status !== 'getting-to-know') continue;
+    life = liked;
+    id = candidate.person.id;
+    break;
+  }
+  assert.ok(life);
+  const remote = findContact(life, id)!;
+  const care = (action: 'message' | 'phone' | 'interests' | 'visit' | 'end-contact' | 'conversation' | 'exclusive') =>
+    ({ type: 'relationship-care', person: id, action }) as const;
+  const ask = { type: 'romance', action: 'ask', person: id, venue: 'park' } as const;
+  assert.notEqual(remote.city, life.character.city);
+  assert.ok(knownRelationship(life, remote));
+  assert.ok(datingCandidates(life).some(({ id: person }) => person === id));
+  assert.deepEqual(relationshipCareControls(life, remote).map(({ label }) => label), [
+    'Call', 'Send a Message', 'Have a Conversation', 'Discuss Shared Interests', 'Plan a Visit', 'End Communication',
+  ]);
+  assert.match(advance(life, care('exclusive')).error ?? '', /get to know/);
+  assert.match(advance(life, ask).error ?? '', /different cities/);
+  assert.match(advance(life, care('conversation')).error ?? '', /different cities/);
+  assert.equal(careIssue(life, remote, 'interests'), null);
+
+  forceRoll(life, `bond:${id}:message:0`, .1);
+  life = act(life, care('message'));
+  assert.equal(life.notices.at(-1)?.title, 'Getting to Know Each Other');
+  assert.ok(findContact(life, id)!.bond.familiarity > remote.bond.familiarity);
+  assert.ok(romanceFor(life, id)?.history.at(-1)?.text.includes(remote.name));
+  assert.match(advance(life, care('message')).error ?? '', /next year/);
+  life = act(life, care('phone'));
+  life = act(life, care('interests'));
+  const balance = life.character.bank;
+  const declinedVisit = decodeLife(JSON.stringify(life));
+  while (npcRandom(declinedVisit, `bond:${id}:visit:3`, declinedVisit.year).next() < .99) declinedVisit.seed++;
+  const declined = act(declinedVisit, care('visit'));
+  assert.equal(declined.notices.at(-1)?.title, 'Maybe Another Time');
+  assert.equal(declined.character.bank, balance);
+  assert.match(loveIssue(declined, ask) ?? '', /different cities/);
+  forceRoll(life, `bond:${id}:visit:3`, .1);
+  const visited = act(life, care('visit'));
+  assert.equal(visited.character.bank, balance - visitFee(life, remote));
+  assert.equal(visited.character.city, life.character.city);
+  assert.equal(loveIssue(decodeLife(JSON.stringify(visited)), ask), null);
+  const conversed = act(visited, care('conversation'));
+  const expressed = act(conversed, { type: 'romance', person: id, action: 'interest' });
+  assert.equal(romanceFor(expressed, id)?.status, 'interest');
+  const closed = act(expressed, care('end-contact'));
+  assert.equal(romanceFor(closed, id)?.status, 'contact-ended');
+  assert.ok(romanceFor(closed, id)!.history.length > 4);
+  assert.equal(relationshipState(closed, id)?.visit, undefined);
+  assert.match(advance(closed, ask).error ?? '', /communication.*ended/i);
+  assert.match(advance(closed, { type: 'talk', person: id }).error ?? '', /communication.*ended/i);
+  assert.deepEqual(decodeLife(JSON.stringify(closed)), closed);
+});
+
+test('NPCs can message first or stop an early connection, and only shared experience changes their goals', () => {
+  const life = adult();
+  const person = knownFriend(life);
+  changeRomance(life, person.id, 'getting-to-know', 'We exchanged numbers.');
+  const profile = ensureNpc(life, person);
+  profile.datingGoal = 'long-term';
+  const preferences = [...profile.preferences];
+  forceRoll(life, `early-connection:${person.id}`, .01);
+  advanceEarlyConnections(life);
+  assert.equal(life.notices.at(-1)?.title, 'A Message From Them');
+  assert.equal(romanceFor(life, person.id)?.status, 'getting-to-know');
+  profile.datingGoal = 'not-looking';
+  forceRoll(life, `advance:${person.id}`, .01);
+  const refused = act(life, { type: 'romance', action: 'ask', person: person.id, venue: 'museum' });
+  assert.equal(refused.notices.at(-1)?.title, 'Date Declined');
+  assert.equal(refused.character.bank, life.character.bank);
+  advanceEarlyConnections(refused);
+  assert.equal(romanceFor(refused, person.id)?.status, 'contact-ended');
+
+  changeRomance(life, person.id, 'dating', 'We went out.');
+  profile.datingGoal = 'casual';
+  assert.ok(datingIntent(life, person, 'commit').adjustment < 0);
+  changeRomance(life, person.id, 'committed', 'We tried commitment.');
+  assert.match(loveIssue(life, { type: 'romance', action: 'propose', person: person.id }) ?? '', /goals/);
+  profile.datingGoal = 'long-term';
+  romanceFor(life, person.id)!.started -= 3;
+  forceRoll(life, `evolving-goal:${person.id}`, .01);
+  advanceEarlyConnections(life);
+  assert.equal(profile.datingGoal, 'marriage');
+  const future = act(life, { type: 'romance', action: 'future', person: person.id });
+  assert.match(future.journal.at(-1)!.text, /marriage-oriented/);
+  endRomance(future, findContact(future, person.id)!, 'A serious breach ended it.', 'betrayal');
+  assert.equal(future.social.profiles[person.id]?.datingGoal, 'not-looking');
+  assert.deepEqual(future.social.profiles[person.id]?.preferences, preferences);
+});
+
+test('first-date venues charge only when attended and can lead to positive, neutral, or disappointing dates', () => {
+  const life = adult();
+  const person = knownFriend(life);
+  const park = { type: 'romance', action: 'ask', person: person.id, venue: 'park' } as const;
+  const concert = { ...park, venue: 'concert' } as const;
+  const account = decodeLife(JSON.stringify(life));
+  postTransaction(account, 'Spent my balance', -account.character.bank, 'other');
+  assert.match(advance(account, concert).error ?? '', /balance/);
+  assert.equal(loveIssue(account, park), null);
+  assert.equal(firstDateControls(account, findContact(account, person.id)!).length, 6);
+  const parkOutcomes = new Set<string>();
+  let expensiveWorse = false;
+  for (let seed = 1; seed <= 80; seed++) {
+    life.seed = seed;
+    const stats = life.character.attributes;
+    stats.stress = seed % 2 ? 10 : 90;
+    person.bond.familiarity = seed % 2 ? 90 : 15;
+    person.bond.trust = seed % 2 ? 94 : 38;
+    person.bond.resentment = seed % 2 ? 0 : 44;
+    const expected = firstDateOutcome(life, person, 'park');
+    expensiveWorse ||= firstDateOutcome(life, person, 'concert').quality < expected.quality;
+    const paid = act(life, concert);
+    if (paid.notices.at(-1)?.title !== 'Date Declined') {
+      assert.equal(paid.character.bank, life.character.bank - firstDatePrice(life, person, 'concert'));
+      assert.equal(paid.transactions.at(-1)?.category, 'relationships');
+    } else assert.equal(paid.character.bank, life.character.bank);
+    const result = act(decodeLife(JSON.stringify(life)), park);
+    if (result.notices.at(-1)?.title !== 'A First Date') continue;
+    parkOutcomes.add(expected.outcome);
+    assert.equal(result.notices.at(-1)?.meter?.value, expected.quality);
+    assert.equal(romanceFor(result, person.id)?.status, expected.outcome === 'disappointing' ? 'interest' : 'dating');
+    assert.notEqual(agreementFor(result, person.id), 'exclusive');
+    assert.deepEqual(decodeLife(JSON.stringify(result)), result);
+  }
+  assert.equal(new Set(Object.values(firstDateVenues).map(({ label }) => label)).size, 6);
+  assert.deepEqual(parkOutcomes, new Set(['positive', 'neutral', 'disappointing']));
+  assert.ok(expensiveWorse);
 });
 
 test('apologies leave serious conflicts open and reconciliation requires follow-through in another year', () => {

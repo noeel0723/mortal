@@ -7,7 +7,7 @@ import { lifestyleActivities, mindAndBodyActivities, socialActivities, type Acti
 import { canEditFace } from '../../src/engine/appearance';
 import { intimacyGuests, intimacyIssue } from '../../src/engine/intimacy';
 import { activitySkillCategories } from '../../src/skillView';
-import { datingControls, socialRole } from '../../src/socialView';
+import { datingControls, hookupControl, socialRole } from '../../src/socialView';
 import { useGame } from '../../src/stores/game';
 
 export default function Activities() {
@@ -58,13 +58,16 @@ export default function Activities() {
       <Page inGame>
         <Heading title={love ? 'Love' : 'Mind & Body'}
           back={() => router.canGoBack() ? router.back() : router.replace('/game/activities')} />
-        <Section title={love ? 'Dating' : 'Wellbeing Activities'}>
+        <Section title={love ? 'Discover' : 'Wellbeing Activities'}>
           {love ? <DatingOptions life={life} controls={datingControls(life)} /> : mindAndBodyActivities(life).map(action)}
-          {love && <ActionButton icon="classroom" label="Threesome" compactDetail detail={groupIssue ?? 'Invite two adults'}
-            disabled={busy || !!groupIssue}
-            onPress={() => router.push({ pathname: '/game/activities', params: { screen: 'threesome' } })} />}
         </Section>
-        {love && <Section title="Your Profile">
+        {love && <Section title="Casual Encounters">
+          {action(hookupControl(life))}
+          <ActionButton icon="classroom" label="Threesome" compactDetail detail={groupIssue ?? 'Invite two adults'}
+            disabled={busy || !!groupIssue}
+            onPress={() => router.push({ pathname: '/game/activities', params: { screen: 'threesome' } })} />
+        </Section>}
+        {love && <Section title="Your Love Life">
           <ActionButton icon="person" label="Dating Profile" detail="Edit your dating preferences"
             onPress={() => router.push({ pathname: '/game/activities', params: { screen: 'dating-profile' } })} />
           <ActionButton icon="loveLetter" label="My Love Life" detail="See your matches and partners"

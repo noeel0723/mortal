@@ -1,9 +1,11 @@
 import { jobs } from '../data/jobs.ts';
+import { programs } from '../data/academics.ts';
 import { npcGivenNames, npcSurnames } from '../data/npcNames.ts';
 import { cities, genders } from '../data/veyra.ts';
 import { datingAgeOptions, datingWorthOptions } from './dating.ts';
 import type { DatingGoal, DatingProfile } from './dating.ts';
 import { initialNpcProfile, makeNpc, npcRandom } from './npcs.ts';
+import { programYears, qualifiedNpc } from './npcQualifications.ts';
 import type { DatingSource, NpcProfile, SocialPerson } from './socialTypes.ts';
 import type { Life } from './types.ts';
 
@@ -65,7 +67,47 @@ export function datingCandidate(life: Life, index: number): DatingCandidate {
   const lifestyle: Lifestyle = hobby === 'hiking' || hobby === 'gardening' ? 'active' :
     hobby === 'music' || hobby === 'sketching' || hobby === 'photography' ? 'creative' :
       profile.traits.sociability >= 58 ? 'social' : 'quiet';
-  return { index, person, profile, lifestyle, available: random.next() >= .14 };
+  const available = random.next() >= .14;
+  if (!life.social.datingCycle || life.social.datingCycle.background === 2) {
+    setCandidateBackground(life, person, profile, status, credential);
+  }
+  return { index, person, profile, lifestyle, available };
+}
+
+function setCandidateBackground(life: Life, person: SocialPerson, profile: NpcProfile, status: number, credential: number) {
+  const random = npcRandom(life, `${person.id}:work-and-finances`);
+  const age = person.age;
+  const attending = age <= 25 && status < .25;
+  const retired = age >= 70 || (age >= 65 && status < .75);
+  const completed = programs.filter((program) => program.level !== 'equivalency' && age >= 18 + programYears(program) &&
+    qualifications.indexOf(program.level) <= credential);
+  const highest = completed.at(-1)?.level;
+  const level = completed.filter((program) => program.level === highest);
+  const program = !attending && level.length ? level[random.integer(0, level.length - 1)] : undefined;
+  profile.education = educationLevels[program ? qualifications.indexOf(program.level) : 2]!;
+  if (program) profile.educationProgram = program.id;
+  const workingYears = Math.max(0, Math.min(age, retired ? 67 : age) - 18 - (program ? programYears(program) : 0));
+  profile.experience = attending ? 0 : Math.round(workingYears * (retired || status > .16 ? random.integer(65, 100) : random.integer(30, 80)) / 100);
+  const eligible = jobs.filter((job) => qualifiedNpc(age, profile, job));
+  const specialty = eligible.filter((job) => job.tags.length > 0);
+  const options = specialty.length && random.next() < .72 ? specialty : eligible;
+  const job = options.length ? options[random.integer(0, options.length - 1)] : undefined;
+  const employed = !attending && !retired && status > .16 && !!job;
+  profile.status = retired ? 'retired' : attending ? 'student' : employed ? 'employed' : 'seeking';
+  profile.job = employed ? job!.id : null;
+  profile.income = retired ? 12000 + profile.experience * 120 : employed ? random.integer(job!.salary[0], job!.salary[1]) : 0;
+  person.occupation = retired ? 'Retired' : attending ? 'Student' : employed ? job!.title : 'Job seeker';
+
+  // The background represents abstract support and obligations without inventing contacts or dependents.
+  const familyResources = random.integer(0, 100);
+  const familyObligations = age >= 24 ? random.integer(0, 18000) : random.integer(0, 2000);
+  const earlierIncome = job ? (job.salary[0] + job.salary[1]) / 2 : 39000;
+  const yearlySavings = Math.max(0, earlierIncome - 35000 - familyObligations) * random.integer(12, 55) / 100;
+  const startingSupport = familyResources < 65 ? familyResources * 220 : 15000 + (familyResources - 65) * 3500;
+  const drawdown = retired ? Math.max(0, age - 67) * (22000 - Math.min(22000, profile.income)) : 0;
+  profile.expenses = retired ? 22000 : attending ? 18500 : 36000;
+  profile.savings = Math.max(0, Math.round(startingSupport + profile.experience * yearlySavings - drawdown));
+  profile.commitments = Math.min(profile.savings, familyObligations);
 }
 
 export function datingPool(life: Life) {

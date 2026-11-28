@@ -1,6 +1,7 @@
 import { jobById } from '../data/jobs.ts';
 import { cities, genders } from '../data/veyra.ts';
 import { allContacts, newPeopleLimit } from '../engine/npcs.ts';
+import { validNpcProgram } from '../engine/npcQualifications.ts';
 import { isActiveRomance } from '../engine/love.ts';
 import { datingGoals } from '../engine/dating.ts';
 import { discoveryEvent, validDatingState } from '../engine/datingDiscovery.ts';
@@ -42,6 +43,7 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
       !Array.isArray(profile.preferences) || !profile.preferences.length || !profile.preferences.every((item) => genders.includes(item)) ||
       (profile.datingGoal !== undefined && (typeof profile.datingGoal !== 'string' || !Object.hasOwn(datingGoals, profile.datingGoal))) ||
       !npcEducation.includes(profile.education) || !employment.includes(profile.status) ||
+      (profile.educationProgram !== undefined && !validNpcProgram(profile.educationProgram, profile.education, year - profile.born)) ||
       (profile.job !== null && !jobById.has(profile.job)) ||
       ![profile.income, profile.expenses, profile.savings, profile.commitments, profile.experience, profile.conflicts].every(amount) ||
       !integer(profile.born, 1800, year) || !date(profile.met) || !date(profile.lastInteraction) || profile.lastInteraction < profile.met ||
@@ -97,7 +99,7 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
       ![entry.engagement, entry.wedding, entry.ended].every((value) => value === null || (date(value) && value >= entry.started)) ||
       (entry.wedding !== null && (entry.engagement === null || entry.wedding < entry.engagement)) ||
       (entry.status === 'married' && entry.wedding === null) || (entry.status === 'engaged' && entry.engagement === null) ||
-      (['broken-up', 'divorced', 'widowed'].includes(entry.status) !== (entry.ended !== null))) return false;
+      (['contact-ended', 'broken-up', 'divorced', 'widowed'].includes(entry.status) !== (entry.ended !== null))) return false;
     seen.add(entry.person);
     if ((entry.status === 'engaged' || entry.status === 'married') && ++commitments > 1) return false;
   }

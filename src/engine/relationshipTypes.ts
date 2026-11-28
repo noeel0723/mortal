@@ -16,7 +16,7 @@ export type RelationshipMemory = { kind: MemoryKind; year: number; significance:
 export type RelationshipConflict = {
   id: string; participants: ['self', string]; kind: Concern; severity: number; peak: number; year: number; updated: number;
   state: typeof conflictStates[number]; repairYear?: number;
-  breach?: { count: number; discovered: boolean; unseen: boolean; evidence: { who: string; kind: BreachKind; year: number }[] };
+  breach?: { count: number; discovered: boolean; unseen: boolean; evidence: { who: string; others?: string[]; kind: BreachKind; year: number }[] };
 };
 export type RelationshipState = {
   agreement: Agreement; conflicts: RelationshipConflict[]; memories: RelationshipMemory[];
@@ -27,5 +27,5 @@ export type RelationshipState = {
 };
 
 export const careActions = ['exclusive', 'non-exclusive', 'discuss', 'promise-time', 'promise-support', 'reconcile', 'space',
-  'counseling', 'support', 'phone', 'message', 'video', 'visit', 'relocation'] as const;
+  'counseling', 'support', 'phone', 'message', 'video', 'visit', 'relocation', 'conversation', 'interests', 'end-contact'] as const;
 export type RelationshipCareAction = { type: 'relationship-care'; person: string; action: typeof careActions[number] };

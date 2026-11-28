@@ -81,14 +81,14 @@ export function registerChild(life: Life, child: SocialPerson, partner: Contact 
   if (!adopted) notice.details = { kind: 'birth', person: child.id };
 }
 
-export function chanceOfPregnancy(life: Life, partner: Contact) {
+export function chanceOfPregnancy(life: Life, partner: Contact, entry = life.journal.length) {
   const player = life.character;
   const mother = player.gender === 'woman' && partner.gender === 'man' ? 'self' :
     player.gender === 'man' && partner.gender === 'woman' ? partner.id : undefined;
   if (!mother || player.age < 18 || partner.age < 18 || !partner.alive ||
     (mother === 'self' ? player.age : partner.age) > 45 || !roomForChild(life) ||
     life.social.pregnancies?.some((entry) => entry.mother === mother)) return;
-  const random = npcRandom(life, `pregnancy:${partner.id}:${life.journal.length}`, life.year);
+  const random = npcRandom(life, `pregnancy:${partner.id}:${entry}`, life.year);
   if (random.next() >= .22) return;
   const father = mother === 'self' ? partner.id : 'self';
   life.social.pregnancies = [...(life.social.pregnancies ?? []), { mother, father, dueYear: life.year + 1 }];

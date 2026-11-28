@@ -48,6 +48,25 @@ export const defaultDatingProfile: DatingProfile = { ...defaultDatingPreferences
   distance: 'local', lifestyle: 'any', education: 'any' };
 export const playerDatingProfile = (life: Life) => life.social.datingProfile ?? defaultDatingProfile;
 
+export function compatibleGoals(player: DatingGoal, other: DatingGoal) {
+  if (player === 'not-looking' || other === 'not-looking') return false;
+  if (player === 'undecided' || other === 'undecided' || player === other) return true;
+  return (player === 'long-term' && (other === 'marriage' || other === 'companionship')) ||
+    (other === 'long-term' && (player === 'marriage' || player === 'companionship'));
+}
+
+export function datingIntent(life: Life, person: Contact, step: 'date' | 'commit' | 'engage') {
+  const goal = npcProfile(life, person).datingGoal;
+  if (!goal) return { allowed: true, adjustment: 0 };
+  const shared = compatibleGoals(playerDatingProfile(life).goal, goal);
+  if (goal === 'not-looking' || (step === 'engage' && (goal === 'casual' || goal === 'companionship'))) {
+    return { allowed: false, adjustment: 0 };
+  }
+  const adjustment = step === 'date' ? (shared ? 4 : -20) :
+    goal === 'marriage' ? 12 : goal === 'long-term' ? 7 : goal === 'casual' ? -28 : goal === 'companionship' ? -7 : 0;
+  return { allowed: true, adjustment: adjustment - (!shared && step !== 'date' ? 13 : 0) };
+}
+
 export function validDatingProfile(value: unknown): value is DatingProfile {
   return !!value && typeof value === 'object' && !Array.isArray(value) &&
     Object.entries(datingProfileFields).every(([key, { options }]) => {

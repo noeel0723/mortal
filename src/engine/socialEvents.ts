@@ -1,5 +1,6 @@
 import { socialEventCatalog } from '../data/socialEvents.ts';
 import { answerDatingDiscovery, discoveryEvent } from './datingDiscovery.ts';
+import { datingIntent } from './dating.ts';
 import { recordNotice } from './eventNotices.ts';
 import { answerIntimacy, isIntimacyEvent, prepareIntimacy } from './intimacy.ts';
 import { clamp, record } from './journal.ts';
@@ -7,7 +8,7 @@ import { activeRomances, canPropose, changeRomance, endRomance, romanceFor, roma
 import { discardSearchMatch } from './loveSearch.ts';
 import { answerMeeting } from './meetings.ts';
 import { allContacts, ensureNpc, npcProfile, npcRandom, remember } from './npcs.ts';
-import { activeFor, agreementFor, agreementPhrase, boundaryEvidence, concernLabels, inPersonIssue, knownRelationship, meaningfulTime, negotiateAgreement, relationshipMemory,
+import { activeFor, agreementFor, agreementPhrase, boundaryEvidence, concernLabels, earlyConnection, inPersonIssue, knownRelationship, meaningfulTime, negotiateAgreement, relationshipMemory,
   relationshipSatisfaction, relationshipState, setAgreement, visibleConcerns } from './relationships.ts';
 import { findContact } from './school.ts';
 import type { IntimacyAction, SocialEventId } from './socialTypes.ts';
@@ -24,7 +25,8 @@ export function socialEventText(life: Life, event: LifeEvent) {
     const contact = evidence ? findContact(life, evidence.who) : undefined;
     if (evidence && contact) {
       const incident = evidence.kind === 'date' ? 'a date' : evidence.kind === 'commitment' ? 'a relationship agreement' : 'a private encounter';
-      return `${person.name} learned about ${incident} with ${contact.name}. It crossed the exclusive agreement we made, and they asked me to explain.`;
+      const names = [contact.name, ...(evidence.others ?? []).map((id) => findContact(life, id)?.name).filter(Boolean)].join(' and ');
+      return `${person.name} brought up ${incident} involving ${names}. It crossed the exclusive agreement we made, and they asked me to explain.`;
     }
     const other = activeRomances(life).filter((entry) => entry.person !== person.id)
       .map((entry) => findContact(life, entry.person)).find((contact) => contact?.alive);
@@ -49,6 +51,7 @@ export function socialEventText(life: Life, event: LifeEvent) {
 export function applyIntimacy(life: Life, action: IntimacyAction) {
   const invitation = prepareIntimacy(life, action);
   if (typeof invitation === 'string') return invitation;
+  if (!invitation) return null;
   if (invitation.guest) life.social.pendingGuest = invitation.guest;
   queueSocialEvent(life, invitation.event, invitation.person);
   return null;
@@ -101,13 +104,14 @@ export function offerSocialEvent(life: Life) {
     if (partner?.alive) {
       const profile = ensureNpc(life, partner);
       if (canPropose(life, romance) && !inPersonIssue(life, partner) && life.year > romance.started && partner.bond.trust >= 55 &&
-        random.next() < (profile.traits.confidence + profile.traits.loyalty) / 300) {
+        random.next() < (profile.traits.confidence + profile.traits.loyalty + datingIntent(life, partner, 'engage').adjustment) / 300) {
         possibilities.push({ person: partner.id, event: 'social-proposal' });
       }
       if (life.year - profile.lastInteraction >= 2 || partner.bond.resentment >= 32) possibilities.push({ person: partner.id, event: 'social-time' });
       if (romance.status === 'married' && profile.savings < 20000) possibilities.push({ person: partner.id, event: 'social-finances' });
       if (romance.status === 'dating' && agreementFor(life, partner.id) === 'casual' && life.year > romance.started &&
-        partner.bond.trust >= 38 && (suggestedAgreement(life, partner) === 'exclusive' || profile.traits.riskTolerance >= 55)) {
+        partner.bond.trust >= 38 && datingIntent(life, partner, 'commit').allowed &&
+        (suggestedAgreement(life, partner) === 'exclusive' || profile.traits.riskTolerance >= 55)) {
         possibilities.push({ person: partner.id, event: 'social-expectations' });
       }
     }
@@ -120,7 +124,7 @@ export function offerSocialEvent(life: Life) {
     !ensureNpc(life, person).formerFriend && person.city === life.character.city &&
     npcRandom(life, `invite:${person.id}`, life.year).next() < ensureNpc(life, person).traits.sociability / 120);
   if (friend) possibilities.push({ person: friend.id, event: 'social-dinner' });
-  const concerned = allContacts(life).find((person) => person.alive && person.age >= 18 && knownRelationship(life, person) &&
+  const concerned = allContacts(life).find((person) => person.alive && person.age >= 18 && knownRelationship(life, person) && !earlyConnection(life, person.id) &&
     visibleConcerns(life, person.id).some((entry) => entry.severity >= 33));
   if (concerned && life.character.age >= 18) possibilities.push({ person: concerned.id, event: 'social-concern' });
   const former = allContacts(life).find((person) => person.alive && person.age >= 18 && npcProfile(life, person).formerFriend &&
@@ -132,8 +136,10 @@ export function offerSocialEvent(life: Life) {
 }
 
 function suggestedAgreement(life: Life, person: Contact) {
+  const profile = npcProfile(life, person);
   return life.social.romances.some((entry) => entry.person !== person.id && activeFor(life, entry.person)) ||
-    npcProfile(life, person).traits.riskTolerance > npcProfile(life, person).traits.loyalty + 16 ? 'non-exclusive' as const : 'exclusive' as const;
+    profile.datingGoal === 'casual' || (profile.datingGoal !== 'marriage' && profile.traits.riskTolerance > profile.traits.loyalty + 16) ?
+    'non-exclusive' as const : 'exclusive' as const;
 }
 
 function answerBreach(life: Life, person: Contact, choice: string) {

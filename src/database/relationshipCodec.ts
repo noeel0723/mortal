@@ -40,6 +40,8 @@ export function validateRelationships(life: Life, ids: ReadonlySet<string>) {
         if (!object(breach) || typeof breach.discovered !== 'boolean' || typeof breach.unseen !== 'boolean' || !Array.isArray(breach.evidence) ||
           breach.evidence.length < 1 || breach.evidence.length > 4 || !integer(breach.count, breach.evidence.length, Number.MAX_SAFE_INTEGER) ||
           !breach.evidence.every((item: unknown) => object(item) && typeof item.who === 'string' && item.who !== id && ids.has(item.who) &&
+            (item.others === undefined || (item.kind === 'intimacy' && Array.isArray(item.others) && item.others.length === 1 &&
+              typeof item.others[0] === 'string' && item.others[0] !== id && ids.has(item.others[0]) && item.who < item.others[0])) &&
             date(item.year) && item.year >= entry.year && valueIn(breachKinds, item.kind))) return false;
       } else if (entry.breach !== undefined) return false;
     }

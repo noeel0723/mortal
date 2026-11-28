@@ -27,7 +27,7 @@ export function mindAndBodyActivities(life: Life): ActivityControl[] {
 }
 
 export function socialActivities(life: Life): ActivityControl[] {
-  return [...meetingControls(life, false), personalActivity(life, library)];
+  return [...meetingControls(life), personalActivity(life, library)];
 }
 
 export function lifestyleActivities(life: Life, section: 'Mind & Body' | 'Travel'): ActivityControl[] {

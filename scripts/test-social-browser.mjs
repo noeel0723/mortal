@@ -3,7 +3,7 @@ import { eventById } from '../src/data/events.ts';
 import { decodeLife } from '../src/database/codec.ts';
 import { createLife } from '../src/engine/create.ts';
 import { postTransaction } from '../src/engine/journal.ts';
-import { activeRomance } from '../src/engine/love.ts';
+import { activeRomance, romanceFor } from '../src/engine/love.ts';
 import { makeNpc } from '../src/engine/npcs.ts';
 import { genderLabels } from '../src/data/veyra.ts';
 import { discoveryEvent, pendingDatingProfile } from '../src/engine/datingDiscovery.ts';
@@ -67,7 +67,7 @@ try {
       const matched = advance(shown, { type: 'choose', event: discoveryEvent, choice: 'like' }).life;
       if (matched?.notices.at(-1)?.title !== 'Mutual Match') continue;
       const dated = advance(matched, { type: 'romance', action: 'ask', person: candidate.person.id }).life;
-      if (dated?.notices.at(-1)?.title !== 'A First Date') continue;
+      if (!dated || romanceFor(dated, candidate.person.id)?.status !== 'dating') continue;
       await page.evaluate(saveSlot, { id: slot, entry: { ...entry, payload: JSON.stringify(fixture) } });
       await page.reload();
       await heading('Love').waitFor();
@@ -83,8 +83,15 @@ try {
     await click('My Love Life');
     await heading('Getting to Know Each Other').waitFor();
     await click(candidateName);
+    await button('Send a Message').waitFor();
+    await button('Discuss Shared Interests').waitFor();
+    assert.equal(await button('Discuss Exclusivity').count(), 0);
     await click('Ask on a Date');
+    await dialog('Choose a Date Venue').getByRole('button', { name: 'Music Concert', exact: true }).waitFor();
+    if (process.env.MORTAL_CAPTURE_DATING) await page.screenshot({ path: '.expo/web-qa/first-date-venues.png' });
+    await click('Walk in the Park');
     await dialog('A First Date').waitFor();
+    await dialog('A First Date').getByRole('progressbar', { name: 'Date Quality', exact: true }).waitFor();
     await acknowledgeEvents(page);
     await click('Back to Relationships');
     await click('Close Relationships');
@@ -95,8 +102,8 @@ try {
   await page.evaluate(saveSlot, { id: slot, entry: { id: slot, name: `${life.character.firstName} ${life.character.lastName}`,
     city: life.character.city, age: 25, year: life.year, completed: false, revision: 0, updatedAt: Date.now(), payload } });
   await page.goto(new URL(`#play/${slot}/journal`, url).href);
-  await click('Family');
-  await click('Open Love Life');
+  await click('Activities');
+  await click('Love');
   await click('Dating App');
   const appDialog = dialog('Dating App');
   await appDialog.getByRole('combobox', { name: 'Preferred Age' }).waitFor();
@@ -107,11 +114,13 @@ try {
   await click('Pass');
   await dialog('Dating Profile').waitFor({ state: 'hidden' });
   assert.equal((await read()).version, 11);
+  await click('My Love Life');
   await click('Ask Someone Out');
   await heading('Dating Profiles').waitFor();
   await page.getByText(/compatibility/).first().waitFor();
   await click(friend.name);
   await click('Ask on a Date');
+  await click('Walk in the Park');
   await dialog('A First Date').waitFor();
   await page.reload();
   await dialog('A First Date').waitFor();
@@ -187,6 +196,7 @@ try {
   await click('Back to Activities');
   await click('Love');
   await heading('Love').waitFor();
+  assert.deepEqual(await page.locator('.play-group h2').allTextContents(), ['Discover', 'Casual Encounters', 'Your Love Life']);
   for (const label of ['Find a Date', 'Dating App', 'LGBTQ+ Dating', 'Hook Up', 'Threesome']) {
     await button(label).waitFor();
   }
@@ -375,7 +385,7 @@ try {
   await acknowledgeEvents(page);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   assert.deepEqual(errors, []);
-  console.log('Social smoke passed at 320px and 390px: commitments, milestones, concurrent casual relationships, and adult encounters after reload.');
+  console.log('Social smoke passed at 320px and 390px: Love menu, mutual matches, first-date venues, agreements, and adult encounters after reload.');
 } finally {
   await browser.close();
 }

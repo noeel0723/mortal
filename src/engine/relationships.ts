@@ -1,10 +1,14 @@
 import { recordNotice } from './eventNotices.ts';
+import { datingIntent } from './dating.ts';
 import { outstanding } from './finance.ts';
+import { sharedHobbies } from './hobbies.ts';
+import { skills } from '../data/skills.ts';
 import { clamp } from './journal.ts';
 import { npcProfile, npcRandom, remember } from './npcs.ts';
 import { localExpense } from './pricing.ts';
 import { findContact } from './school.ts';
 import { activeRomanceStatuses } from './socialTypes.ts';
+import type { Romance } from './socialTypes.ts';
 import { careActions, milestoneKinds } from './relationshipTypes.ts';
 import type { Agreement, BreachKind, Concern, MemoryKind, RelationshipCareAction, RelationshipState } from './relationshipTypes.ts';
 import type { City, Contact, Life } from './types.ts';
@@ -21,8 +25,11 @@ export const relationshipState = (life: Life, id: string) => life.social.relatio
 export const activeFor = (life: Life, id: string) => life.social.romances.some((entry) => entry.person === id &&
   activeRomanceStatuses.some((status) => entry.status === status));
 export const agreementFor = (life: Life, id: string): Agreement => relationshipState(life, id)?.agreement ?? 'legacy';
-export const knownRelationship = (life: Life, person: Contact) => activeFor(life, person.id) ||
-  ('friend' in person && person.friend && !npcProfile(life, person).formerFriend);
+const earlyStatus = (status: Romance['status']) => status === 'getting-to-know' || status === 'interest';
+export const earlyConnection = (life: Life, id: string) => life.social.romances.some((entry) => entry.person === id && earlyStatus(entry.status));
+export const communicationEnded = (life: Life, id: string) => life.social.romances.some((entry) => entry.person === id && entry.status === 'contact-ended');
+export const knownRelationship = (life: Life, person: Contact) => !communicationEnded(life, person.id) &&
+  (activeFor(life, person.id) || earlyConnection(life, person.id) || ('friend' in person && person.friend && !npcProfile(life, person).formerFriend));
 
 function stateFor(life: Life, id: string): RelationshipState {
   return life.social.relationships[id] ??= { agreement: 'legacy', conflicts: [], memories: [], milestones: {} };
@@ -89,15 +96,17 @@ export function openConcern(life: Life, id: string, kind: Concern, severity: num
 export function boundaryEvidence(life: Life, participants: readonly string[], kind: BreachKind) {
   for (const romance of life.social.romances) {
     const id = romance.person;
-    if (!activeFor(life, id) || participants.includes(id) || agreementFor(life, id) !== 'exclusive') continue;
-    const who = participants[0]!;
+    if (!activeFor(life, id) || agreementFor(life, id) !== 'exclusive') continue;
+    const [who, ...others] = [...new Set(participants)].filter((participant) => participant !== id && findContact(life, participant)?.alive).sort();
+    if (!who) continue;
     if (relationshipState(life, id)?.conflicts.some((entry) => entry.kind === 'boundary' &&
-      entry.breach?.evidence.some((evidence) => evidence.who === who && evidence.kind === kind && evidence.year === life.year))) continue;
+      entry.breach?.evidence.some((evidence) => evidence.who === who && evidence.kind === kind && evidence.year === life.year &&
+        (evidence.others ?? []).join('|') === others.join('|')))) continue;
     const earlier = relationshipState(life, id)?.conflicts.find((entry) => entry.kind === 'boundary')?.breach?.count ?? 0;
     const conflict = openConcern(life, id, 'boundary', kind === 'intimacy' ? 72 : kind === 'commitment' ? 66 : 52);
     const previous = conflict.breach;
     conflict.breach = { count: earlier + 1, discovered: previous?.discovered ?? false, unseen: true,
-      evidence: [...(previous?.evidence.slice(-3) ?? []), { who, kind, year: life.year }] };
+      evidence: [...(previous?.evidence.slice(-3) ?? []), { who, ...(others.length ? { others } : {}), kind, year: life.year }] };
     conflict.severity = clamp(conflict.severity + (previous ? 8 : 0));
     conflict.peak = Math.max(conflict.peak, conflict.severity);
     relationshipMemory(life, id, 'boundary', -conflict.severity, true);
@@ -178,16 +187,24 @@ export function responseScale(life: Life, person: Contact, action: string) {
 
 export const counselingFee = 1750;
 export const visitFee = (life: Life, person: Contact) => localExpense(life.world, person.city, 1700);
+const earlyActions = ['phone', 'message', 'conversation', 'interests', 'visit', 'end-contact'] as const;
+type EarlyAction = typeof earlyActions[number];
+const isEarlyAction = (action: RelationshipCareAction['action']): action is EarlyAction => earlyActions.some((kind) => kind === action);
 
 export function careIssue(life: Life, person: Contact, action: RelationshipCareAction['action']) {
   if (!careActions.includes(action) || life.character.causeOfDeath || !person.alive) return 'This relationship action is unavailable.';
   if (life.pending) return 'Resolve the pending decision first.';
-  if (life.character.age < 18 || person.age < 18 || !knownRelationship(life, person)) return 'Available with adult friends and partners.';
+  if (communicationEnded(life, person.id)) return 'Communication with this person has ended.';
+  if (life.character.age < 18 || person.age < 18 || !knownRelationship(life, person)) return 'Available with adult friends, matches, and partners.';
+  const early = earlyConnection(life, person.id);
+  if (early && !isEarlyAction(action)) return 'Available after you get to know each other better.';
+  if (!early && (action === 'conversation' || action === 'interests' || action === 'end-contact')) return 'Available with an early romantic connection.';
   const state = relationshipState(life, person.id);
   const apart = (state?.apartUntil ?? 0) > life.year;
   const concern = visibleConcerns(life, person.id)[0];
   if (life.usedActions.includes(`care:${person.id}:${action}`)) return 'Available again next year.';
-  if (apart && action !== 'space') return 'They’ve asked for time apart. Give them until next year.';
+  if (apart && action !== 'space' && action !== 'end-contact') return 'They’ve asked for time apart. Give them until next year.';
+  if (early && action === 'conversation') return inPersonIssue(life, person);
   if ((action === 'exclusive' || action === 'non-exclusive' || action === 'counseling' || action === 'relocation') && !activeFor(life, person.id)) {
     return 'Discuss this with a current partner.';
   }
@@ -213,9 +230,12 @@ export function careIssue(life: Life, person: Contact, action: RelationshipCareA
 
 export function negotiateAgreement(life: Life, person: Contact, agreement: 'exclusive' | 'non-exclusive', initiated = false) {
   const profile = npcProfile(life, person);
+  const intent = datingIntent(life, person, 'commit');
   const preference = agreement === 'exclusive' ? profile.traits.loyalty * .26 : profile.traits.riskTolerance * .29 + profile.traits.empathy * .10;
-  const chance = Math.min(94, 12 + attraction(life, person) * .30 + person.bond.trust * .27 + preference - person.bond.resentment * .35);
-  if (!attraction(life, person) || (!initiated && npcRandom(life, `agreement:${person.id}:${agreement}`, life.year).next() * 100 >= chance)) return false;
+  const chance = Math.min(94, 12 + attraction(life, person) * .30 + person.bond.trust * .27 + preference -
+    person.bond.resentment * .35 + intent.adjustment);
+  if (!activeFor(life, person.id) || !intent.allowed || !attraction(life, person) ||
+    (!initiated && npcRandom(life, `agreement:${person.id}:${agreement}`, life.year).next() * 100 >= chance)) return false;
   const previous = agreementFor(life, person.id);
   setAgreement(life, person.id, agreement);
   const romance = life.social.romances.find((entry) => entry.person === person.id);
@@ -224,6 +244,95 @@ export function negotiateAgreement(life: Life, person: Contact, agreement: 'excl
   meaningfulTime(life, person, 'time', 4);
   if (previous !== agreement) boundaryEvidence(life, [person.id], 'commitment');
   return true;
+}
+
+function rememberConnection(life: Life, person: Contact, story: string) {
+  const romance = life.social.romances.find(({ person: id }) => id === person.id)!;
+  romance.history = [...romance.history.slice(-29), { year: life.year, text: story }];
+  remember(life, person, story);
+}
+
+function closeConnection(life: Life, person: Contact, story: string) {
+  const romance = life.social.romances.find(({ person: id }) => id === person.id)!;
+  romance.status = 'contact-ended';
+  romance.ended = life.year;
+  const state = relationshipState(life, person.id);
+  if (state) delete state.visit;
+  rememberConnection(life, person, story);
+  recordNotice(life, 'community', 'Communication Ended', story);
+}
+
+function earlyCare(life: Life, person: Contact, action: EarlyAction) {
+  if (action === 'end-contact') {
+    closeConnection(life, person, `I told ${person.name} I didn’t want to keep talking romantically. I thanked them for the time we’d spent getting to know each other.`);
+    return;
+  }
+  const { name } = person;
+  const profile = npcProfile(life, person);
+  const shared = sharedHobbies(life, person).map((id) => skills[id].name);
+  const opener = {
+    phone: `I called ${name} to see how their week was going.`,
+    message: `I sent ${name} a message about something that reminded me of our first conversation.`,
+    conversation: `${name} and I stopped to talk about our plans for the weekend.`,
+    interests: shared.length ? `I brought up our shared interest in ${shared.join(' and ')} with ${name}.` :
+      `I asked ${name} what they enjoyed about ${profile.interests[0]} and told them about something I like doing.`,
+    visit: `I asked ${name} if I could visit them in ${person.city} this year.`,
+  }[action];
+  const accepted = profile.datingGoal !== 'not-looking' && !profile.localPartner && !takingSpace(life, person.id) &&
+    responseScale(life, person, action) > 0;
+  if (accepted && action === 'visit') stateFor(life, person.id).visit = { year: life.year, city: person.city };
+  if (accepted) {
+    person.bond.familiarity = clamp(person.bond.familiarity + (action === 'interests' && shared.length ? 5 : 3));
+    person.bond.trust = clamp(person.bond.trust + 2);
+    meaningfulTime(life, person, 'time');
+  }
+  const story = `${opener} ${accepted ? action === 'visit' ? 'They confirmed a time for us to meet.' :
+    'They replied and we got to know each other a little better.' : 'They didn’t feel up to it, so I left it there.'}`;
+  rememberConnection(life, person, story);
+  recordNotice(life, 'community', accepted ? action === 'visit' ? 'A Visit' : 'Getting to Know Each Other' : 'Maybe Another Time', story,
+    accepted && action === 'visit' ? { bank: -visitFee(life, person) } : undefined, 'relationships');
+}
+
+export function advanceEarlyConnections(life: Life) {
+  if (life.character.age < 18) return;
+  for (const romance of life.social.romances) {
+    const person = findContact(life, romance.person);
+    if (!person?.alive) continue;
+    const profile = npcProfile(life, person);
+    const chance = npcRandom(life, `evolving-goal:${person.id}`, life.year).next();
+    if (profile.datingGoal === 'not-looking' && romance.ended !== null && life.year - romance.ended >= 2 && chance < .28) {
+      profile.datingGoal = 'undecided';
+    } else if (profile.datingGoal === 'long-term' && romance.status === 'committed' && life.year - romance.started >= 3 &&
+      relationshipSatisfaction(life, person) >= 78 && person.bond.trust >= 80 && !visibleConcerns(life, person.id).length &&
+      chance < profile.traits.loyalty / 420) {
+      profile.datingGoal = 'marriage';
+      const story = `${person.name} said that building trust over the last few years had made them more open to marriage.`;
+      rememberConnection(life, person, story);
+      recordNotice(life, 'community', 'A Change of Heart', story);
+    }
+  }
+  if (life.pending) return;
+  for (const romance of life.social.romances) {
+    if (!earlyStatus(romance.status)) continue;
+    const person = findContact(life, romance.person);
+    if (!person?.alive || takingSpace(life, person.id)) continue;
+    const profile = npcProfile(life, person);
+    const inactive = life.year - (relationshipState(life, person.id)?.lastMeaningful ?? romance.started);
+    const roll = npcRandom(life, `early-connection:${person.id}`, life.year).next();
+    if (profile.datingGoal === 'not-looking' || profile.localPartner || person.bond.resentment >= 65 ||
+      (inactive >= 3 && roll < .18 + (100 - person.bond.familiarity) / 250)) {
+      closeConnection(life, person, `${person.name} told me they didn’t want to stay in touch romantically. I respected their decision.`);
+      return;
+    }
+    if (inactive <= 2 && roll < profile.traits.sociability / 340) {
+      const story = `${person.name} messaged me first to catch up and ask how I was doing.`;
+      person.bond.familiarity = clamp(person.bond.familiarity + 2);
+      meaningfulTime(life, person, 'time');
+      rememberConnection(life, person, story);
+      recordNotice(life, 'community', 'A Message From Them', story);
+      return;
+    }
+  }
 }
 
 export function applyRelationshipCare(life: Life, action: RelationshipCareAction) {
@@ -237,6 +346,11 @@ export function applyRelationshipCare(life: Life, action: RelationshipCareAction
   const { name } = person;
   const kind = action.action;
   life.usedActions.push(`care:${id}:${kind}`);
+  if (earlyConnection(life, id) && isEarlyAction(kind)) {
+    earlyCare(life, person, kind);
+    return null;
+  }
+  if (kind === 'conversation' || kind === 'interests' || kind === 'end-contact') return 'This connection is no longer available.';
   let story: string;
   let title: string;
   let cost = 0;

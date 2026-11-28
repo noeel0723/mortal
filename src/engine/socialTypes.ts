@@ -1,6 +1,7 @@
 import type { City, Gender, Person } from './types.ts';
 import type { DatingGoal, DatingPreferences, DatingProfile } from './dating.ts';
 import type { RelationshipCareAction, RelationshipState } from './relationshipTypes.ts';
+import type { FirstDateVenue } from './firstDates.ts';
 
 export const traits = ['ambition', 'loyalty', 'empathy', 'sociability', 'discipline', 'confidence', 'temperament', 'materialism', 'riskTolerance'] as const;
 export type Traits = Record<typeof traits[number], number>;
@@ -9,7 +10,7 @@ export const employment = ['student', 'seeking', 'employed', 'retired'] as const
 export type SocialPerson = Person<'Sibling' | 'Grandparent' | 'Child' | 'Acquaintance'> & { friend: boolean };
 export type NpcProfile = {
   traits: Traits; interests: string[]; preferences: Gender[];
-  education: typeof npcEducation[number]; status: typeof employment[number];
+  education: typeof npcEducation[number]; educationProgram?: string; status: typeof employment[number];
   job: string | null; experience: number; income: number; savings: number; expenses: number; commitments: number;
   born: number; met: number; friendsSince: number | null; lastInteraction: number; formerFriend: boolean;
   memories: { year: number; text: string }[]; conflicts: number;
@@ -17,7 +18,7 @@ export type NpcProfile = {
   datingGoal?: DatingGoal;
 };
 export const activeRomanceStatuses = ['dating', 'committed', 'engaged', 'married'] as const;
-export const romanceStatuses = ['getting-to-know', 'interest', ...activeRomanceStatuses, 'broken-up', 'divorced', 'widowed'] as const;
+export const romanceStatuses = ['getting-to-know', 'interest', ...activeRomanceStatuses, 'contact-ended', 'broken-up', 'divorced', 'widowed'] as const;
 export type Romance = { person: string; status: typeof romanceStatuses[number]; started: number; engagement: number | null;
   wedding: number | null; ended: number | null; history: { year: number; text: string }[] };
 export const socialEvents = ['social-dinner', 'social-time', 'social-proposal', 'social-support', 'social-school', 'social-finances',
@@ -26,7 +27,7 @@ export const socialEvents = ['social-dinner', 'social-time', 'social-proposal', 
 export type SocialEventId = typeof socialEvents[number];
 export const datingSources = ['spotlight', 'date', 'app', 'lgbtq', 'casual', 'matchmaking'] as const;
 export type DatingSource = typeof datingSources[number];
-export type DatingCycle = { year: number; viewed: number[]; pending?: { candidate: number; source: DatingSource } };
+export type DatingCycle = { year: number; viewed: number[]; background?: 2; pending?: { candidate: number; source: DatingSource } };
 export const meetingSources = ['neighborhood', 'hobbies', 'library'] as const;
 export type MeetingSource = typeof meetingSources[number];
 export type VehicleKind = 'cars' | 'motorcycles';
@@ -53,7 +54,8 @@ export type SocialAction =
   | { type: 'meet'; source: 'neighborhood' | 'hobbies' | 'date' | 'app' }
   | { type: 'dating-match'; source: DatingSource; preferences?: DatingPreferences }
   | { type: 'dating-profile'; profile: DatingProfile }
-  | { type: 'romance'; person: string; action: 'interest' | 'ask' | 'propose' | 'breakup' | 'divorce' | typeof romanticActivities[number] }
+  | ({ type: 'romance'; person: string } & ({ action: 'ask'; venue?: FirstDateVenue } |
+    { action: 'interest' | 'propose' | 'breakup' | 'divorce' | typeof romanticActivities[number] }))
   | { type: 'wedding'; person: string; plan: 'civil' | 'gathering' | 'celebration' }
   | { type: 'plan-child'; person: string; method: 'family' | 'adoption'; name?: string }
   | { type: 'parent-child'; person: string; action: typeof parentingActivities[number] };

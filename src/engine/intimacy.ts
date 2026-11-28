@@ -2,10 +2,10 @@ import { recordNotice } from './eventNotices.ts';
 import { chanceOfPregnancy } from './familyLife.ts';
 import { clamp, record } from './journal.ts';
 import { isActiveRomance, romanceFor, romanceHistory } from './love.ts';
-import { consumeLoveSearch, loveSearchIssue } from './loveSearch.ts';
+import { consumeLoveSearch, hookupCandidateLimit, loveSearchIssue } from './loveSearch.ts';
 import { allContacts, ensureNpc, isFamily, makeNpc, newPeopleLimit, npcProfile, npcRandom, remember } from './npcs.ts';
 import { findContact } from './school.ts';
-import { boundaryEvidence, inPersonIssue, meaningfulTime, relationshipMemory } from './relationships.ts';
+import { boundaryEvidence, communicationEnded, inPersonIssue, meaningfulTime, relationshipMemory } from './relationships.ts';
 import type { IntimacyAction } from './socialTypes.ts';
 import { pickStory } from './stories.ts';
 import type { Contact, Life } from './types.ts';
@@ -16,7 +16,7 @@ export const isIntimacyEvent = (id: string | null): id is IntimacyEvent => intim
 const isPartner = (life: Life, person: Contact) => isActiveRomance(romanceFor(life, person.id));
 
 export function isIntimacyContact(life: Life, person: Contact) {
-  if (life.character.age < 18 || person.age < 18 || !person.alive) return false;
+  if (life.character.age < 18 || person.age < 18 || !person.alive || communicationEnded(life, person.id)) return false;
   if (isPartner(life, person)) return true;
   const sharesParent = life.social.parents.self?.some((parent) => life.social.parents[person.id]?.includes(parent));
   return !sharesParent && !isFamily(life, person.id) && 'friend' in person && person.friend && !npcProfile(life, person).formerFriend;
@@ -66,13 +66,18 @@ export function prepareIntimacy(life: Life, action: IntimacyAction) {
   if (action.encounter === 'threesome') return { event: 'social-threesome', person: action.first, guest: action.second } as const;
   const attempt = consumeLoveSearch(life, 'hookup');
   const random = npcRandom(life, `hookup-introduction:${attempt}`, life.year);
-  const person = makeNpc(life, `npc-hookup-${life.year}-${attempt}`,
-    Math.min(114, Math.max(18, life.character.age + random.integer(-5, 5))), 'Acquaintance');
-  life.social.people.push(person);
-  relationshipMemory(life, person.id, 'meeting', 2);
-  const profile = ensureNpc(life, person);
-  profile.preferences = [...new Set([life.character.gender, ...profile.preferences])];
-  return { event: 'social-hookup', person: person.id } as const;
+  const prefix = `npc-hookup-${life.year}-${attempt}`;
+  for (let index = 1; index <= hookupCandidateLimit; index++) {
+    const person = makeNpc(life, index === 1 ? prefix : `${prefix}-guest-${index}`,
+      Math.min(114, Math.max(18, life.character.age + random.integer(-5, 5))), 'Acquaintance');
+    if (!agrees(life, person, undefined)) continue;
+    life.social.people.push(person);
+    relationshipMemory(life, person.id, 'meeting', 2);
+    ensureNpc(life, person);
+    return { event: 'social-hookup', person: person.id } as const;
+  }
+  recordNotice(life, 'community', 'No Suitable Profiles', 'I didn’t meet anyone who wanted the same kind of evening.');
+  return null;
 }
 
 function agrees(life: Life, person: Contact, other: Contact | undefined) {
@@ -110,16 +115,17 @@ function privateStories(life: Life, person: Contact, event: IntimacyEvent, guest
 }
 
 function enjoyment(life: Life, event: IntimacyEvent, participants: readonly Contact[]) {
-  const random = npcRandom(life, `enjoyment:${event}:${participants.map(({ id }) => id).join(':')}:${life.journal.length}`, life.year);
+  const ids = participants.map(({ id }) => id).sort().join(':');
+  const variance = (id: string) => npcRandom(life, `enjoyment:${event}:${ids}:${id}:${life.journal.length}`, life.year).integer(-14, 14);
   const shared = participants.reduce((total, { bond }) => total + bond.compatibility * .24 + bond.trust * .14, 0) / participants.length;
   const { happiness, stress } = life.character.attributes;
   return [
-    { person: 'self', value: clamp(Math.round(38 + shared + happiness * .19 - stress * .20 + random.integer(-14, 14))) },
+    { person: 'self', value: clamp(Math.round(38 + shared + happiness * .19 - stress * .20 + variance('self'))) },
     ...participants.map((person) => {
       const { compatibility, affection, trust, resentment } = person.bond;
       const openness = npcProfile(life, person).traits.riskTolerance;
       return { person: person.id, value: clamp(Math.round(31 + compatibility * .22 + affection * .12 + trust * .16 +
-        person.health * .11 + openness * (event === 'social-hookup' ? .13 : .06) - resentment * .21 + random.integer(-14, 14))) };
+        person.health * .11 + openness * (event === 'social-hookup' ? .13 : .06) - resentment * .21 + variance(person.id))) };
     }),
   ];
 }
@@ -147,22 +153,25 @@ export function answerIntimacy(life: Life, event: IntimacyEvent, person: Contact
   }
   const story = pickStory(life, `intimacy:${event}:${person.id}`, privateStories(life, person, event, guest));
   const scores = enjoyment(life, event, participants);
-  let benefit = false;
   for (const contact of participants) {
     const key = `intimacy-accepted:${contact.id}`;
-    if (life.usedActions.filter((item) => item === key).length < 3) {
+    const score = scores.find(({ person: id }) => id === contact.id)!.value;
+    const benefit = score >= 45 && life.usedActions.filter((item) => item === key).length < 3;
+    if (benefit) {
       life.usedActions.push(key);
       contact.bond.affection = clamp(contact.bond.affection + 3);
       contact.bond.trust = clamp(contact.bond.trust + (event === 'social-hookup' ? 1 : 2));
-      benefit = true;
+      meaningfulTime(life, contact, 'time', 3);
     }
     remember(life, contact, story);
-    if (benefit) meaningfulTime(life, contact, 'time', 3);
     if (isPartner(life, contact)) romanceHistory(life, contact.id, story);
   }
   boundaryEvidence(life, participants.map(({ id }) => id), 'intimacy');
   const titles = { 'social-hookup': 'A Night Together', 'social-make-love': 'A Private Evening', 'social-threesome': 'Just the Three of Us' };
-  const notice = recordNotice(life, 'community', titles[event], story, benefit ? { happiness: 3, stress: -2 } : undefined);
+  const enjoyed = scores[0]!.value >= 45 && life.usedActions.filter((item) => item === 'intimacy-player-benefit').length < 3;
+  if (enjoyed) life.usedActions.push('intimacy-player-benefit');
+  const notice = recordNotice(life, 'community', titles[event], story, enjoyed ? { happiness: 3, stress: -2 } : undefined);
   notice.details = { kind: 'enjoyment', scores };
-  if (event === 'social-make-love' && isPartner(life, person)) chanceOfPregnancy(life, person);
+  const entry = life.journal.length;
+  for (const contact of [...participants].sort((a, b) => a.id.localeCompare(b.id))) chanceOfPregnancy(life, contact, entry);
 }

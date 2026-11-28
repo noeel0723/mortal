@@ -1,12 +1,11 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { Text } from 'react-native';
 import { Portrait } from '../../src/components/portrait';
-import { DatingOptions } from '../../src/components/datingOptions';
 import { ActionButton, DataRow, Heading, Page, Section, shared } from '../../src/components/ui';
 import { romanceLabels } from '../../src/engine/love';
 import { findContact } from '../../src/engine/school';
 import type { Contact } from '../../src/engine/types';
-import { datingCandidates, datingSummary, meetingControls, relationshipGroups, relationshipOverview, socialRole } from '../../src/socialView';
+import { datingCandidates, datingSummary, relationshipGroups, relationshipOverview, socialRole } from '../../src/socialView';
 import { useGame } from '../../src/stores/game';
 
 export default function LoveLife() {
@@ -45,8 +44,7 @@ export default function LoveLife() {
       {partners.map((person) => row(person, relationshipOverview(life, person)?.summary))}
     </Section>}
     {prospects.length > 0 && <Section title="Getting to Know Each Other">{prospects.map((person) => row(person))}</Section>}
-    <Section title="Dating">
-      <DatingOptions life={life} controls={meetingControls(life, true)} />
+    <Section title="Connections and History">
       <ActionButton icon="support" label="Ask Someone Out" disabled={life.character.age < 18}
         onPress={() => router.push({ pathname: '/game/love-life', params: { screen: 'profiles' } })} />
       <ActionButton icon="history" label="Relationship History"

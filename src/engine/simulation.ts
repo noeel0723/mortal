@@ -30,7 +30,7 @@ import { relocate } from './relocation.ts';
 import { conversationStory, friendshipStory } from './relationshipStories.ts';
 import { spendTimeWithAll } from './relationshipTime.ts';
 import { answerSocialEvent, applyIntimacy, isSocialEvent, offerSocialEvent } from './socialEvents.ts';
-import { advanceRelationships, applyRelationshipCare, meaningfulTime, responseScale, takingSpace } from './relationships.ts';
+import { advanceEarlyConnections, advanceRelationships, applyRelationshipCare, meaningfulTime, responseScale, takingSpace } from './relationships.ts';
 import { advanceContactOccupation, currentClass, findContact, isPeer, isSchoolStage } from './school.ts';
 import { ageSkills, cloneSkills, incidentalPractice, setHobby, trainSkill } from './skills.ts';
 import { developAcademicSkills } from './skillIntegration.ts';
@@ -170,6 +170,7 @@ function ageUp(life: Life) {
     if (triggered.careerEffects) applyCareerEffect(life, triggered.careerEffects);
   }
   advanceRelationships(life);
+  advanceEarlyConnections(life);
   offerSocialEvent(life);
   recordValuation(life);
   life.random = random.state;

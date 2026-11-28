@@ -9,7 +9,7 @@ import { genderLabels } from '../../src/data/veyra';
 import { educationStatus } from '../../src/engine/academics';
 import { findContact } from '../../src/engine/school';
 import { profileHealthRows } from '../../src/healthView';
-import { relationshipCareControls, relationshipControls, relationshipOverview } from '../../src/socialView';
+import { firstDateControls, relationshipCareControls, relationshipControls, relationshipOverview } from '../../src/socialView';
 import { useGame } from '../../src/stores/game';
 import { space } from '../../src/theme/tokens';
 
@@ -17,6 +17,7 @@ export default function Person() {
   const { id, source } = useLocalSearchParams<{ id?: string; source?: string }>();
   const { slot, busy, dispatch } = useGame();
   const [profileId, setProfileId] = useState<string | null>(null);
+  const [dateId, setDateId] = useState<string>();
   if (!slot) return null;
   const life = slot.life;
   const { character } = life;
@@ -42,6 +43,7 @@ export default function Person() {
   const care = person ? relationshipCareControls(life, person) : [];
   const overview = person ? relationshipOverview(life, person) : null;
   const memories = person ? contactHistory(life, person) : [];
+  const interactions = person ? contactInteractions(life, person) : [];
   return (
     <Page inGame>
       <Heading title={person ? contactRole(person, life) : 'Character'}
@@ -50,22 +52,31 @@ export default function Person() {
         <ActionButton icon="person" label={person.name} onPress={() => setProfileId(person.id)}
           leading={<Portrait appearance={person.appearance} age={person.age} />}
           detail={overview?.summary ?? `${person.alive ? `Age ${person.age}` : 'Deceased'} · Affection ${person.bond.affection}%`} />
-        <Section title="Interactions">
-          {contactInteractions(life, person).map((item) => (
+        {interactions.length > 0 && <Section title="Interactions">
+          {interactions.map((item) => (
             <ActionButton key={item.label} icon={item.icon} label={item.label} detail={item.issue ?? item.detail}
               disabled={busy || !!item.issue} onPress={() => void dispatch(item.action)} />
           ))}
-        </Section>
+        </Section>}
         {controls.length > 0 && <Section title={person.role === 'Child' ? 'Parenting' : 'Love Life'}>
           {controls.map((item) => <ActionButton key={item.label} icon={item.icon} label={item.label}
-            detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onPress={() => void dispatch(item.action)} />)}
+            detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onPress={() => {
+              if (item.action.type === 'romance' && item.action.action === 'ask') setDateId(person.id);
+              else void dispatch(item.action);
+            }} />)}
         </Section>}
         {care.length > 0 && <Section title="Relationship & Communication">
           {overview?.agreement && <DataRow label="Agreement" value={overview.agreement} />}
+          {overview?.goal && <DataRow label="Relationship Goal" value={overview.goal} />}
           {overview?.concerns.map((row) => <DataRow key={row.label} {...row} />)}
           {care.map((item) => <ActionButton key={item.label} icon={item.icon} label={item.label}
             detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onPress={() => void dispatch(item.action)} />)}
         </Section>}
+        {dateId === person.id && <DetailModal title="Choose a Date Venue" open onDismiss={() => setDateId(undefined)}>
+          {firstDateControls(life, person).map((item) => <ActionButton key={item.label} icon={item.icon} label={item.label}
+            detail={item.issue ?? item.detail} disabled={busy || !!item.issue}
+            onPress={() => { setDateId(undefined); void dispatch(item.action); }} />)}
+        </DetailModal>}
         <DetailModal title="Character Profile" open={profileId === person.id} onDismiss={() => setProfileId(null)}>
           <View style={styles.identity}>
             <Portrait appearance={person.appearance} age={person.age} size={52} label={`Portrait of ${person.name}`} />

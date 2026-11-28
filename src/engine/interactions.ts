@@ -3,7 +3,7 @@ import { applyCareerEffect } from './career.ts';
 import { eventTitle, recordNotice, resultMeter } from './eventNotices.ts';
 import { clamp } from './journal.ts';
 import { interactionStory } from './relationshipStories.ts';
-import { inPersonIssue, knownRelationship, meaningfulTime, openConcern, responseScale, takingSpace } from './relationships.ts';
+import { communicationEnded, inPersonIssue, knownRelationship, meaningfulTime, openConcern, responseScale, takingSpace } from './relationships.ts';
 import { ensureNpc, isParent, npcProfile, npcRandom, remember } from './npcs.ts';
 import { findContact, isCurrentClassContact, isPeer } from './school.ts';
 import { isWorkAcquaintance, isWorkContact } from './workplace.ts';
@@ -52,6 +52,7 @@ export function contactGroup(person: Contact): ContactGroup {
 
 export function contactIssue(life: Life, person: Contact) {
   if (!person.alive) return 'This person is no longer available.';
+  if (communicationEnded(life, person.id)) return 'Communication with this person has ended.';
   if (isWorkContact(person) && !person.friend && !isWorkAcquaintance(person) &&
     person.employerId !== life.career.current?.employerId) return 'This contact is from a previous workplace.';
   if ('stage' in person && !person.friend && !isCurrentClassContact(life, person)) return 'This contact is from a previous class.';

@@ -1,6 +1,6 @@
 import { skills } from '../data/skills.ts';
-import { datingProfileIssue, playerDatingProfile, validDatingProfile } from './dating.ts';
-import type { DatingGoal, DatingProfile } from './dating.ts';
+import { compatibleGoals, datingProfileIssue, playerDatingProfile, validDatingProfile } from './dating.ts';
+import type { DatingProfile } from './dating.ts';
 import { datingCandidate, datingPool, datingPoolSize, matchesSearch } from './datingPool.ts';
 import type { DatingCandidate } from './datingPool.ts';
 import { recordNotice } from './eventNotices.ts';
@@ -33,8 +33,19 @@ export function updateDatingProfile(life: Life, profile: DatingProfile) {
 }
 
 export function pendingDatingProfile(life: Life) {
-  const pending = life.social.datingCycle?.pending;
-  return pending && { ...datingCandidate(life, pending.candidate), intro: introductions[pending.source] };
+  const cycle = life.social.datingCycle;
+  const pending = cycle?.pending;
+  if (!pending) return undefined;
+  const candidate = datingCandidate(life, pending.candidate);
+  const intro = pending.source === 'date' && cycle.background === 2 ?
+    npcRandom(life, `introduction:${candidate.person.id}`).pick([
+      'We started talking while waiting for coffee at a local café.',
+      'We stopped to talk on the same walking path in the park.',
+      'We were introduced at a neighborhood community event.',
+      'We ended up at the same table at a hobby meetup.',
+      'Someone we both knew introduced us and we struck up a conversation.',
+    ]) : introductions[pending.source];
+  return { ...candidate, intro };
 }
 
 export function validDatingState(life: Life) {
@@ -43,6 +54,7 @@ export function validDatingState(life: Life) {
   if (datingProfile !== undefined && (!validDatingProfile(datingProfile) || life.character.age < 18)) return false;
   if (datingCycle === undefined) return !discovering;
   if (!datingCycle || datingCycle.year !== life.year || life.character.age < 18 ||
+    (datingCycle.background !== undefined && datingCycle.background !== 2) ||
     !Array.isArray(datingCycle.viewed) || datingCycle.viewed.length > datingSources.length * annualLoveSearches ||
     new Set(datingCycle.viewed).size !== datingCycle.viewed.length ||
     !datingCycle.viewed.every((index) => Number.isInteger(index) && index >= 0 && index < datingPoolSize)) return false;
@@ -70,18 +82,12 @@ export function searchDatingPool(life: Life, action: Extract<SocialAction, { typ
     recordNotice(life, 'community', 'No Suitable Profiles', 'I didn’t find anyone new who matched my preferences this time.');
     return null;
   }
-  life.social.datingCycle = { year: life.year, viewed: [...viewed, candidate.index], pending: { candidate: candidate.index, source } };
+  life.social.datingCycle = { ...life.social.datingCycle ?? { background: 2 }, year: life.year,
+    viewed: [...viewed, candidate.index], pending: { candidate: candidate.index, source } };
   life.pending = discoveryEvent;
   if (!life.seen.includes(discoveryEvent)) life.seen.push(discoveryEvent);
   record(life, 'community', `I discovered ${candidate.person.name}.`);
   return null;
-}
-
-function compatibleGoals(player: DatingGoal, other: DatingGoal) {
-  if (player === 'not-looking' || other === 'not-looking') return false;
-  if (player === 'undecided' || other === 'undecided' || player === other) return true;
-  return (player === 'long-term' && other === 'marriage') || (player === 'marriage' && other === 'long-term') ||
-    (player === 'companionship' && other === 'long-term') || (player === 'long-term' && other === 'companionship');
 }
 
 function interestResponse(life: Life, candidate: DatingCandidate) {
@@ -100,7 +106,7 @@ export function answerDatingDiscovery(life: Life, liked: boolean) {
   const cycle = life.social.datingCycle;
   const pending = pendingDatingProfile(life);
   if (!cycle || !pending) return;
-  life.social.datingCycle = { year: cycle.year, viewed: cycle.viewed };
+  life.social.datingCycle = { year: cycle.year, viewed: cycle.viewed, ...(cycle.background ? { background: cycle.background } : {}) };
   const { person, profile } = pending;
   if (!liked) {
     record(life, 'decision', `I passed on ${person.name}’s profile.`);

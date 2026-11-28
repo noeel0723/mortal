@@ -7,6 +7,7 @@ import { recordNotice } from './eventNotices.ts';
 import { clamp } from './journal.ts';
 import { indexedCents, localExpense, marketSalaryFactor } from './pricing.ts';
 import { npcNamePicker } from './npcNames.ts';
+import { qualifiedNpc } from './npcQualifications.ts';
 import { seededRandom } from './random.ts';
 import { national } from './world.ts';
 import type { WorldState } from './worldTypes.ts';
@@ -135,9 +136,6 @@ export function ageNewPeople(life: Life, maxAge: number) {
   }
 }
 
-const levels = { 'high-school': 2, vocational: 3, undergraduate: 4, postgraduate: 5 };
-const educationLevel = { 'Early childhood': 0, School: 1, 'High school': 2, Vocational: 3, Undergraduate: 4, Postgraduate: 5 };
-
 export function advanceNpcLives(life: Life, elapsedWorld: WorldState = life.world) {
   const contacts = allContacts(life);
   const byId = new Map(contacts.map((person) => [person.id, person]));
@@ -205,8 +203,7 @@ export function advanceNpcLives(life: Life, elapsedWorld: WorldState = life.worl
           updates++;
         }
       }
-      const fits = (job: typeof jobs[number]) => person.age >= job.age && job.experience <= profile.experience &&
-        (!job.qualification || levels[job.qualification] <= educationLevel[profile.education]) && !job.tags.length;
+      const fits = (job: typeof jobs[number]) => qualifiedNpc(person.age, profile, job);
       const promoted = profile.status === 'employed' && current && random.next() < (profile.traits.ambition + profile.traits.discipline) / 900 * (demand / 55)
         ? current.promotions.map((id) => jobById.get(id)!).find(fits) : undefined;
       const canChange = profile.status === 'seeking' ? !lostJob && random.next() < Math.max(.18, Math.min(.82, .65 + (market.jobs - 53) / 105)) :

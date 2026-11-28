@@ -17,7 +17,7 @@ import { discoveryEvent } from '../src/engine/datingDiscovery.ts';
 import { incomeTax, outstanding } from '../src/engine/finance.ts';
 import { familyIssue } from '../src/engine/familyLife.ts';
 import { activeRomance, activeRomances, datingCompatibility, loveIssue } from '../src/engine/love.ts';
-import { agreementFor, careIssue, relationshipSatisfaction, visibleConcerns } from '../src/engine/relationships.ts';
+import { agreementFor, careIssue, earlyConnection, inPersonIssue, relationshipSatisfaction, visibleConcerns } from '../src/engine/relationships.ts';
 import type { RelationshipCareAction } from '../src/engine/relationshipTypes.ts';
 import { allContacts, newPeopleLimit } from '../src/engine/npcs.ts';
 import { doctors } from '../src/data/doctors.ts';
@@ -378,22 +378,32 @@ function socialChoice(life: Life, seed: number, strategy: RelationshipStrategy) 
       .filter(({ id }) => !sources || sources.includes(id))
       .sort((a, b) => datingCompatibility(life, b) - datingCompatibility(life, a));
     const candidate = candidates.find((person) => (seed + life.year) % 4 !== 0 &&
-      !loveIssue(life, { type: 'romance', person: person.id, action: 'ask' }));
+      (!loveIssue(life, { type: 'romance', person: person.id, action: 'ask' }) ||
+        (earlyConnection(life, person.id) && !careIssue(life, person, 'visit'))));
     if (candidate) {
-      if (candidate.bond.trust < 65) {
+      const early = earlyConnection(life, candidate.id);
+      const balance = life.character.bank;
+      if (early && candidate.bond.trust < 65 && !careIssue(life, candidate, 'message')) {
+        life = apply(life, { type: 'relationship-care', person: candidate.id, action: 'message' });
+      } else if (!early && candidate.bond.trust < 65) {
         const result = advance(life, { type: 'talk', person: candidate.id });
         if (result.life) life = result.life;
       }
-      const ask = { type: 'romance', person: candidate.id, action: 'ask' } as const;
-      if (!loveIssue(life, ask)) {
-        const balance = life.character.bank;
+      if (early && inPersonIssue(life, candidate) && !careIssue(life, candidate, 'visit')) {
+        life = apply(life, { type: 'relationship-care', person: candidate.id, action: 'visit' });
+      }
+      const preferred = (['park', 'coffee', 'cinema', 'restaurant', 'museum', 'concert'] as const)[(seed + life.year) % 6]!;
+      const ask = ([preferred, 'park'] as const).map((venue) => ({
+        type: 'romance', person: candidate.id, action: 'ask', venue,
+      } as const)).find((action) => !loveIssue(life, action));
+      if (ask) {
         const firstDate = life.social.relationships[candidate.id]?.milestones.date === undefined;
         life = apply(life, ask);
         if (candidate.id.startsWith('npc-pool-')) {
           datingStats.firstDates += Number(firstDate && life.social.relationships[candidate.id]?.milestones.date !== undefined);
-          datingStats.directCostCents += balance - life.character.bank;
         }
       }
+      if (candidate.id.startsWith('npc-pool-')) datingStats.directCostCents += balance - life.character.bank;
     } else {
       search();
     }
@@ -631,7 +641,7 @@ for (let seed = 1; seed <= count; seed++) {
   relationshipStats.concurrentNonExclusive += Number(hadConcurrent);
   for (const romance of life.social.romances) {
     const state = life.social.relationships[romance.person];
-    if (state?.milestones.date) {
+    if (state?.milestones.date && !['getting-to-know', 'interest', 'contact-ended'].includes(romance.status)) {
       const duration = (romance.ended ?? life.year) - romance.started;
       relationshipStats.duration.push(duration);
       if (romance.person.startsWith('npc-pool-')) datingOutcomes.get(datingStrategyFor(seed))!.duration.push(duration);
