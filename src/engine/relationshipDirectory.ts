@@ -1,6 +1,6 @@
 import { activeRomances, romanceFor } from './love.ts';
 import { communicationEnded } from './relationships.ts';
-import { allContacts, isFamily } from './npcs.ts';
+import { allContacts, isFamily, isParent } from './npcs.ts';
 import { friendshipLabels, friendshipStage } from './friendships.ts';
 import { isCurrentClassContact, isPeer } from './school.ts';
 import { isWorkAcquaintance, isWorkContact } from './workplace.ts';
@@ -22,9 +22,13 @@ export function relationshipGroups(life: Life) {
   const matching = life.pending === 'social-dating-match' || life.pending === 'social-casual-match' || life.pending === 'social-hookup' ||
     life.social.pendingEncounter === 'social-hookup';
   const known = allContacts(life).filter(({ id }) => !matching || id !== life.social.pendingPerson);
-  const partnerIds = new Set(activeRomances(life).map(({ person }) => person));
+  const romances = activeRomances(life);
+  const partnerIds = new Set(romances.filter(({ status }) => status !== 'married').map(({ person }) => person));
+  const spouseIds = new Set(romances.filter(({ status }) => status === 'married').map(({ person }) => person));
   return {
-    family: known.filter(({ id }) => isFamily(life, id)),
+    parents: known.filter(({ id }) => isParent(life, id)),
+    family: known.filter(({ id }) => spouseIds.has(id) || life.social.parents[id]?.includes('self')),
+    relatives: known.filter(({ role }) => role === 'Sibling' || role === 'Grandparent'),
     partners: known.filter(({ id }) => partnerIds.has(id)),
     prospects: known.filter(({ id, alive }) => alive && ['getting-to-know', 'interest'].includes(romanceFor(life, id)?.status ?? '')),
     friends: known.filter((person) => !isFamily(life, person.id) && !partnerIds.has(person.id) && 'friend' in person && person.friend && !former(person)),

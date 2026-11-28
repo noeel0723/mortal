@@ -19,7 +19,6 @@ import { workAge, workHours } from '../src/engine/career';
 import { industries } from '../src/engine/careerTypes';
 import { currentClass, findContact, isPeer, isSchoolStage } from '../src/engine/school';
 import { spendTimeAllIssue } from '../src/engine/relationshipTime';
-import { romanceLabels } from '../src/engine/love';
 import { intimacyGuests, intimacyIssue } from '../src/engine/intimacy';
 import { isDatingApp } from '../src/engine/dating';
 import type { DatingAppSource } from '../src/engine/dating';
@@ -823,13 +822,16 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           <MenuRow icon="together" title="Spend Time with All" detail={issue ?? 'Catch up with your relationships'}
             disabled={busy || !!issue} onClick={() => void dispatch({ type: 'spend-time-all' })} />
         </div>
+        {groups.parents.length > 0 && <PageGroup title="Parents">
+          {groups.parents.map((parent) => <PersonRow key={parent.id} life={life} person={parent} onClick={() => go('person', parent.id)} />)}
+        </PageGroup>}
         <PageGroup title="Family">
           {groups.family.map((relative) => <PersonRow key={relative.id} life={life} person={relative} onClick={() => go('person', relative.id)} />)}
           <MenuRow icon="tree" title="Family Tree" onClick={() => go('family-tree')} />
         </PageGroup>
         <PageGroup title="Love Life">
-          <MenuRow icon="rose" title="Open Love Life" detail={groups.partners.length ? groups.partners.map(({ name }) => name).join(', ') : 'Dating, partners, and relationship history.'}
-            onClick={() => go('love-life')} />
+          {groups.partners.map((partner) => <PersonRow key={partner.id} life={life} person={partner} onClick={() => go('person', partner.id)} />)}
+          <MenuRow icon="rose" title="Open Love Life" detail="Dating, connections, and relationship history." onClick={() => go('love-life')} />
         </PageGroup>
         {groups.friends.length > 0 && <PageGroup title="Friends">
           {groups.friends.map((friend) => <PersonRow key={friend.id} life={life} person={friend} onClick={() => go('person', friend.id)} />)}
@@ -879,7 +881,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       return life.social.romances.length ? life.social.romances.map((entry) => {
         const person = findContact(life, entry.person)!;
         return <PageGroup key={person.id} title={person.name}>
-          <PersonRow life={life} person={person} detail={`${romanceLabels[entry.status]} · Since ${entry.started}`}
+          <PersonRow life={life} person={person} detail={`${contactRole(person, life)} · Since ${entry.started}`}
             onClick={() => go('person', person.id)} />
           {entry.history.map(({ year, text }, index) => <MenuRow key={index} title={String(year)} detail={text} />)}
         </PageGroup>;

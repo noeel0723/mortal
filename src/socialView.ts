@@ -22,7 +22,7 @@ export { friendshipLabel, relationshipGroups };
 
 export function socialRole(life: Life, person: Contact) {
   const relationship = romanceFor(life, person.id);
-  if (relationship?.status === 'married') return 'Spouse';
+  if (relationship?.status === 'married') return { woman: 'Wife', man: 'Husband', nonbinary: 'Spouse' }[person.gender];
   if (relationship) return romanceLabels[relationship.status];
   if (isFamily(life, person.id)) return person.role;
   if (communicationEnded(life, person.id)) return 'Communication Ended';
@@ -44,9 +44,9 @@ export function personalityLabels(life: Life, person: Contact) {
 export function familyTreeGroups(life: Life) {
   const groups = relationshipGroups(life);
   return [
-    { label: 'Grandparents', people: groups.family.filter(({ role }) => role === 'Grandparent') },
-    { label: 'Parents', people: life.family },
-    { label: 'Siblings', people: groups.family.filter(({ role }) => role === 'Sibling') },
+    { label: 'Grandparents', people: groups.relatives.filter(({ role }) => role === 'Grandparent') },
+    { label: 'Parents', people: groups.parents },
+    { label: 'Siblings', people: groups.relatives.filter(({ role }) => role === 'Sibling') },
     { label: 'Spouse and former spouses', people: [...groups.family, ...groups.former].filter((person) => {
       const entry = romanceFor(life, person.id);
       return entry?.wedding != null;

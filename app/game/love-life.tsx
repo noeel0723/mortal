@@ -2,7 +2,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Text } from 'react-native';
 import { Portrait } from '../../src/components/portrait';
 import { ActionButton, DataRow, Heading, Page, Section, shared } from '../../src/components/ui';
-import { romanceLabels } from '../../src/engine/love';
 import { findContact } from '../../src/engine/school';
 import type { Contact } from '../../src/engine/types';
 import { datingCandidates, datingSummary, relationshipGroups, relationshipOverview, socialRole } from '../../src/socialView';
@@ -32,7 +31,7 @@ export default function LoveLife() {
     {life.social.romances.length ? life.social.romances.map((entry) => {
       const person = findContact(life, entry.person)!;
       return <Section key={entry.person} title={person.name}>
-        {row(person, `${romanceLabels[entry.status]} · Since ${entry.started}`)}
+        {row(person, `${socialRole(life, person)} · Since ${entry.started}`)}
         {entry.history.map(({ year, text }, index) => <DataRow key={index} label={String(year)} value={text} />)}
       </Section>;
     }) : <Text style={shared.body}>Your relationship history is empty.</Text>}</Page>;

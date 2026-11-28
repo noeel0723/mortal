@@ -20,12 +20,16 @@ export default function Relationships() {
       <Heading title="Relationships" back={() => router.dismissTo('/game')} />
       <ActionButton icon="together" label="Spend Time with All" compactDetail detail={issue ?? 'Catch up with your relationships'}
         disabled={busy || !!issue} onPress={() => void dispatch({ type: 'spend-time-all' })} />
+      {groups.parents.length > 0 && <Section title="Parents">{groups.parents.map(row)}</Section>}
       <Section title="Family">
         {groups.family.map(row)}
         <ActionButton icon="tree" label="Family Tree" onPress={() => router.push('/game/family-tree')} />
       </Section>
-      <Section title="Love Life"><ActionButton icon="rose" label="Open Love Life" detail={groups.partners.map(({ name }) => name).join(', ') || undefined}
-        onPress={() => router.push('/game/love-life')} /></Section>
+      <Section title="Love Life">
+        {groups.partners.map(row)}
+        <ActionButton icon="rose" label="Open Love Life" detail="Dating, connections, and relationship history."
+          onPress={() => router.push('/game/love-life')} />
+      </Section>
       {groups.friends.length > 0 && <Section title="Friends">{groups.friends.map(row)}</Section>}
       {groups.acquaintances.length > 0 && <Section title="Acquaintances">{groups.acquaintances.map(row)}</Section>}
       {groups.former.length > 0 && <Section title="Former Relationships">{groups.former.map(row)}</Section>}

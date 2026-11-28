@@ -34,7 +34,7 @@ import { datingSources } from '../src/engine/socialTypes.ts';
 import type { Action, CommunityFriend, Life } from '../src/engine/types.ts';
 import { eventPopup } from '../src/eventView.ts';
 import { assetDetails, householdRows, ownedListings } from '../src/propertyView.ts';
-import { datingCandidates, familyTreeGroups, firstDateControls, friendshipLabel, relationshipCareControls, relationshipControls, relationshipGroups } from '../src/socialView.ts';
+import { datingCandidates, familyTreeGroups, firstDateControls, friendshipLabel, relationshipCareControls, relationshipControls, relationshipGroups, socialRole } from '../src/socialView.ts';
 
 function act(life: Life, action: Action) {
   const result = advance(life, action);
@@ -1146,6 +1146,14 @@ test('marriage, both child paths, parenting, childcare, and divorce preserve fam
   life = act(life, { type: 'plan-child', person: id, method: 'family', name: 'Ari' });
   const first = life.social.people.find(({ role }) => role === 'Child')!;
   assert.deepEqual(life.social.parents[first.id], ['self', id]);
+  const groups = relationshipGroups(decodeLife(JSON.stringify(life)));
+  assert.deepEqual(groups.parents.map(({ id }) => id), life.family.map(({ id }) => id));
+  assert.deepEqual(new Set(groups.family.map(({ id }) => id)), new Set([id, first.id]));
+  assert.equal(groups.partners.length, 0);
+  const spouse = findContact(life, id)!;
+  assert.equal(socialRole(life, { ...spouse, gender: 'woman' }), 'Wife');
+  assert.equal(socialRole(life, { ...spouse, gender: 'man' }), 'Husband');
+  assert.equal(socialRole(life, { ...spouse, gender: 'nonbinary' }), 'Spouse');
   life = act(life, { type: 'parent-child', person: first.id, action: 'read' });
   assert.ok(life.social.profiles[first.id]!.memories.some(({ text }) => /read/i.test(text)));
   const costs = localExpense(life.world, life.character.city, annualChildcare(life));

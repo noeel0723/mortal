@@ -51,6 +51,7 @@ try {
   page.on('pageerror', (error) => errors.push(error.message));
   const button = (name) => page.getByRole('button', { name, exact: true });
   const heading = (name) => page.getByRole('heading', { name, exact: true });
+  const section = (name) => page.locator('.play-group').filter({ has: heading(name) });
   const dialog = (name) => page.getByRole('dialog', { name, exact: true });
   const click = (name) => button(name).click();
   const slot = 'social-v6-test';
@@ -135,6 +136,9 @@ try {
   await page.locator('.profile-identity p').filter({ hasText: 'Age 26 ·' }).waitFor();
   await acknowledgeEvents(page, true);
   await click('Family');
+  for (const parent of life.family) await section('Parents').getByRole('button', { name: parent.name, exact: true }).waitFor();
+  await section('Love Life').getByRole('button', { name: friend.name, exact: true }).waitFor();
+  assert.equal(await section('Family').getByRole('button', { name: friend.name, exact: true }).count(), 0);
   await click('Open Love Life');
   await click(friend.name);
   if ((await read()).social.romances.find(({ person }) => person === friend.id).status === 'committed') {
@@ -154,6 +158,10 @@ try {
   await acknowledgeEvents(page);
   const child = (await read()).social.people.find(({ role }) => role === 'Child');
   await click('Back to Relationships');
+  const spouseRole = { woman: 'Wife', man: 'Husband', nonbinary: 'Spouse' }[friend.gender];
+  await section('Family').getByRole('button', { name: friend.name, exact: true }).getByText(new RegExp(`^${spouseRole} ·`)).waitFor();
+  await section('Family').getByRole('button', { name: child.name, exact: true }).waitFor();
+  assert.equal(await section('Love Life').getByRole('button', { name: friend.name, exact: true }).count(), 0);
   await click('Family Tree');
   await heading('Children').waitFor();
   await click(child.name);
