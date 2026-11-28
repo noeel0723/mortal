@@ -23,7 +23,11 @@ import { isDatingApp } from '../src/engine/dating';
 import type { DatingAppSource } from '../src/engine/dating';
 import { childParents, datingCandidates, datingControls, datingSummary, familyTreeGroups, meetingControls, relationshipCareControls,
   relationshipControls, relationshipGroups, relationshipOverview } from '../src/socialView';
-import { canEditFace } from '../src/engine/appearance';
+import { accessoryIssue, accessoryOptions, canEditFace, noAccessories } from '../src/engine/appearance';
+import type { Accessories } from '../src/engine/appearance';
+import { adoptionCandidates, adoptionIssue } from '../src/engine/adoption';
+import { availableProcedures, findProcedure, surgeryIssue } from '../src/engine/plasticSurgery';
+import { accessoryFields, adoptionProfile, surgeonRows } from '../src/personalCareView';
 import { propertyIssue, propertyQuote } from '../src/engine/property';
 import { assetArt } from '../src/portraits/assetArt';
 import { assetDetails, householdRows, housingControls, listingsFor, ownedListings, ownershipDetail, propertyCategories, residenceLabel, shoppingCategory } from '../src/propertyView';
@@ -104,6 +108,9 @@ export const pageTitles = {
   'mind-body': 'Mind & Body',
   doctor: 'Doctors',
   appearance: 'Appearance',
+  accessories: 'Accessories',
+  adoption: 'Adoption',
+  'plastic-surgery': 'Plastic Surgery',
   statistics: 'Life Statistics',
   skills: 'My Skills',
   'skill-training': 'Skill Training',
@@ -170,6 +177,9 @@ const parentPages: Partial<Record<DetailPage, GamePage>> = {
   transactions: 'assets',
   fund: 'investments',
   appearance: 'activities',
+  accessories: 'activities',
+  adoption: 'activities',
+  'plastic-surgery': 'activities',
   doctor: 'activities',
   love: 'activities',
   threesome: 'love',
@@ -177,6 +187,7 @@ const parentPages: Partial<Record<DetailPage, GamePage>> = {
   skills: 'statistics',
   'skill-training': 'activities',
   skill: 'skills',
+  world: 'player-profile',
   'world-industries': 'world',
   'world-cities': 'world',
   'world-city': 'world-cities',
@@ -521,6 +532,82 @@ function WorldCity({ life, city }: { life: Life; city: City }) {
   </>;
 }
 
+function AccessoriesPage({ life }: { life: Life }) {
+  const { busy, dispatch } = useGame();
+  const [choices, setChoices] = useState<Accessories>(life.character.appearance.accessories ?? noAccessories);
+  const { appearance, age } = life.character;
+  const issue = accessoryIssue(life, choices);
+  return <div className="play-group-content">
+    <div className="profile-art"><Portrait appearance={{ ...appearance, accessories: choices }} age={age} label="Accessory preview" large /></div>
+    <div className="personal-care-form">
+      <div className="field-grid">{accessoryFields.map(({ key, label, remove }) =>
+        <label key={key}>{label}<select value={choices[key]} onChange={(event) => {
+          const value = accessoryOptions[key].find((item) => item === event.target.value);
+          if (value) setChoices({ ...choices, [key]: value });
+        }}>
+          {accessoryOptions[key].map((item) => <option key={item} value={item}>{item === 'None' ? remove : item}</option>)}
+        </select></label>
+      )}</div>
+      <Button kind="primary" icon="accept" disabled={busy || !!issue}
+        onClick={() => void dispatch({ type: 'change-accessories', choices })}>Save Accessories</Button>
+    </div>
+  </div>;
+}
+
+function AdoptionPage({ life }: { life: Life }) {
+  const { busy, dispatch } = useGame();
+  const [selected, setSelected] = useState<string>();
+  const candidates = adoptionCandidates(life);
+  const candidate = candidates.find(({ person }) => person.id === selected);
+  const profile = candidate && adoptionProfile(candidate);
+  const issue = adoptionIssue(life);
+  return <>
+    <PageGroup title="Children Available">
+      {candidates.map(({ person, behavior }) =>
+        <MenuRow key={person.id} title={person.name} detail={en.age(person.age)}
+          avatar={<Portrait appearance={person.appearance} age={person.age} />} opensDialog onClick={() => setSelected(person.id)}>
+          <PageMeter label="Behavior" value={behavior} />
+        </MenuRow>)}
+    </PageGroup>
+    {candidate && profile && <DetailDialog title="Adoption Profile" onDismiss={() => setSelected(undefined)}>
+      <div className="personal-care-identity">
+        <Portrait appearance={candidate.person.appearance} age={candidate.person.age} label={`Portrait of ${candidate.person.name}`} />
+        <strong>{candidate.person.name}</strong>
+      </div>
+      <Rows items={profile.details} />
+      <div className="detail-bond">{profile.meters.map((row) => <PageMeter key={row.label} {...row} />)}</div>
+      {issue && <p className="play-empty">{issue}</p>}
+      <Button kind="primary" icon="adoption" className="personal-care-action" disabled={busy || !!issue} onClick={() => {
+        setSelected(undefined);
+        void dispatch({ type: 'adopt-child', person: candidate.person.id });
+      }}>Adopt Child</Button>
+    </DetailDialog>}
+  </>;
+}
+
+function SurgeryPage({ life }: { life: Life }) {
+  const { busy, dispatch } = useGame();
+  const [selected, setSelected] = useState<string>();
+  const procedure = findProcedure(life, selected);
+  const issue = surgeryIssue(life);
+  return <>
+    <PageGroup title="Cosmetic Procedures">
+      {availableProcedures(life).map(({ id, title, detail, icon }) =>
+        <MenuRow key={id} title={title} detail={issue ?? detail} icon={icon} opensDialog
+          disabled={busy || !!issue} onClick={() => setSelected(id)} />)}
+    </PageGroup>
+    {procedure && <DetailDialog title={procedure.title} onDismiss={() => setSelected(undefined)}>
+      <p>Choose a surgeon. A complication can lower Looks.</p>
+      <div className="personal-care-providers">{surgeonRows(life, procedure).map(({ surgeon, detail, issue: blocked }) =>
+        <MenuRow key={surgeon.id} title={surgeon.name} icon="medical" detail={blocked ? `${detail} · ${blocked}` : detail}
+          disabled={busy || !!blocked} onClick={() => {
+            setSelected(undefined);
+            void dispatch({ type: 'plastic-surgery', procedure: procedure.id, surgeon: surgeon.id });
+          }} />)}</div>
+    </DetailDialog>}
+  </>;
+}
+
 export function PlayPage({ life, page, person, detail, go, home, newLife }: {
   life: Life; page: DetailPage; person?: Contact; detail?: string; go: Navigate; home: () => void; newLife: () => void;
 }) {
@@ -777,10 +864,12 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           { label: character.causeOfDeath ? 'Age at death' : 'Age', value: character.age },
           { label: 'Gender identity', value: genderLabels[character.gender] },
           { label: 'Birth city', value: character.birthCity },
-          ...(character.city !== character.birthCity ? [{ label: 'Current city', value: character.city }] : []),
+          { label: 'Current city', value: character.city },
+          { label: 'Year', value: life.year },
           { label: 'Education', value: educationStatus(life) },
           ...profileHealthRows(life),
         ]} />
+        <MenuRow icon="world" title="World" detail="News, cities, and relocation" onClick={() => go('world')} />
       </PageGroup>;
     case 'person':
     case 'person-info':
@@ -904,10 +993,15 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
     case 'activities':
       return <>
         <PageGroup title="Love"><MenuRow icon="health" title="Love" detail="Meet someone new" onClick={() => go('love')} /></PageGroup>
-        <PageGroup title="Healthcare"><MenuRow icon="medical" title="Doctors" detail="Get medical care" onClick={() => go('doctor')} /></PageGroup>
+        <PageGroup title="Healthcare">
+          <MenuRow icon="medical" title="Doctors" detail="Get medical care" onClick={() => go('doctor')} />
+          <MenuRow icon="adoption" title="Adoption" detail="Meet children available for adoption" onClick={() => go('adoption')} />
+          <MenuRow icon="surgery" title="Plastic Surgery" detail="Browse cosmetic procedures" onClick={() => go('plastic-surgery')} />
+        </PageGroup>
         {!character.causeOfDeath && <PageGroup title="Appearance">
           <MenuRow icon="hair" title={canEditFace(character.age) ? 'Customize Appearance' : 'Change Hairstyle'}
             onClick={() => go('appearance')} />
+          <MenuRow icon="hat" title="Accessories" detail="Try hats and glasses" onClick={() => go('accessories')} />
         </PageGroup>}
         <PageGroup title="Wellbeing">
           <MenuRow icon="meditation" title="Mind & Body" detail="Rest, exercise, and unwind" onClick={() => go('mind-body')} />
@@ -938,6 +1032,12 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       return <PageGroup title="Wellbeing Activities">{mindAndBodyActivities(life).map(activityRow)}</PageGroup>;
     case 'doctor':
       return <DoctorsPage life={life} />;
+    case 'accessories':
+      return <AccessoriesPage life={life} />;
+    case 'adoption':
+      return <AdoptionPage life={life} />;
+    case 'plastic-surgery':
+      return <SurgeryPage life={life} />;
     case 'appearance':
       return <AppearancePage life={life} back={() => go('activities')} />;
     case 'statistics':

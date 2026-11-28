@@ -61,8 +61,10 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
   if (!Array.isArray(social.parents.self) || social.parents.self.length !== life.family.length ||
     !life.family.every(({ id }) => social.parents.self!.includes(id))) return false;
   for (const [child, parents] of Object.entries(social.parents)) {
+    const childRecord = social.children[child];
+    const parentYear = childRecord?.adopted === true && date(childRecord.year) ? childRecord.year : exists(child) ? born(child) : 0;
     if (!exists(child) || !Array.isArray(parents) || parents.length === 0 || parents.length > 2 || new Set(parents).size !== parents.length ||
-      !parents.every((parent) => typeof parent === 'string' && exists(parent) && born(child) - born(parent) >= 18)) return false;
+      !parents.every((parent) => typeof parent === 'string' && parent !== child && exists(parent) && parentYear - born(parent) >= 18)) return false;
   }
   for (const [id, child] of Object.entries(social.children)) {
     if (!social.people.some((person) => person.id === id && person.role === 'Child') ||
@@ -70,7 +72,7 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
       ![child.wellbeing, child.learning, child.confidence].every((value) => integer(value, 0, 100)) ||
       (child.driving !== undefined && (!Array.isArray(child.driving) || new Set(child.driving).size !== child.driving.length ||
         child.driving.some((kind) => kind !== 'cars' && kind !== 'motorcycles') || year - born(id) < 15)) ||
-      !social.parents[id]?.includes('self') || social.parents[id]?.length !== 2) return false;
+      !social.parents[id]?.includes('self') || (!child.adopted && social.parents[id]?.length !== 2)) return false;
   }
   for (const person of social.people) {
     if (person.role === 'Child' && !Object.hasOwn(social.children, person.id)) return false;

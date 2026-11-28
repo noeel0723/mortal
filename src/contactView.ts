@@ -50,6 +50,7 @@ export function contactProfileRows(life: Life, person: Contact) {
     { label: person.alive ? 'Age' : 'Age at death', value: person.age },
     { label: 'Gender identity', value: genderLabels[person.gender] },
     { label: 'City', value: person.city },
+    ...(person.birthCity ? [{ label: 'Birthplace', value: person.birthCity }] : []),
     { label: 'Occupation', value: person.occupation },
     { label: 'Education', value: profile.education },
     { label: 'Personality', value: personalityLabels(life, person) },

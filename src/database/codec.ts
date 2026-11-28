@@ -45,6 +45,7 @@ function savedPerson(person: unknown, withAppearance: boolean): person is Record
   return typeof person.id === 'string' && typeof person.name === 'string' && integer(person.age, 0, maxAge) &&
     (person.lastName === undefined || (typeof person.lastName === 'string' && person.lastName.length > 0 &&
       person.name.endsWith(` ${person.lastName}`))) &&
+    (person.birthCity === undefined || cities.some((city) => city === person.birthCity)) &&
     typeof person.occupation === 'string' && cities.some((city) => city === person.city) &&
     bounded(person.health) && typeof person.alive === 'boolean' &&
     record(bond) && bondKeys.every((key) => bounded(bond[key])) &&

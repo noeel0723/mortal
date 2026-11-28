@@ -1,5 +1,6 @@
 import type { AcademicAction, AcademicLevel, AcademicState, GraduationPath } from './academicTypes.ts';
-import type { Appearance, AppearanceChoices, HairChoice } from './appearance.ts';
+import type { Accessories, Appearance, AppearanceChoices, HairChoice } from './appearance.ts';
+import type { ProcedureId, SurgeonId } from './plasticSurgery.ts';
 import type { RelationshipActivity } from './interactions.ts';
 import type { CareerAction, CareerEffect, CareerState, WorkContact } from './careerTypes.ts';
 import type { FinanceState, Transaction } from './financeTypes.ts';
@@ -48,6 +49,7 @@ export type Person<Role = 'Mother' | 'Father'> = {
   id: string;
   name: string;
   lastName?: string;
+  birthCity?: City;
   gender: Gender;
   appearance: Appearance;
   age: number;
@@ -148,6 +150,9 @@ export type Action =
   | { type: 'interact'; person: string; activity: RelationshipActivity }
   | { type: 'change-appearance'; choices: AppearanceChoices }
   | { type: 'change-hair'; choices: HairChoice }
+  | { type: 'change-accessories'; choices: Accessories }
+  | { type: 'adopt-child'; person: string }
+  | { type: 'plastic-surgery'; procedure: ProcedureId; surgeon: SurgeonId }
   | AcademicAction
   | PropertyAction
   | SocialAction

@@ -44,15 +44,7 @@ export default function Journal() {
   if (!slot) return null;
   const life = slot.life;
   const ending = !!life.character.causeOfDeath;
-  const header = (
-    <>
-      <CharacterCard life={life} openProfile={() => router.push({ pathname: '/game/person', params: { id: 'self' } })} />
-      <View style={styles.journalHeading}>
-        <Text accessibilityRole="header" style={styles.title}>{en.lifeJournal}</Text>
-        <ActionButton icon="world" label="World" onPress={() => router.push('/game/world')} variant="plain" />
-      </View>
-    </>
-  );
+  const header = <CharacterCard life={life} openProfile={() => router.push({ pathname: '/game/person', params: { id: 'self' } })} />;
 
   return (
     <View style={styles.frame}>
@@ -71,21 +63,18 @@ export default function Journal() {
         ListHeaderComponent={scrollHeader ? header : undefined}
         renderItem={({ item }) => (
           <View style={styles.group}>
-            <View style={styles.groupHeader}>
-              <View style={styles.dot} />
-              <Text style={styles.age}>{item.age === 0 ? en.birth : en.age(item.age)}</Text>
-              <Text style={styles.groupYear}>{life.character.birthYear + item.age}</Text>
-            </View>
+            <Text accessibilityRole="header" style={styles.age}>{en.age(item.age)}</Text>
             <View style={styles.entries}>
               {item.events.map((entry, index) => (
                 <View key={index} style={styles.entry}>
-                  <Text style={styles.entryText}>{entry.text}</Text>
-                  {Object.entries(entry.changes).length > 0 && <Text style={styles.changes}>
-                    {Object.entries(entry.changes).map(([name, value]) => {
-                      const stat = statLabels[name as keyof typeof statLabels];
-                      return name === 'bank' ? `${value > 0 ? '+' : ''}${money(value)}` : `${stat} ${value > 0 ? '+' : ''}${value}`;
-                    }).join('  ·  ')}
-                  </Text>}
+                  <Text style={styles.entryText}>{entry.text}
+                    {Object.entries(entry.changes).length > 0 && <Text style={styles.changes}>{' · '}
+                      {Object.entries(entry.changes).map(([name, value]) => {
+                        const stat = statLabels[name as keyof typeof statLabels];
+                        return name === 'bank' ? `${value > 0 ? '+' : ''}${money(value)}` : `${stat} ${value > 0 ? '+' : ''}${value}`;
+                      }).join(' · ')}
+                    </Text>}
+                  </Text>
                 </View>
               ))}
             </View>
@@ -102,17 +91,11 @@ const styles = StyleSheet.create({
   toolbar: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.lg, paddingVertical: 3 },
   wordmark: { flex: 1, fontSize: 21, fontWeight: '800', color: colors.ink, letterSpacing: -.8 },
   header: { paddingHorizontal: space.lg, gap: space.xs },
-  journalHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginRight: -space.sm },
-  title: { flexShrink: 1, fontSize: 20, fontWeight: '700', letterSpacing: -.45, color: colors.ink },
   journal: { paddingHorizontal: space.lg, paddingTop: space.xs, paddingBottom: space.lg },
   group: { marginBottom: space.md },
-  groupHeader: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingLeft: 1 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.blue },
   age: { color: colors.action, fontSize: 14, fontWeight: '800' },
-  groupYear: { color: colors.muted, fontSize: 12, fontVariant: ['tabular-nums'] },
-  entries: { marginLeft: 4, marginTop: space.xs, paddingLeft: space.md, paddingVertical: space.xs,
-    borderLeftWidth: 1, borderColor: colors.blueRule, gap: space.sm },
+  entries: { marginTop: 2, gap: 2 },
   entry: { gap: 3 },
-  entryText: { color: colors.ink, fontSize: 14, lineHeight: 21 },
-  changes: { color: colors.muted, fontSize: 12, lineHeight: 18, fontVariant: ['tabular-nums'] },
+  entryText: { color: colors.ink, fontSize: 13, lineHeight: 18 },
+  changes: { color: colors.muted, fontSize: 11, fontVariant: ['tabular-nums'] },
 });

@@ -2,7 +2,8 @@ import { eventById, events } from '../data/events.ts';
 import { libraryEvents, libraryFriendEvent } from '../data/libraryEvents.ts';
 import { advanceAcademics, chooseEducationPath, isTuitionDue, performAcademicAction } from './academics.ts';
 import { activityStory } from './activityStories.ts';
-import { appearanceChanged, appearanceIssue, mergeAppearance, validFace, validHair } from './appearance.ts';
+import { adoptChild } from './adoption.ts';
+import { accessoryIssue, appearanceChanged, appearanceIssue, mergeAppearance, validFace, validHair } from './appearance.ts';
 import { advanceCareer, applyCareerEffect, closeCareerYear, endEmployment, performCareerAction, studyWorkload } from './career.ts';
 import { developChildInterests } from './childSkills.ts';
 import { recordContactDeath, recordPlayerDeath, respondToDeath } from './death.ts';
@@ -22,6 +23,7 @@ import { doLifestyle } from './lifestyle.ts';
 import { applyLove } from './love.ts';
 import { advanceNpcLives, ageNewPeople, cloneSocial, ensureNpc, remember, syncNpcs } from './npcs.ts';
 import { applyPropertyAction, movingAge } from './property.ts';
+import { performSurgery } from './plasticSurgery.ts';
 import { seededRandom } from './random.ts';
 import { relocate } from './relocation.ts';
 import { conversationStory, friendshipStory } from './relationshipStories.ts';
@@ -310,6 +312,16 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       if (issue) return { error: issue };
       break;
     }
+    case 'adopt-child': {
+      const issue = adoptChild(life, action.person);
+      if (issue) return { error: issue };
+      break;
+    }
+    case 'plastic-surgery': {
+      const issue = performSurgery(life, action.procedure, action.surgeon);
+      if (issue) return { error: issue };
+      break;
+    }
     case 'choose': {
       const choice = eventById.get(action.event)?.choices?.find(({ id }) => id === action.choice);
       if (life.pending !== action.event || !choice) return { error: 'This decision is no longer available.' };
@@ -420,6 +432,12 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
     case 'interact': {
       const issue = performRelationshipActivity(life, action.person, action.activity);
       if (issue) return { error: issue };
+      break;
+    }
+    case 'change-accessories': {
+      const issue = accessoryIssue(life, action.choices);
+      if (issue) return { error: issue };
+      life.character.appearance = { ...life.character.appearance, accessories: { ...action.choices } };
       break;
     }
     case 'change-appearance':

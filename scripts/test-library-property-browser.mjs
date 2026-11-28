@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { eventById } from '../src/data/events.ts';
 import { assetById } from '../src/data/shops.ts';
+import { adoptionCandidates } from '../src/engine/adoption.ts';
 import { createLife } from '../src/engine/create.ts';
 import { postTransaction } from '../src/engine/journal.ts';
 import { ensureNpc, makeNpc, npcRandom } from '../src/engine/npcs.ts';
@@ -221,8 +222,60 @@ try {
   assert.equal(familySaved.property.owned[0].history.at(-1).action, 'borrow');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth === innerWidth), true);
 
+  postTransaction(familySaved, 'Savings for personal care', 50000, 'other');
+  await open('care-test', familySaved);
+  await click('Activities');
+  await click('Accessories');
+  const preview = page.getByRole('img', { name: 'Accessory preview' });
+  const originalPortrait = await preview.getAttribute('src');
+  await page.getByRole('combobox', { name: 'Hat', exact: true }).selectOption('Ferrari Edition Cap');
+  await page.getByRole('combobox', { name: 'Glasses', exact: true }).selectOption('Tony Stark Glasses');
+  const equippedPortrait = await preview.getAttribute('src');
+  assert.notEqual(equippedPortrait, originalPortrait);
+  await click('Save Accessories');
+  await page.waitForFunction((src) => document.querySelector('.profile-portrait-button img')?.getAttribute('src') === src, equippedPortrait);
+  assert.ok(await button('Save Accessories').isDisabled());
+  await page.reload();
+  assert.equal(await preview.getAttribute('src'), equippedPortrait);
+  if (process.env.MORTAL_CAPTURE_CARE) await page.screenshot({ path: '.expo/web-qa/accessories.png' });
+  await click('Back to Activities');
+
+  await click('Adoption');
+  const children = adoptionCandidates(await read('care-test'));
+  for (const { person } of children) await button(person.name).waitFor();
+  const selected = children[0].person;
+  await click(selected.name);
+  const adoption = dialog('Adoption Profile');
+  await adoption.getByRole('img', { name: `Portrait of ${selected.name}` }).waitFor();
+  await adoption.getByText('Birthplace', { exact: true }).waitFor();
+  for (const name of ['Health', 'Smarts', 'Looks', 'Behavior']) await adoption.getByRole('progressbar', { name }).waitFor();
+  const adoptionBounds = await adoption.boundingBox();
+  assert.ok(adoptionBounds && adoptionBounds.x >= 0 && adoptionBounds.x + adoptionBounds.width <= 321);
+  if (process.env.MORTAL_CAPTURE_CARE) await page.screenshot({ path: '.expo/web-qa/adoption-profile.png' });
+  await click('Adopt Child');
+  await dialog('Adoption Day').waitFor();
+  await acknowledgeEvents(page);
+  const adopted = (await read('care-test')).social.people.find(({ id }) => id === selected.id);
+  assert.equal(adopted.name, selected.name);
+  assert.deepEqual(adopted.appearance, selected.appearance);
+  await click('Back to Activities');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await click('Plastic Surgery');
+  await button('Chest Contouring').waitFor();
+  assert.equal(await button('Chest Augmentation').count(), 0);
+  await click('Nose Reshaping');
+  const clinic = dialog('Nose Reshaping');
+  await clinic.getByText(/Standard.*58% success/).waitFor();
+  await clinic.getByText(/Specialist.*94% success/).waitFor();
+  if (process.env.MORTAL_CAPTURE_CARE) await page.screenshot({ path: '.expo/web-qa/surgery.png' });
+  await click('Dr. Aoi Takahashi');
+  const outcome = page.getByRole('dialog', { name: /^(Cosmetic Procedure Complete|Surgery Complication)$/ });
+  await outcome.getByRole('progressbar', { name: 'Looks' }).waitFor();
+  await acknowledgeEvents(page);
+
   assert.deepEqual(errors, []);
-  console.log('Library, shopping, pregnancy, birth, and family driving passed at 320px and 390px.');
+  console.log('Library, shopping, family, accessories, adoption, and surgery passed at 320px and 390px.');
 } finally {
   await browser.close();
 }

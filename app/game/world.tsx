@@ -79,7 +79,8 @@ export default function World() {
   }
   const overview = worldOverview(life);
   return <Page inGame>
-    <Heading title="World" subtitle={en.worldNotice} back={() => router.dismissTo('/game')} />
+    <Heading title="World" subtitle={en.worldNotice} back={() => router.canGoBack() ? router.back() :
+      router.replace({ pathname: '/game/person', params: { id: 'self' } })} />
     <Section title="Veyra">{overview.countryRows.map((row) => <DataRow key={row.label} {...row} />)}</Section>
     <Section title="Reports">{worldReports.map((item) => <ActionButton key={item.id} icon={item.icon} label={item.label}
       onPress={() => router.push({ pathname: '/game/world', params: { report: item.id } })} />)}</Section>

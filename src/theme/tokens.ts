@@ -23,6 +23,7 @@ export const emoji = {
   insult: '😤', prank: '😜', coffee: '☕', work: '📋', search: '🔎', harder: '📈', hours: '🕰️', exit: '🚪', retire: '🌿',
   laptop: '💻', computer: '🖥️', medical: '🩺', blueprint: '📐', files: '🗃️', calculator: '🧮',
   ambulance: '🚑', eye: '👁️', thoughts: '🧠', blood: '🩸', syringe: '💉',
+  hat: '🧢', glasses: '👓', adoption: '🧸', surgery: '✂️', nose: '👃',
   court: '⚖️', restaurant: '🍽️', cooking: '🍳', cart: '🛒', camera: '🎥',
   car: '🚗', motorcycle: '🏍️',
   rose: '🌹', loveLetter: '💌', ring: '💍', brokenHeart: '💔', bottle: '🍼', baby: '👶', pregnancy: '🤰',

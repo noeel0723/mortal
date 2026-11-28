@@ -1,4 +1,6 @@
+import { noAccessories } from '../engine/appearance.ts';
 import type { Appearance } from '../engine/appearance.ts';
+import { drawAccessories } from './accessoryArt.ts';
 import { pixelCanvas } from './pixels.ts';
 import type { Point } from './pixels.ts';
 
@@ -65,7 +67,8 @@ const cache = new Map<string, string>();
 export function portraitSrc(appearance: Appearance, age: number) {
   const stage = portraitAge(age);
   const { skin, background, outfit, hair, hairColor, eyes, eyeColor, nose, mouth } = appearance;
-  const key = `${stage}/${skin}/${background}/${outfit}/${hair}/${hairColor}/${eyes}/${eyeColor}/${nose}/${mouth}`;
+  const accessories = appearance.accessories ?? noAccessories;
+  const key = `${stage}/${skin}/${background}/${outfit}/${hair}/${hairColor}/${eyes}/${eyeColor}/${nose}/${mouth}/${accessories.hat}/${accessories.glasses}`;
   const cached = cache.get(key);
   if (cached) return cached;
 
@@ -184,6 +187,7 @@ export function portraitSrc(appearance: Appearance, age: number) {
     if (hair === 'Tied') head([[53, 12], [58, 8], [61, 10], [60, 13], [58, 12], [56, 16]], hairMid);
   }
 
+  drawAccessories(accessories, head, mark);
   const src = canvas.png();
   if (cache.size >= 96) cache.delete(cache.keys().next().value!);
   cache.set(key, src);

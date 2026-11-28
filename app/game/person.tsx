@@ -30,10 +30,12 @@ export default function Person() {
       <DataRow label={character.causeOfDeath ? 'Age at death' : 'Age'} value={character.age} />
       <DataRow label="Gender identity" value={genderLabels[character.gender]} />
       <DataRow label="Birth city" value={character.birthCity} />
-      {character.city !== character.birthCity && <DataRow label="Current city" value={character.city} />}
+      <DataRow label="Current city" value={character.city} />
+      <DataRow label="Year" value={life.year} />
       <DataRow label="Education" value={educationStatus(life)} />
       {profileHealthRows(life).map((row) => <DataRow key={row.label} {...row} />)}
     </Section>
+    <ActionButton icon="world" label="World" detail="News, cities, and relocation" onPress={() => router.push('/game/world')} />
   </Page>;
   const person = findContact(life, id);
   const controls = person ? relationshipControls(life, person) : [];

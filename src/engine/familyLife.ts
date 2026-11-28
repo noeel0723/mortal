@@ -7,7 +7,7 @@ import { inPersonIssue } from './relationships.ts';
 import { ensureNpc, makeNpc, newPeopleLimit, npcRandom, remember } from './npcs.ts';
 import { findContact } from './school.ts';
 import { pickStory } from './stories.ts';
-import type { SocialAction } from './socialTypes.ts';
+import type { SocialAction, SocialPerson } from './socialTypes.ts';
 import type { Contact, Life } from './types.ts';
 
 export const parenting = {
@@ -49,7 +49,7 @@ export function annualChildcare(life: Life) {
   return children.reduce((total, child) => total + (child.age <= 5 ? 7600 : 5300), 0);
 }
 
-function roomForChild(life: Life) {
+export function roomForChild(life: Life) {
   const expected = life.social.pregnancies?.length ?? 0;
   return Object.keys(life.social.children).length + expected < 4 && life.social.people.length + expected < newPeopleLimit;
 }
@@ -60,14 +60,21 @@ function welcomeChild(life: Life, partner: Contact, age: number, adopted: boolea
   const child = makeNpc(life, id, age, 'Child', name ? `${name} ${surname}` : undefined);
   if (name) child.lastName = surname;
   else setSurname(child, surname);
+  registerChild(life, child, partner, adopted);
+}
+
+export function registerChild(life: Life, child: SocialPerson, partner: Contact | undefined, adopted: boolean, learning = 15 + child.age * 3) {
   life.social.people.push(child);
-  life.social.parents[child.id] = ['self', partner.id];
+  life.social.parents[child.id] = partner ? ['self', partner.id] : ['self'];
   life.social.children[child.id] = {
-    year: life.year, adopted, wellbeing: child.health, learning: 15 + age * 3, confidence: 30 + age * 2, supportEnded: false,
+    year: life.year, adopted, wellbeing: child.health, learning, confidence: 30 + child.age * 2, supportEnded: false,
   };
-  ensureNpc(life, partner).commitments += 2000;
-  const story = adopted ? `${partner.name} and I adopted ${child.name}.` : `${partner.name} and I welcomed ${child.name} into our family.`;
-  remember(life, partner, story);
+  const subject = partner ? `${partner.name} and I` : 'I';
+  const story = adopted ? `${subject} adopted ${child.name}.` : `${subject} welcomed ${child.name} into our family.`;
+  if (partner) {
+    ensureNpc(life, partner).commitments += 2000;
+    remember(life, partner, story);
+  }
   remember(life, child, adopted ? 'Joined the family through adoption.' : 'Born into the family.');
   const notice = recordNotice(life, 'family', adopted ? 'Adoption Day' : 'A New Arrival', story,
     { happiness: 8, bank: adopted ? -adoptionCost : 0 }, 'personal');

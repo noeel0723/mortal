@@ -32,6 +32,9 @@ try {
     completed: false, revision: 0, updatedAt: Date.now(), payload: JSON.stringify(original) } });
   await page.goto(new URL(`#play/${id}/journal`, url).href);
   await heading('Life Journal').waitFor();
+  assert.equal(await button('World').count(), 0);
+  await click('Open my profile');
+  await page.getByText('Current city', { exact: true }).waitFor();
   await click('World');
   await page.getByText('Economic regime', { exact: true }).waitFor();
   await click('Industry Report');
@@ -66,10 +69,12 @@ try {
   assert.equal(moved.character.bank, life.character.bank - relocationQuote(moved, destination));
   await click('Back to Compare Cities');
   await click('Back to World');
-  await click('Close World');
+  await click('Back to My Profile');
+  await click('Close My Profile');
   await click('Age Up');
   await page.locator('.profile-identity p').filter({ hasText: 'Age 27 ·' }).waitFor();
   await acknowledgeEvents(page, true);
+  await click('Open my profile');
   await click('World');
   await click('World History');
   assert.equal(await page.locator('.world-chart-bars span').count(), 2);
@@ -80,7 +85,8 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth === innerWidth), true);
   await page.setViewportSize({ width: 390, height: 844 });
   await click('Back to World');
-  await click('Close World');
+  await click('Back to My Profile');
+  await click('Close My Profile');
   await click('Assets');
   await click('Shopping');
   await click('Houses');

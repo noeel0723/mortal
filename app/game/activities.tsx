@@ -71,10 +71,16 @@ export default function Activities() {
       </Section>
       <Section title="Healthcare">
         <ActionButton icon="medical" label="Doctors" compactDetail detail="Get medical care" onPress={() => router.push('/game/doctor')} />
+        <ActionButton icon="adoption" label="Adoption" compactDetail detail="Meet children available for adoption"
+          onPress={() => router.push({ pathname: '/game/personal-care', params: { screen: 'adoption' } })} />
+        <ActionButton icon="surgery" label="Plastic Surgery" compactDetail detail="Browse cosmetic procedures"
+          onPress={() => router.push({ pathname: '/game/personal-care', params: { screen: 'plastic-surgery' } })} />
       </Section>
       {!life.character.causeOfDeath && <Section title="Appearance">
         <ActionButton icon="hair" label={canEditFace(life.character.age) ? 'Customize Appearance' : 'Change Hairstyle'}
           onPress={() => router.push('/game/appearance')} />
+        <ActionButton icon="hat" label="Accessories" compactDetail detail="Try hats and glasses"
+          onPress={() => router.push({ pathname: '/game/personal-care', params: { screen: 'accessories' } })} />
       </Section>}
       <Section title="Wellbeing">
         <ActionButton icon="meditation" label="Mind & Body" compactDetail detail="Rest, exercise, and unwind"

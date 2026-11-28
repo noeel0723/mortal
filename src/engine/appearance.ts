@@ -14,7 +14,13 @@ export const appearanceOptions = {
 
 export type AppearanceChoices = { [K in keyof typeof appearanceOptions]: typeof appearanceOptions[K]['values'][number] };
 export type HairChoice = Pick<AppearanceChoices, 'hair' | 'hairColor'>;
-export type Appearance = AppearanceChoices & { skin: number; background: number; outfit: number };
+export const accessoryOptions = {
+  hat: ['None', 'Ferrari Edition Cap', 'Knit Beanie', 'Bucket Hat', 'Fedora', 'Sun Hat'],
+  glasses: ['None', 'Tony Stark Glasses', 'Round Frames', 'Aviators', 'Square Frames', 'Cat-Eye Frames'],
+} as const;
+export type Accessories = { [K in keyof typeof accessoryOptions]: typeof accessoryOptions[K][number] };
+export const noAccessories: Accessories = { hat: 'None', glasses: 'None' };
+export type Appearance = AppearanceChoices & { skin: number; background: number; outfit: number; accessories?: Accessories };
 export const hairFields = ['hair', 'hairColor'] as const;
 export const faceFields = ['eyes', 'eyeColor', 'nose', 'mouth'] as const;
 
@@ -65,9 +71,22 @@ export function validFace(value: unknown): value is AppearanceChoices {
 export function validAppearance(value: unknown): value is Appearance {
   const paletteIndex = (index: unknown, max: number) => typeof index === 'number' && Number.isInteger(index) && index >= 0 && index <= max;
   return object(value) && paletteIndex(value.skin, 5) && paletteIndex(value.background, 5) &&
-    paletteIndex(value.outfit, 4) && validFace(value);
+    paletteIndex(value.outfit, 4) && (value.accessories === undefined || validAccessories(value.accessories)) &&
+    validFace(value);
 }
 
+export function validAccessories(value: unknown): value is Accessories {
+  return object(value) && accessoryOptions.hat.some((item) => item === value.hat) &&
+    accessoryOptions.glasses.some((item) => item === value.glasses);
+}
+
+export function accessoryIssue(life: Life, choices: Accessories) {
+  const issue = appearanceIssue(life, true);
+  if (issue) return issue;
+  if (!validAccessories(choices)) return 'Choose valid accessories.';
+  const current = life.character.appearance.accessories ?? noAccessories;
+  return current.hat === choices.hat && current.glasses === choices.glasses ? 'These accessories are already equipped.' : null;
+}
 export function canEditFace(age: number) {
   return age === 0;
 }

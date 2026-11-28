@@ -63,24 +63,17 @@ function Journal({ life, go }: { life: Life; go: Navigate }) {
   }
   return (
     <section className="journal" aria-labelledby="journal-heading">
-      <header className="journal-header">
-        <div className="journal-title">
-          <h1 id="journal-heading">{en.lifeJournal}</h1>
-          <p>{life.character.city} · {life.year}</p>
-        </div>
-        <Button icon="world" kind="quiet" onClick={() => go('world')}>World</Button>
-      </header>
+      <h1 id="journal-heading" className="journal-accessible-title">{en.lifeJournal}</h1>
       <div className="timeline">
         {Array.from(groups, ([age, entries]) => (
           <section key={age} className="timeline-group">
-            <h2><span>{en.age(age)}</span>{' '}<span className="journal-year">{life.character.birthYear + age}</span></h2>
+            <h2>{en.age(age)}</h2>
             {entries.map((entry, index) => {
               const changes = Object.entries(entry.changes);
               return <article className="timeline-event" key={index}>
-                <p>{entry.text}</p>
-                {changes.length > 0 && <div className="event-changes">{changes.map(([stat, amount]) =>
-                  <span key={stat}>{stat === 'bank' ? `${amount > 0 ? '+' : ''}${money(amount)}` : `${statLabels[stat as Stat]} ${amount > 0 ? '+' : ''}${amount}`}</span>
-                )}</div>}
+                <p><span>{entry.text}</span>{changes.length > 0 && <span className="event-changes">{' · '}{changes.map(([stat, amount]) =>
+                  stat === 'bank' ? `${amount > 0 ? '+' : ''}${money(amount)}` : `${statLabels[stat as Stat]} ${amount > 0 ? '+' : ''}${amount}`
+                ).join(' · ')}</span>}</p>
               </article>;
             })}
           </section>
