@@ -162,7 +162,7 @@ test('shared hobbies reuse contacts and improve compatibility, conversations, an
   assert.match(talked.journal.at(-1)?.text ?? '', /traded ideas about Chess/);
   const practice = { type: 'share-hobby', person: contact.id, skill: 'chess' } as const;
   const together = apply(talked, practice);
-  assert.equal(findContact(together, contact.id)?.bond.affection, 60);
+  assert.ok(findContact(together, contact.id)!.bond.affection > findContact(talked, contact.id)!.bond.affection);
   assert.equal(skillAt(together, 'chess').proficiency, skillAt(talked, 'chess').proficiency + 1);
   assert.match(advance(together, practice).error ?? '', /next year/);
 });

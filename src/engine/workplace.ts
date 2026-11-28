@@ -8,8 +8,6 @@ import type { WorkContact } from './careerTypes.ts';
 import type { Contact, Life } from './types.ts';
 
 export const coworkerAcquaintanceThreshold = 70;
-export const coworkerFriendAffection = 50;
-
 export function isWorkContact(person: Contact): person is WorkContact {
   return 'employerId' in person;
 }

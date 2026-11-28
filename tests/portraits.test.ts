@@ -52,6 +52,7 @@ test('version 2 saves gain stable portraits and preserve existing contacts, frie
   }
   life = act(life, { type: 'choose', event: 'first-classroom', choice: 'join' });
   const contact = currentClass(life).find(({ role }) => role === 'Classmate')!;
+  Object.assign(contact.bond, { affection: 82, trust: 81, respect: 75, familiarity: 80, compatibility: 80, resentment: 0 });
   life = act(life, { type: 'befriend', person: contact.id });
   const snapshot = JSON.stringify({ ...life, version: 2, illnesses: undefined, notices: undefined,
     character: { ...life.character, appearance: undefined },

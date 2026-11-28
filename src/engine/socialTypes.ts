@@ -3,6 +3,7 @@ import type { DatingGoal, DatingPreferences, DatingProfile } from './dating.ts';
 import type { RelationshipCareAction, RelationshipState } from './relationshipTypes.ts';
 import type { FirstDateVenue } from './firstDates.ts';
 import type { IntimacyEvent } from './intimacy.ts';
+import type { Friendship, LocalSocialAction, LocalSocialState, SocialEdge } from './localSocialTypes.ts';
 
 export const traits = ['ambition', 'loyalty', 'empathy', 'sociability', 'discipline', 'confidence', 'temperament', 'materialism', 'riskTolerance'] as const;
 export type Traits = Record<typeof traits[number], number>;
@@ -18,6 +19,8 @@ export type NpcProfile = {
   localPartner: string | null; movedFrom?: City;
   datingGoal?: DatingGoal;
   casualContact?: 'connected' | 'closed';
+  friendship?: Friendship;
+  localHousehold?: 'alone' | 'family' | 'shared';
 };
 export const activeRomanceStatuses = ['dating', 'committed', 'engaged', 'married'] as const;
 export const romanceStatuses = ['getting-to-know', 'interest', ...activeRomanceStatuses, 'contact-ended', 'broken-up', 'divorced', 'widowed'] as const;
@@ -25,7 +28,7 @@ export type Romance = { person: string; status: typeof romanceStatuses[number]; 
   wedding: number | null; ended: number | null; history: { year: number; text: string }[] };
 export const socialEvents = ['social-dinner', 'social-time', 'social-proposal', 'social-support', 'social-school', 'social-finances',
   'social-dating-match', 'social-casual-match', 'social-affair', 'social-make-love', 'social-hookup', 'social-threesome',
-  'social-expectations', 'social-space', 'social-concern', 'social-reconnect', 'social-meeting', 'social-dating-discovery', 'social-protection'] as const;
+  'social-expectations', 'social-space', 'social-concern', 'social-reconnect', 'social-meeting', 'social-dating-discovery', 'social-protection', 'social-friendship'] as const;
 export type SocialEventId = typeof socialEvents[number];
 export const datingSources = ['spotlight', 'date', 'app', 'lgbtq', 'casual', 'matchmaking'] as const;
 export type DatingSource = typeof datingSources[number];
@@ -44,6 +47,8 @@ export type SocialState = {
   pendingEncounter?: IntimacyEvent;
   datingProfile?: DatingProfile;
   datingCycle?: DatingCycle;
+  local?: LocalSocialState;
+  graph?: SocialEdge[];
 };
 export const romanticActivities = ['date', 'gift', 'dinner', 'movie', 'support', 'future', 'apologize'] as const;
 export const parentingActivities = ['care', 'read', 'school', 'hobby', 'lesson', 'gift', 'support', 'future'] as const;
@@ -54,6 +59,8 @@ export type IntimacyAction =
 export type SocialAction =
   | IntimacyAction
   | RelationshipCareAction
+  | LocalSocialAction
+  | { type: 'social-introduction'; person: string }
   | { type: 'meet'; source: 'neighborhood' | 'hobbies' | 'date' | 'app' }
   | { type: 'dating-match'; source: DatingSource; preferences?: DatingPreferences }
   | { type: 'dating-profile'; profile: DatingProfile }

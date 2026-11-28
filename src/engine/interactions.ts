@@ -3,8 +3,10 @@ import { applyCareerEffect } from './career.ts';
 import { eventTitle, recordNotice, resultMeter } from './eventNotices.ts';
 import { clamp } from './journal.ts';
 import { interactionStory } from './relationshipStories.ts';
-import { communicationEnded, inPersonIssue, knownRelationship, meaningfulTime, openConcern, responseScale, takingSpace } from './relationships.ts';
-import { ensureNpc, isParent, npcProfile, npcRandom, remember } from './npcs.ts';
+import { communicationEnded, inPersonIssue, knownRelationship, meaningfulTime, openConcern, takingSpace } from './relationships.ts';
+import { friendshipExperience } from './friendships.ts';
+import { availability, contextualOutcome } from './socialContext.ts';
+import { ensureNpc, isParent, npcProfile, remember } from './npcs.ts';
 import { findContact, isCurrentClassContact, isPeer } from './school.ts';
 import { isWorkAcquaintance, isWorkContact } from './workplace.ts';
 import type { Contact, Effect, Life } from './types.ts';
@@ -110,12 +112,19 @@ export function performRelationshipActivity(life: Life, id: string, activity: Re
   const tracked = stats[0]!;
   const previous = person.bond[tracked];
   const profile = ensureNpc(life, person);
-  const strained = (activity === 'compliment' || activity === 'family-time' || activity === 'hang-out' || activity === 'work-break') &&
-    person.bond.resentment >= 25 && npcRandom(life, `interaction:${id}:${activity}`, life.year).next() > (profile.traits.empathy + person.bond.trust) / 210;
   const conflict = activity === 'insult' || activity === 'mess-with';
-  const reception = conflict ? 1 : responseScale(life, person, activity);
+  const occasion = { key: activity, demanding: activity === 'family-time' || activity === 'hang-out' };
+  const unavailable = conflict ? null : availability(life, person, occasion);
+  life.usedActions.push(`connection:${person.id}`);
+  if (unavailable) {
+    const story = `I reached out to ${person.name}. ${unavailable.reason} ${unavailable.alternative ?? ''}`.trim();
+    recordNotice(life, 'community', 'Maybe Another Time', story, { energy: -rule.energy });
+    return null;
+  }
+  const outcome = contextualOutcome(life, person, occasion);
+  const reception = conflict ? 1 : outcome.weight;
   for (const stat of stats) {
-    person.bond[stat] = clamp(person.bond[stat] + Math.round((rule.bond[stat] ?? 0) * reception * (strained ? .45 : 1)));
+    person.bond[stat] = clamp(person.bond[stat] + Math.round((rule.bond[stat] ?? 0) * reception));
   }
   const enrollment = life.academic.enrollment;
   if (enrollment && rule.academic) {
@@ -126,7 +135,7 @@ export function performRelationshipActivity(life: Life, id: string, activity: Re
   }
   const group = contactGroup(person);
   if (knownRelationship(life, person)) {
-    if (conflict) openConcern(life, id, 'argument', Math.min(75, 25 + person.bond.resentment));
+    if (conflict || reception <= -.60) openConcern(life, id, 'argument', Math.min(75, 25 + person.bond.resentment));
     else if (reception > 0 && ['family-time', 'hang-out', 'work-break', 'study-together'].includes(activity)) meaningfulTime(life, person, 'time', 5);
   }
   if (activity === 'ask-allowance') profile.savings -= allowance[life.character.background];
@@ -134,12 +143,15 @@ export function performRelationshipActivity(life: Life, id: string, activity: Re
   if (isWorkContact(person) && person.employerId === life.career.current?.employerId && conflict) {
     applyCareerEffect(life, { security: activity === 'insult' ? -9 : -5, reputation: -3 });
   }
-  const story = interactionStory(life, person, activity) + (reception === 0 ? ' They seemed distracted and didn’t respond as I expected.' :
-    strained ? ' The tension between us was still there.' : '');
-  remember(life, person, story, conflict);
+  const story = interactionStory(life, person, activity) + (conflict ? '' : ` ${outcome.note}`);
+  remember(life, person, story, conflict || reception <= -.60);
+  if (!conflict) friendshipExperience(life, person, reception);
+  const effects = { ...rule.effects };
+  if (!conflict && effects.happiness !== undefined) effects.happiness = Math.round(effects.happiness * reception);
+  if (!conflict && effects.stress !== undefined) effects.stress = Math.round(effects.stress * reception);
   const notice = recordNotice(life, rule.academic ? 'school' : group === 'parent' ? 'family' : group === 'worker' ? 'career' : 'community',
     rule.title, story, {
-    energy: -rule.energy, ...rule.effects,
+    energy: -rule.energy, ...effects,
     ...(activity === 'ask-allowance' ? { bank: allowance[life.character.background] } : {}),
   });
   notice.meter = resultMeter(eventTitle(tracked), previous, person.bond[tracked]);

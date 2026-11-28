@@ -143,6 +143,7 @@ test('scholarships and tuition reconcile exactly once per funded year through po
     /lecture|researchers|understand a difficult topic|semester|teaching their subject/);
   const student = currentClass(university).find(({ role }) => role === 'Student');
   assert.ok(student);
+  Object.assign(student.bond, { affection: 79, trust: 77, respect: 76, familiarity: 75, compatibility: 80, resentment: 0 });
   const friend = act(university, { type: 'befriend', person: student.id });
   const graduate = resolve(ageTo(decodeLife(JSON.stringify(friend)), 21));
   const contact = graduate.schoolContacts.find(({ id }) => id === student.id);

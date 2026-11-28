@@ -1,10 +1,12 @@
 import { recordNotice } from './eventNotices.ts';
 import { contactIssue } from './interactions.ts';
+import { friendshipExperience } from './friendships.ts';
 import { clamp, record } from './journal.ts';
 import { isFamily, remember } from './npcs.ts';
 import { relationshipGroups } from './relationshipDirectory.ts';
 import { timeTogetherStory } from './relationshipStories.ts';
-import { inPersonIssue, meaningfulTime, responseScale, takingSpace } from './relationships.ts';
+import { inPersonIssue, meaningfulTime, takingSpace } from './relationships.ts';
+import { availability, contextualOutcome } from './socialContext.ts';
 import type { Life } from './types.ts';
 
 function availableContacts(life: Life) {
@@ -30,15 +32,19 @@ export function spendTimeWithAll(life: Life) {
   let enjoyed = 0;
   for (const person of contacts) {
     const story = timeTogetherStory(life, person, !!inPersonIssue(life, person), stories);
-    const reception = responseScale(life, person, 'hang-out');
+    const occasion = { key: 'spend-time-all', location: 'remote' } as const;
+    const unavailable = availability(life, person, occasion);
+    const outcome = contextualOutcome(life, person, occasion);
+    const reception = unavailable ? 0 : outcome.weight;
     person.bond.affection = clamp(person.bond.affection + Math.round(4 * reception));
     person.bond.familiarity = clamp(person.bond.familiarity + Math.round(3 * reception));
     if (reception > 0) {
       meaningfulTime(life, person, 'time', 4);
       enjoyed++;
     }
-    const entry = reception === 0 ? `${story} They didn’t seem ready to reconnect.` : story;
-    remember(life, person, entry);
+    const entry = unavailable ? `${story} ${unavailable.reason}` : `${story} ${outcome.note}`;
+    remember(life, person, entry, reception <= -.60);
+    friendshipExperience(life, person, reception);
     record(life, isFamily(life, person.id) ? 'family' : 'community', entry);
   }
   recordNotice(life, 'community', 'Time With Everyone',

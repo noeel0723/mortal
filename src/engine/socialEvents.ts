@@ -2,6 +2,7 @@ import { socialEventCatalog } from '../data/socialEvents.ts';
 import { answerDatingDiscovery, discoveryEvent } from './datingDiscovery.ts';
 import { datingIntent } from './dating.ts';
 import { recordNotice } from './eventNotices.ts';
+import { acceptFriendship, friendshipExperience, friendshipWillingness, invitationKey } from './friendships.ts';
 import { answerIntimacy, isIntimacyEvent, prepareIntimacy } from './intimacy.ts';
 import { clamp, record } from './journal.ts';
 import { activeRomances, canPropose, changeRomance, endRomance, romanceFor, romanceHistory } from './love.ts';
@@ -12,6 +13,8 @@ import { barrierFee, protectionEvent } from './reproductiveHealth.ts';
 import { activeFor, agreementFor, agreementPhrase, boundaryEvidence, concernLabels, earlyConnection, inPersonIssue, knownRelationship, meaningfulTime, negotiateAgreement, relationshipMemory,
   relationshipSatisfaction, relationshipState, setAgreement, visibleConcerns } from './relationships.ts';
 import { findContact } from './school.ts';
+import { availability, contextualOutcome } from './socialContext.ts';
+import { canMakeFriend } from './workplace.ts';
 import type { IntimacyAction, SocialEventId } from './socialTypes.ts';
 import type { Contact, Life, LifeEvent } from './types.ts';
 
@@ -123,8 +126,14 @@ export function offerSocialEvent(life: Life) {
   if (child) possibilities.push({ person: child.id, event: 'social-school' });
   const friend = allContacts(life).find((person) => 'friend' in person && person.friend && person.alive &&
     !ensureNpc(life, person).formerFriend && person.city === life.character.city &&
+    !availability(life, person, { key: 'invite-dinner', location: 'local', demanding: true }) &&
     npcRandom(life, `invite:${person.id}`, life.year).next() < ensureNpc(life, person).traits.sociability / 120);
   if (friend) possibilities.push({ person: friend.id, event: 'social-dinner' });
+  const proposer = allContacts(life).find((person) => person.alive && 'friend' in person && !person.friend && canMakeFriend(person) &&
+    person.city === life.character.city && person.bond.familiarity >= 25 && friendshipWillingness(life, person) >= 51 &&
+    !availability(life, person, { key: 'friendship-offer', location: 'local' }) &&
+    npcRandom(life, `friendship-offer:${person.id}`, life.year).next() < npcProfile(life, person).traits.sociability / 260);
+  if (proposer) possibilities.push({ person: proposer.id, event: 'social-friendship' });
   const concerned = allContacts(life).find((person) => person.alive && person.age >= 18 && knownRelationship(life, person) && !earlyConnection(life, person.id) &&
     visibleConcerns(life, person.id).some((entry) => entry.severity >= 33));
   if (concerned && life.character.age >= 18) possibilities.push({ person: concerned.id, event: 'social-concern' });
@@ -203,6 +212,16 @@ export function answerSocialEvent(life: Life, id: string, choice: string) {
   delete life.social.pendingGuest;
   delete life.social.pendingEncounter;
   if (!person?.alive) return;
+  if (id === 'social-friendship') {
+    life.usedActions.push(invitationKey(person.id));
+    if (accepted) acceptFriendship(life, person);
+    else {
+      const story = `I told ${person.name} I wanted to stay acquaintances for now.`;
+      remember(life, person, story);
+      record(life, 'decision', story);
+    }
+    return;
+  }
   if (encounter) {
     const method = choice === 'barrier' || choice === 'no-barrier' ? choice : 'pass';
     const completed = answerIntimacy(life, encounter, person, guest, method);
@@ -273,15 +292,17 @@ export function answerSocialEvent(life: Life, id: string, choice: string) {
     return;
   }
   const profile = ensureNpc(life, person);
+  const outcome = accepted && (id === 'social-time' || id === 'social-dinner') ? contextualOutcome(life, person, { key: id }) : undefined;
+  const impact = outcome?.weight ?? 1;
   const cost = accepted && id === 'social-support' ? Math.min(life.character.bank, 1200) : 0;
   profile.savings += cost;
   if (accepted && id === 'social-finances') profile.commitments = Math.max(0, profile.commitments - 600);
   const child = life.social.children[person.id];
   if (accepted && id === 'social-school' && child) child.learning = clamp(child.learning + 4);
-  person.bond.trust = clamp(person.bond.trust + (accepted ? 5 : -2));
-  person.bond.affection = clamp(person.bond.affection + (accepted ? 4 : -2));
-  if (accepted && id === 'social-time') person.bond.resentment = clamp(person.bond.resentment - 7);
-  if (accepted && (id === 'social-time' || id === 'social-dinner')) meaningfulTime(life, person, 'time', 5);
+  person.bond.trust = clamp(person.bond.trust + (accepted ? Math.round(5 * impact) : -2));
+  person.bond.affection = clamp(person.bond.affection + (accepted ? Math.round(4 * impact) : -2));
+  if (accepted && id === 'social-time') person.bond.resentment = clamp(person.bond.resentment - Math.round(7 * impact));
+  if (outcome && impact > 0) meaningfulTime(life, person, 'time', 5);
   if (accepted && id === 'social-support') meaningfulTime(life, person, 'support', 5);
   const stories: Record<string, string> = {
     'social-dinner': `I accepted ${person.name}’s invitation and we had dinner together.`,
@@ -291,9 +312,12 @@ export function answerSocialEvent(life: Life, id: string, choice: string) {
     'social-school': `I worked through the assignment with ${person.name}.`,
     'social-finances': `I made a household budget with ${person.name} and we reduced some commitments.`,
   };
-  const text = accepted ? stories[id]! : `I told ${person.name} I would rather wait. We agreed to leave it for now.`;
+  const text = accepted ? `${stories[id]!}${outcome ? ` ${outcome.note}` : ''}` : `I told ${person.name} I would rather wait. We agreed to leave it for now.`;
   if (accepted && id === 'social-proposal') changeRomance(life, person.id, 'engaged', text);
   else romanceHistory(life, person.id, text);
   remember(life, person, text);
-  record(life, 'decision', text, { bank: -cost, happiness: accepted ? 3 : 0 }, 'relationships');
+  if (outcome) {
+    friendshipExperience(life, person, impact);
+    recordNotice(life, 'community', outcome.title, text, { bank: -cost, happiness: Math.round(3 * impact) }, 'relationships');
+  } else record(life, 'decision', text, { bank: -cost, happiness: accepted ? 3 : 0 }, 'relationships');
 }

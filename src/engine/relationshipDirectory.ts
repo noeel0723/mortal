@@ -1,20 +1,16 @@
 import { activeRomances, romanceFor } from './love.ts';
 import { communicationEnded } from './relationships.ts';
-import { allContacts, isFamily, npcProfile } from './npcs.ts';
+import { allContacts, isFamily } from './npcs.ts';
+import { friendshipLabels, friendshipStage } from './friendships.ts';
 import { isCurrentClassContact, isPeer } from './school.ts';
 import { isWorkAcquaintance, isWorkContact } from './workplace.ts';
 import type { Contact, Life } from './types.ts';
 
 export function friendshipLabel(life: Life, person: Contact) {
-  const profile = npcProfile(life, person);
+  const stage = friendshipStage(life, person);
+  if (stage === 'former') return 'Former Friend';
   if (person.bond.resentment >= 55 && person.bond.trust < 35) return 'Rival';
-  if (profile.formerFriend) return 'Former Friend';
-  if (!('friend' in person) || !person.friend) return 'Acquaintance';
-  const years = life.year - profile.met;
-  const score = person.bond.affection * .52 + person.bond.trust * .35 + profile.traits.loyalty * .13;
-  if (years >= 4 && score >= 80 && profile.memories.length >= 4) return 'Best Friend';
-  if (years >= 2 && score >= 66 && profile.memories.length >= 2) return 'Close Friend';
-  return 'Friend';
+  return friendshipLabels[stage];
 }
 
 export function relationshipGroups(life: Life) {

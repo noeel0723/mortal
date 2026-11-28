@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { lifestyleActivities, mindAndBodyActivities, socialActivities, type ActivityControl } from '../src/activityView';
+import { lifestyleActivities, mindAndBodyActivities, type ActivityControl } from '../src/activityView';
+import { isSocialPage, localSocialGroups, localSocialTitle, socialActivityLinks, socialPages } from '../src/localSocialView';
 import { assetById, assetKinds } from '../src/data/shops';
 import type { AssetListing } from '../src/data/shops';
 import { backgroundLabels, genderLabels, talentLabels } from '../src/data/veyra';
@@ -104,6 +105,7 @@ export const pageTitles = {
   fund: 'Holding',
   transactions: 'Transaction History',
   activities: 'Activities',
+  ...socialPages,
   love: 'Love',
   'dating-profile': 'Dating Profile',
   threesome: 'Threesome',
@@ -162,6 +164,14 @@ const parentPages: Partial<Record<DetailPage, GamePage>> = {
   'dating-profiles': 'love-life',
   'relationship-history': 'love-life',
   'family-tree': 'relationships',
+  neighborhood: 'activities',
+  neighbor: 'neighborhood',
+  communities: 'activities',
+  community: 'communities',
+  'club-member': 'community',
+  'local-library': 'activities',
+  'library-books': 'local-library',
+  'reading-history': 'local-library',
   finances: 'assets',
   shopping: 'assets',
   'shop-category': 'shopping',
@@ -200,8 +210,8 @@ const parentPages: Partial<Record<DetailPage, GamePage>> = {
   achievements: 'menu',
 };
 
-export function PlayPageHeader({ page, person, schoolTitle, detail, go }: {
-  page: DetailPage; person?: Contact; schoolTitle?: string; detail?: string; go: Navigate;
+export function PlayPageHeader({ life, page, person, schoolTitle, detail, go }: {
+  life: Life; page: DetailPage; person?: Contact; schoolTitle?: string; detail?: string; go: Navigate;
 }) {
   let parent = parentPages[page] ?? 'journal';
   if (page === 'love-life' && detail === 'love') parent = 'love';
@@ -212,8 +222,9 @@ export function PlayPageHeader({ page, person, schoolTitle, detail, go }: {
   if (page === 'education' && schoolTitle) parent = 'journal';
   const trainingCategory = page === 'skill' ? skillCategory(detail?.split('~')[1]) : undefined;
   if (trainingCategory) parent = 'skill-training';
-  const parentDetail = page === 'shop-item' ? assetById.get(detail ?? '')?.kind : trainingCategory;
+  const parentDetail = page === 'shop-item' ? assetById.get(detail ?? '')?.kind : page === 'club-member' ? detail?.split('~')[0] : trainingCategory;
   const titleFor = (target: GamePage, value?: string) => {
+    if (isSocialPage(target)) return localSocialTitle(life, target, value);
     const instrument = target === 'fund' ? findFund(value) : undefined;
     if (instrument) return instrumentNames[instrument];
     if (target === 'education' && schoolTitle) return schoolTitle;
@@ -634,6 +645,14 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       void dispatch({ type: 'dating-match', source: datingApp, preferences });
     }} />;
 
+  if (isSocialPage(page)) return localSocialGroups(life, page, detail).map((group) =>
+    <PageGroup key={group.title} title={group.title}>
+      {group.rows.map(({ key, label, icon, detail, issue, person, route, action }) => <MenuRow
+        key={key ?? label} title={label} icon={icon} detail={issue ?? detail} disabled={busy || !!issue}
+        avatar={person && <Portrait appearance={person.appearance} age={person.age} label={`Portrait of ${person.name}`} />}
+        onClick={action ? () => void dispatch(action) : route ? () => go(route.page, route.detail) : undefined} />)}
+    </PageGroup>);
+
   switch (page) {
     case 'career':
     case 'career-info': {
@@ -1024,7 +1043,9 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
         <PageGroup title="Wellbeing">
           <MenuRow icon="meditation" title="Mind & Body" detail="Rest, exercise, and unwind" onClick={() => go('mind-body')} />
         </PageGroup>
-        <PageGroup title="Social Activities">{socialActivities(life).map(activityRow)}</PageGroup>
+        <PageGroup title="Social Activities">{socialActivityLinks(life).map(({ label, icon, detail, issue, route }) =>
+          <MenuRow key={label} title={label} icon={icon} detail={issue ?? detail} disabled={!!issue}
+            onClick={() => go(route.page, route.detail)} />)}</PageGroup>
         <PageGroup title="Skill Training">
           {activitySkillCategories.map(({ category, label, icon }) => <MenuRow key={category} icon={icon} title={label}
             onClick={() => go('skill-training', category)} />)}

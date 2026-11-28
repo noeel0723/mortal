@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { Portrait } from '../../src/components/portrait';
 import { DatingOptions, DatingProfileEditor } from '../../src/components/datingOptions';
 import { ActionButton, Heading, Page, Section } from '../../src/components/ui';
-import { lifestyleActivities, mindAndBodyActivities, socialActivities, type ActivityControl } from '../../src/activityView';
+import { lifestyleActivities, mindAndBodyActivities, type ActivityControl } from '../../src/activityView';
+import { socialActivityLinks } from '../../src/localSocialView';
 import { canEditFace } from '../../src/engine/appearance';
 import { intimacyGuests, intimacyIssue } from '../../src/engine/intimacy';
 import { activitySkillCategories } from '../../src/skillView';
@@ -101,7 +102,11 @@ export default function Activities() {
         <ActionButton icon="meditation" label="Mind & Body" compactDetail detail="Rest, exercise, and unwind"
           onPress={() => router.push({ pathname: '/game/activities', params: { screen: 'mind-body' } })} />
       </Section>
-      <Section title="Social Activities">{socialActivities(life).map(action)}</Section>
+      <Section title="Social Activities">
+        {socialActivityLinks(life).map(({ label, icon, detail, issue, route }) =>
+          <ActionButton key={label} label={label} icon={icon ?? 'person'} compactDetail detail={issue ?? detail} disabled={!!issue}
+            onPress={() => router.push({ pathname: '/game/social', params: { screen: route.page } })} />)}
+      </Section>
       <Section title="Skill Training">
         {activitySkillCategories.map(({ category, label, icon }) => <ActionButton key={category} icon={icon} label={label}
           onPress={() => router.push({ pathname: '/game/skills', params: { category } })} />)}

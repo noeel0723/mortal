@@ -2,19 +2,17 @@ import { activityIssue } from './engine/simulation.ts';
 import { lifestyle, lifestyleIssue } from './engine/lifestyle.ts';
 import { lifestyleIds, skillLimits } from './engine/skillTypes.ts';
 import type { Action, Life } from './engine/types.ts';
-import { meetingControls } from './socialView.ts';
 import type { Emoji } from './theme/tokens.ts';
 import { money } from './i18n/en.ts';
 
 export type ActivityControl = { label: string; icon: Emoji; detail?: string; issue: string | null; action: Action };
 
-const library = { id: 'go-to-library', icon: 'library', label: 'Go to Library', detail: 'Read and meet other readers' } as const;
 const wellbeing = [
   { id: 'walk', icon: 'walk', label: 'Take a Walk', detail: 'Get moving and ease stress' },
   { id: 'rest', icon: 'rest', label: 'Rest', detail: 'Recover energy' },
 ] as const;
 
-function personalActivity(life: Life, item: typeof library | typeof wellbeing[number]) {
+function personalActivity(life: Life, item: typeof wellbeing[number]) {
   return {
     label: item.label, icon: item.icon, detail: item.detail,
     issue: life.character.causeOfDeath ? 'This life has ended.' : life.pending ? 'Resolve the pending decision first.' : activityIssue(life, item.id),
@@ -24,10 +22,6 @@ function personalActivity(life: Life, item: typeof library | typeof wellbeing[nu
 
 export function mindAndBodyActivities(life: Life): ActivityControl[] {
   return [...wellbeing.map((item) => personalActivity(life, item)), ...lifestyleActivities(life, 'Mind & Body')];
-}
-
-export function socialActivities(life: Life): ActivityControl[] {
-  return [...meetingControls(life), personalActivity(life, library)];
 }
 
 export function lifestyleActivities(life: Life, section: 'Mind & Body' | 'Travel'): ActivityControl[] {

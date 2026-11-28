@@ -17,6 +17,8 @@ import type { Contact, Life } from './types.ts';
 
 export const npcAnnualLimit = 18;
 export const newPeopleLimit = 36;
+export const communicationCapacity = (life: Life) => life.social.people.filter(({ role }) => role === 'Acquaintance').length < newPeopleLimit - 8 &&
+  life.social.people.length + (life.social.pregnancies?.length ?? 0) < newPeopleLimit;
 export const interests = ['reading', 'cooking', 'hiking', 'music', 'sketching', 'chess', 'gardening', 'photography'] as const;
 const savings = { 'working-class': 15500, 'middle-income': 41500, affluent: 82000 };
 
@@ -89,6 +91,14 @@ export function syncNpcs(life: Life) {
 export function cloneSocial(social: SocialState): SocialState {
   return {
     ...social, people: social.people.map((person) => ({ ...person, bond: { ...person.bond } })),
+    ...(social.local ? { local: {
+      neighborhoods: Object.fromEntries(Object.entries(social.local.neighborhoods).map(([id, entry]) =>
+        [id, { rotations: { ...entry.rotations } }])),
+      memberships: Object.fromEntries(Object.entries(social.local.memberships).map(([id, entry]) =>
+        [id, { ...entry, members: [...entry.members], history: [...entry.history] }])),
+      reading: [...social.local.reading],
+    } } : {}),
+    ...(social.graph ? { graph: social.graph.map((entry) => ({ ...entry, memories: [...entry.memories] })) } : {}),
     profiles: Object.fromEntries(Object.entries(social.profiles).map(([id, profile]) => [id, { ...profile, memories: [...profile.memories] }])),
     parents: { ...social.parents }, children: Object.fromEntries(Object.entries(social.children).map(([id, child]) => [id, { ...child }])),
     romances: social.romances.map((entry) => ({ ...entry, history: [...entry.history] })),
@@ -152,7 +162,8 @@ export function advanceNpcLives(life: Life, elapsedWorld: WorldState = life.worl
   const coParents = new Set(Object.keys(life.social.children).flatMap((id) => life.social.parents[id] ?? []));
   const priority = (id: string) => isFamily(life, id) || partners.has(id) || coParents.has(id);
   const important = contacts.filter((person) => person.alive && (priority(person.id) ||
-    ('friend' in person && person.friend) || ('stage' in person && person.stage === 'high') || 'employerId' in person));
+    ('friend' in person && person.friend) || ('stage' in person && person.stage === 'high') || 'employerId' in person ||
+    person.id.startsWith('npc-venue-')));
   important.sort((a, b) => Number(priority(b.id)) - Number(priority(a.id)));
   let updates = 0;
   for (const person of important.slice(0, npcAnnualLimit)) {
@@ -251,9 +262,20 @@ export function advanceNpcLives(life: Life, elapsedWorld: WorldState = life.worl
         }
       }
     }
-    if ('friend' in person && person.friend && !family && !partners.has(person.id) && life.year - profile.lastInteraction > 5) {
-      person.bond.affection = clamp(person.bond.affection - (profile.traits.loyalty > 65 ? 1 : 2));
-      if (person.bond.affection < 24) profile.formerFriend = true;
+    if ('friend' in person && person.friend && !profile.formerFriend && !family && !partners.has(person.id)) {
+      const neglected = life.year - profile.lastInteraction > 5;
+      if (neglected) person.bond.affection = clamp(person.bond.affection - (profile.traits.loyalty > 65 ? 1 : 2));
+      const conflict = person.bond.resentment >= 64 && person.bond.trust < 30 && person.bond.respect < 42;
+      if ((neglected && person.bond.affection < 24) || conflict) {
+        profile.formerFriend = true;
+        profile.friendship = { stage: 'former', experiences: profile.friendship?.experiences ?? 0, changed: life.year };
+        const story = `${person.name} said ${conflict ? 'our disagreements had become too much' : 'we had drifted apart'} and decided to let the friendship go.`;
+        remember(life, person, story);
+        if (updates < 2) {
+          recordNotice(life, 'community', 'A Friendship Ended', story);
+          updates++;
+        }
+      }
     }
   }
   for (const entry of life.social.romances) {

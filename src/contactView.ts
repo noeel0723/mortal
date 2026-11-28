@@ -5,11 +5,12 @@ import { canShareHobby, sharedHobbies, sharedHobbyIssue } from './engine/hobbies
 import { canStudyWith, contactGroup, giftCost, relationshipActivities, relationshipIssue } from './engine/interactions.ts';
 import type { RelationshipActivity } from './engine/interactions.ts';
 import { befriendIssue, friendshipEnergyCost, talkIssue } from './engine/simulation.ts';
-import { canMakeFriend, coworkerFriendAffection, isWorkContact } from './engine/workplace.ts';
+import { canMakeFriend, isWorkContact } from './engine/workplace.ts';
 import type { Action, Contact, Life } from './engine/types.ts';
 import { money } from './i18n/en.ts';
 import { profileHealthRows } from './healthView.ts';
 import { npcProfile } from './engine/npcs.ts';
+import { introductionIssue, possibleIntroduction, socialCircle } from './engine/socialGraph.ts';
 import { isActiveRomance, romanceFor } from './engine/love.ts';
 import { activeFor, casualConnection, communicationEnded, earlyConnection } from './engine/relationships.ts';
 import { childParents, personalityLabels, relationshipOverview, socialRole } from './socialView.ts';
@@ -65,6 +66,7 @@ export function contactProfileRows(life: Life, person: Contact) {
       { label: 'Confidence', value: `${child.confidence}%` }] : []),
     ...(isWorkContact(person) ? [{ label: 'Employer', value: employerById.get(person.employerId)?.name ?? person.employerId }] : []),
     ...('hobby' in person ? [{ label: 'Shared hobby', value: person.hobby }] : []),
+    ...socialCircle(life, person),
     { label: 'Health', value: `${person.health}%` },
     ...profileHealthRows(life, person.id),
   ];
@@ -91,9 +93,11 @@ export function contactInteractions(life: Life, person: Contact) {
     life.pending ? 'Resolve the pending decision first.' : null;
   const rows: InteractionRow[] = [];
   const reconnect = npcProfile(life, person).formerFriend;
+  if (possibleIntroduction(life, person)) rows.push({ label: 'Ask for an Introduction', icon: 'relationships',
+    detail: 'Meet someone from their social circle.', issue: introductionIssue(life, person),
+    action: { type: 'social-introduction', person: person.id } });
   if ('friend' in person && canMakeFriend(person) && (!person.friend || reconnect)) {
-    const outcome = isWorkContact(person) && !person.friend ? `Starts the friendship at ${coworkerFriendAffection}% Affection.` : 'Adds them to Relationships.';
-    rows.push({ label: reconnect ? 'Reconnect' : 'Become Friends', icon: 'relationships', detail: `Uses ${friendshipEnergyCost} energy. ${outcome}`,
+    rows.push({ label: reconnect ? 'Reconnect' : 'Become Friends', icon: 'relationships', detail: `Uses ${friendshipEnergyCost} energy. Ask how they feel.`,
       issue: blocked ?? befriendIssue(life, person.id), action: { type: 'befriend', person: person.id } });
   }
   if (person.age >= 3 && !earlyConnection(life, person.id) && !(casualConnection(life, person.id) && !activeFor(life, person.id))) rows.push({ label: 'Have a Conversation', icon: 'talk', detail: 'Uses 8 energy. Strengthens affection and trust.',

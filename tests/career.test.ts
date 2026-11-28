@@ -205,13 +205,14 @@ test('former co-worker friends stay after a job change and negative interactions
   expectError(hired, befriend, /above 70%/);
   assert.ok(!relationshipGroups(hired).acquaintances.some(includesTarget));
   target.bond.affection = 71;
+  Object.assign(target.bond, { trust: 70, familiarity: 69, respect: 69, compatibility: 78, resentment: 0 });
   assert.ok(relationshipGroups(hired).acquaintances.some(includesTarget));
   const leftWork = act(hired, { type: 'resign' });
   assert.ok(relationshipGroups(leftWork).acquaintances.some(includesTarget));
   assert.equal(talkIssue(leftWork, target.id), null);
   let life = act(hired, befriend);
   assert.ok(!relationshipGroups(life).acquaintances.some(includesTarget));
-  assert.equal(relationshipGroups(life).friends.find(includesTarget)?.bond.affection, 50);
+  assert.equal(relationshipGroups(life).friends.find(includesTarget)?.bond.affection, 71);
   const atWork = act(life, { type: 'talk', person: target.id });
   assert.match(atWork.journal.at(-1)?.text ?? '', /at work|from work|a task|workplace gets busy/);
   assert.ok(atWork.journal.at(-1)?.text.includes(target.name));

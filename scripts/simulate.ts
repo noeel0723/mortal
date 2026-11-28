@@ -43,8 +43,11 @@ import type { AcademicAction, ProgramLevel } from '../src/engine/academicTypes.t
 import type { CareerAction } from '../src/engine/careerTypes.ts';
 import type { Action, Life } from '../src/engine/types.ts';
 import { datingCandidates } from '../src/socialView.ts';
+import { localSocialIssue } from '../src/engine/localSocial.ts';
+import { socialGraphLimit } from '../src/engine/socialGraph.ts';
 
 const count = Number(process.argv[2] ?? 1000);
+const communitySample = { gatherings: 0, clubSessions: 0, readingCircles: 0, peakEdges: 0, peakDegree: 0, peakMembersPerClub: 0 };
 const started = performance.now();
 assert.ok(Number.isInteger(count) && count >= 1 && count <= 100000, 'Choose between 1 and 100000 lives.');
 const ages: number[] = [];
@@ -564,6 +567,33 @@ for (let seed = 1; seed <= count; seed++) {
     }
     if (!life.character.causeOfDeath) life = employmentChoice(educationChoice(life, seed), seed);
     life = socialChoice(life, seed, relationshipStrategy);
+    if (!life.character.causeOfDeath && seed % 3 === 0 && life.character.age >= 10 && life.character.age % 5 === 0) {
+      const venue = (['reading', 'film', 'chess', 'photography'] as const)[seed % 4]!;
+      const join = { type: 'community', activity: 'join', club: venue } as const;
+      if (!localSocialIssue(life, join)) life = apply(life, join);
+      const session = { ...join, activity: 'attend' } as const;
+      if (!localSocialIssue(life, session)) {
+        life = apply(life, session);
+        communitySample.clubSessions++;
+      }
+      if (life.character.age <= 55) {
+        life = apply(life, { type: 'neighborhood', activity: 'gathering' });
+        communitySample.gatherings++;
+      }
+      life = apply(life, { type: 'library-visit', activity: 'circle' });
+      communitySample.readingCircles++;
+    }
+    const graph = life.social.graph ?? [];
+    communitySample.peakEdges = Math.max(communitySample.peakEdges, graph.length);
+    if (graph.length) {
+      const degrees = new Map<string, number>();
+      for (const { people } of graph) for (const id of people) degrees.set(id, (degrees.get(id) ?? 0) + 1);
+      communitySample.peakDegree = Math.max(communitySample.peakDegree, ...degrees.values());
+    }
+    for (const member of Object.values(life.social.local?.memberships ?? {})) {
+      communitySample.peakMembersPerClub = Math.max(communitySample.peakMembersPerClub, member.members.length);
+    }
+    assert.ok(communitySample.peakEdges <= socialGraphLimit && communitySample.peakDegree <= 4 && communitySample.peakMembersPerClub <= 3);
     const partners = activeRomances(life);
     hadConcurrent ||= partners.filter(({ person }) => agreementFor(life, person) === 'non-exclusive').length > 1;
     for (const { person } of partners) relationshipStats.satisfaction.push(relationshipSatisfaction(life, findContact(life, person)!));
@@ -760,6 +790,7 @@ console.log(JSON.stringify({
   distinctTemplatesObserved: templates.size,
   meanContextualEvents: Number((contextualEvents / count).toFixed(1)),
   decisionsResolved: decisions,
+  communitySample,
   graduationPlans: plans,
   qualificationsEarned: qualifications,
   admissionsAccepted,

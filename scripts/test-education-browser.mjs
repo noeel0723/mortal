@@ -20,7 +20,11 @@ function olderSave() {
       life = act(life, { type: 'choose', event: life.pending, choice: eventById.get(life.pending).choices[0].id });
     }
     if (age >= 6) life = act(life, { type: 'activity', activity: 'study' });
-    if (age === 6) life = act(life, { type: 'befriend', person: currentClass(life).find(({ role }) => role === 'Classmate').id });
+    if (age === 6) {
+      const classmate = currentClass(life).find(({ role }) => role === 'Classmate');
+      Object.assign(classmate.bond, { affection: 83, trust: 80, respect: 78, familiarity: 75, compatibility: 81, resentment: 0 });
+      life = act(life, { type: 'befriend', person: classmate.id });
+    }
   }
   return { ...life, academic: undefined, career: undefined, finance: undefined, illnesses: undefined, notices: undefined, version: 1 };
 }
@@ -106,7 +110,7 @@ try {
   await click('Become Friends');
   await page.getByRole('dialog', { name: 'A New Friend' }).waitFor();
   await acknowledgeEvents(page);
-  await page.getByText(/^Friend · Age /).waitFor();
+  await page.getByText(/^Casual Friend · Age /).waitFor();
   await click('Back to Class');
   await click('Back to University');
   await click('Academic Records');
@@ -137,7 +141,7 @@ try {
   const mother = legacy.family[0].name;
   await click(mother);
   await click('Spend Time Together');
-  await page.getByRole('dialog', { name: 'Time Together' }).waitFor();
+  await page.getByRole('dialog', { name: /^(Time Together|Maybe Another Time)$/ }).getByText(new RegExp(mother)).waitFor();
   await acknowledgeEvents(page);
   assert.ok(await button('Spend Time Together').isDisabled());
   assert.equal(await button('Ask for Academic Help').count(), 0);

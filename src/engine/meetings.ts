@@ -1,10 +1,12 @@
 import { libraryHobbies } from '../data/libraryEvents.ts';
 import { skills } from '../data/skills.ts';
 import { recordNotice } from './eventNotices.ts';
+import { friendshipExperience } from './friendships.ts';
 import { hobbyGroupContact, personalizedLibraryHobbies, sharedHobbies } from './hobbies.ts';
 import { clamp, record } from './journal.ts';
 import { ensureNpc, makeNpc, newPeopleLimit, npcRandom, remember } from './npcs.ts';
 import { inPersonIssue, relationshipMemory } from './relationships.ts';
+import { availability, contextualOutcome } from './socialContext.ts';
 import { meetingSources } from './socialTypes.ts';
 import type { MeetingSource } from './socialTypes.ts';
 import { pickStory } from './stories.ts';
@@ -111,13 +113,20 @@ export function answerMeeting(life: Life, accepted: boolean) {
     ]));
     return;
   }
+  const occasion = { key: `meeting:${source}`, location: 'local' } as const;
+  const unavailable = availability(life, person, occasion);
+  if (unavailable) {
+    recordNotice(life, 'community', 'Maybe Another Time', `I reached out to ${name}. ${unavailable.reason}`);
+    return;
+  }
   if (newcomer) {
     life.social.people.push(newcomer);
     relationshipMemory(life, person.id, 'meeting', 2);
   }
   const profile = ensureNpc(life, person);
   if (newcomer && interest) profile.interests = [interest, ...profile.interests.filter((item) => item !== interest).slice(0, 1)];
-  person.bond.affection = clamp(person.bond.affection + 2);
+  const outcome = contextualOutcome(life, person, occasion);
+  person.bond.affection = clamp(person.bond.affection + Math.round(outcome.weight * 3));
   person.bond.familiarity = clamp(person.bond.familiarity + 3);
   const conversations = {
     neighborhood: [`I traded local recommendations with ${name}. We agreed to say hello next time.`,
@@ -133,7 +142,8 @@ export function answerMeeting(life: Life, accepted: boolean) {
       `I asked ${name} about the book they were carrying. One question turned into a long conversation.`,
       `I helped ${name} track down a title and agreed to catch up on our next visit.`],
   };
-  const story = pickStory(life, `meeting-chat:${source}`, conversations[source]);
+  const story = `${pickStory(life, `meeting-chat:${source}`, conversations[source], true)} ${outcome.note}`;
   remember(life, person, story);
-  recordNotice(life, 'community', newcomer ? 'A New Acquaintance' : 'A Good Catch-Up', story, { happiness: 2 });
+  friendshipExperience(life, person, outcome.weight);
+  recordNotice(life, 'community', newcomer ? 'A New Acquaintance' : 'A Good Catch-Up', story, { happiness: Math.round(outcome.weight * 2) });
 }

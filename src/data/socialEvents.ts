@@ -73,6 +73,12 @@ export const socialEventCatalog: readonly LifeEvent[] = [
       { id: 'no-barrier', label: 'Continue Without a Barrier', emoji: 'support', outcome: '', effects: {} },
       { id: 'pass', label: 'Call It Off', emoji: 'decline', outcome: '', effects: {} },
     ] },
+  { id: 'social-friendship', category: 'community', ages: [6, 115], probability: 0,
+    text: 'said they’d like to be friends after getting to know me. How should I respond?',
+    choices: [
+      { id: 'accept', label: 'Become Friends', emoji: 'accept', outcome: '', effects: {} },
+      { id: 'pass', label: 'Stay Acquaintances', emoji: 'decline', outcome: '', effects: {} },
+    ] },
   ...([
     ['social-expectations', 'wants to talk about what we expect from this relationship.', 'Agree Together'],
     ['social-space', 'asked for some time apart to think things through.', 'Respect Their Space'],

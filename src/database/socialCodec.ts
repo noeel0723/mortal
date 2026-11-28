@@ -10,8 +10,10 @@ import { protectionEvent } from '../engine/reproductiveHealth.ts';
 import { validPendingMeeting } from '../engine/meetings.ts';
 import { canShareInvitation, isIntimacyContact, isIntimacyEvent } from '../engine/intimacy.ts';
 import { validateRelationships } from './relationshipCodec.ts';
+import { validateFriendship, validateLocalSocial } from './localSocialCodec.ts';
 import { inPersonIssue, knownRelationship, visibleConcerns } from '../engine/relationships.ts';
 import { employment, npcEducation, romanceStatuses, socialEvents, traits } from '../engine/socialTypes.ts';
+import { canMakeFriend } from '../engine/workplace.ts';
 import type { Life } from '../engine/types.ts';
 
 const record = (value: unknown): value is Record<string, unknown> =>
@@ -35,8 +37,10 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
   const ids = new Set(contacts.map(({ id }) => id));
   if (ids.has('self') || ids.size !== contacts.length || Object.keys(social.profiles).length !== ids.size) return false;
   if (!validateRelationships(life, ids)) return false;
+  if (!validateLocalSocial(life, ids)) return false;
   if (!validDatingState(life)) return false;
-  for (const id of ids) {
+  for (const person of contacts) {
+    const { id } = person;
     if (!Object.hasOwn(social.profiles, id)) return false;
     const profile = social.profiles[id];
     if (!record(profile) || !record(profile.traits) || !traits.every((trait) => integer(profile.traits[trait], 0, 100)) ||
@@ -44,6 +48,8 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
       !Array.isArray(profile.preferences) || !profile.preferences.length || !profile.preferences.every((item) => genders.includes(item)) ||
       (profile.datingGoal !== undefined && (typeof profile.datingGoal !== 'string' || !Object.hasOwn(datingGoals, profile.datingGoal))) ||
       (profile.casualContact !== undefined && profile.casualContact !== 'connected' && profile.casualContact !== 'closed') ||
+      (profile.localHousehold !== undefined && !['alone', 'shared', 'family'].includes(profile.localHousehold)) ||
+      !validateFriendship(profile.friendship, life, 'friend' in person && person.friend, profile.formerFriend) ||
       !npcEducation.includes(profile.education) || !employment.includes(profile.status) ||
       (profile.educationProgram !== undefined && !validNpcProgram(profile.educationProgram, profile.education, year - profile.born)) ||
       (profile.job !== null && !jobById.has(profile.job)) ||
@@ -114,6 +120,7 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
   if (!socialEvents.some((event) => event === life.pending)) return social.pendingPerson === null;
   const participant = contacts.find(({ id, alive }) => id === social.pendingPerson && alive);
   if (!participant) return false;
+  if (life.pending === 'social-friendship') return character.age >= 6 && 'friend' in participant && !participant.friend && canMakeFriend(participant);
   if (isIntimacyEvent(encounter)) {
     if (character.causeOfDeath || character.age < 18 || participant.age < 18 || inPersonIssue(life, participant)) return false;
     if (encounter === 'social-hookup') {

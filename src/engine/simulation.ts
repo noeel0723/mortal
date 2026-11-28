@@ -14,6 +14,7 @@ import { enqueueNotice, eventTitle, recordNotice, resultMeter } from './eventNot
 import { applyFamilyDriving, offerFirstDrivingLessons } from './familyDriving.ts';
 import { ageFamilyOpportunities, applyFamily, deliverPregnancies } from './familyLife.ts';
 import { respondToSurname } from './familyNames.ts';
+import { friendshipExperience, friendshipResponse, invitationKey } from './friendships.ts';
 import { advanceIllnesses, startIllness, visitHealthcare } from './health.ts';
 import { playerPatient } from './healthTypes.ts';
 import { sharedHobbies, spendTimeOnHobby } from './hobbies.ts';
@@ -22,22 +23,25 @@ import { contactIssue, performRelationshipActivity } from './interactions.ts';
 import { clamp, record } from './journal.ts';
 import { befriendLibraryGuest, visitLibrary } from './library.ts';
 import { doLifestyle } from './lifestyle.ts';
+import { advanceClubMemberships, advanceNeighborhood, performLocalSocial } from './localSocial.ts';
 import { applyLove } from './love.ts';
-import { advanceNpcLives, ageNewPeople, cloneSocial, ensureNpc, remember, syncNpcs } from './npcs.ts';
+import { advanceNpcLives, ageNewPeople, cloneSocial, remember, syncNpcs } from './npcs.ts';
 import { applyPropertyAction, movingAge } from './property.ts';
 import { performSurgery } from './plasticSurgery.ts';
 import { seededRandom } from './random.ts';
 import { advanceReproductiveHealth, cloneReproductiveHealth, protectionEvent } from './reproductiveHealth.ts';
 import { relocate } from './relocation.ts';
-import { conversationStory, friendshipStory } from './relationshipStories.ts';
+import { conversationStory } from './relationshipStories.ts';
 import { spendTimeWithAll } from './relationshipTime.ts';
 import { answerSocialEvent, applyIntimacy, isSocialEvent, offerSocialEvent } from './socialEvents.ts';
-import { advanceEarlyConnections, advanceRelationships, applyRelationshipCare, meaningfulTime, responseScale, takingSpace } from './relationships.ts';
+import { advanceEarlyConnections, advanceRelationships, applyRelationshipCare, inPersonIssue, meaningfulTime, openConcern, takingSpace } from './relationships.ts';
 import { advanceContactOccupation, currentClass, findContact, isPeer, isSchoolStage } from './school.ts';
 import { ageSkills, cloneSkills, incidentalPractice, setHobby, trainSkill } from './skills.ts';
 import { developAcademicSkills } from './skillIntegration.ts';
 import { holdShowcase } from './skillShowcases.ts';
-import { ageWorkplace, canMakeFriend, coworkerAcquaintanceThreshold, coworkerFriendAffection, isWorkAcquaintance, isWorkContact } from './workplace.ts';
+import { ageWorkplace, canMakeFriend, coworkerAcquaintanceThreshold, isWorkAcquaintance, isWorkContact } from './workplace.ts';
+import { availability, contextualOutcome } from './socialContext.ts';
+import { advanceSocialGraph, introduceThroughFriend } from './socialGraph.ts';
 import { advanceWorld } from './world.ts';
 import { cloneWealth, performWealth, recordValuation } from './wealth.ts';
 import { stats } from './types.ts';
@@ -124,6 +128,9 @@ function ageUp(life: Life) {
   advanceIllnesses(life);
   advanceReproductiveHealth(life);
   advanceNpcLives(life, elapsedWorld);
+  advanceNeighborhood(life);
+  advanceClubMemberships(life);
+  advanceSocialGraph(life);
   developChildInterests(life);
   const dies = character.attributes.health === 0 || age >= maxAge ||
     (age >= 72 && random.next() < (age - 69) / 650 + (100 - character.attributes.health) / 1800);
@@ -156,7 +163,8 @@ function ageUp(life: Life) {
     life.seen.push(photo.id);
     recordNotice(life, photo.category, eventTitle(photo.id), photo.text, photo.effects);
   }
-  const eligible = events.filter((event) => event.id !== discoveryEvent && event.id !== protectionEvent && age >= event.ages[0] && age <= event.ages[1] &&
+  const eligible = events.filter((event) => event.id !== discoveryEvent && event.id !== protectionEvent && event.id !== 'social-friendship' &&
+    age >= event.ages[0] && age <= event.ages[1] &&
     !life.seen.includes(event.id) && !(life.academic.leftSchool && age < 18 && event.category === 'school') &&
     (event.eligible?.(life) ?? true));
   const graduationDecision = graduated && !life.seen.includes('graduation-plan') ? eventById.get('graduation-plan') : undefined;
@@ -212,6 +220,7 @@ export function befriendIssue(life: Life, id: string) {
   const person = findContact(life, id);
   if (!person || !('friend' in person) || !canMakeFriend(person)) return 'You can only befriend a classmate or co-worker.';
   if (person.friend && !life.social.profiles[person.id]?.formerFriend) return 'You are already friends.';
+  if (life.usedActions.includes(invitationKey(id))) return 'You already discussed friendship with them this year.';
   const issue = contactIssue(life, person);
   if (issue) return issue;
   if (isWorkContact(person) && !person.friend && !isWorkAcquaintance(person)) {
@@ -239,6 +248,16 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
     }
     case 'respond-casual': {
       const issue = answerCasualFollowup(life, action.entry, action.response);
+      if (issue) return { error: issue };
+      break;
+    }
+    case 'neighborhood': case 'community': case 'library-visit': {
+      const issue = performLocalSocial(life, action);
+      if (issue) return { error: issue };
+      break;
+    }
+    case 'social-introduction': {
+      const issue = introduceThroughFriend(life, action.person);
       if (issue) return { error: issue };
       break;
     }
@@ -418,14 +437,22 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       life.usedActions.push(`talk:${person.id}`);
       const previousAffection = person.bond.affection;
       const shared = sharedHobbies(life, person)[0];
-      const reception = responseScale(life, person, 'conversation');
+      const occasion = { key: 'conversation', location: 'remote' } as const;
+      const unavailable = availability(life, person, occasion);
+      const outcome = contextualOutcome(life, person, occasion);
+      const reception = unavailable ? 0 : outcome.weight;
+      life.usedActions.push(`connection:${person.id}`);
       person.bond.affection = clamp(person.bond.affection + Math.round((shared ? 4 : 3) * reception));
       person.bond.trust = clamp(person.bond.trust + Math.round(2 * reception));
-      person.bond.familiarity = clamp(person.bond.familiarity + Math.round(4 * reception));
+      if (!unavailable) person.bond.familiarity = clamp(person.bond.familiarity + Math.max(1, Math.round(4 * reception)));
+      if (reception <= -.60) openConcern(life, person.id, 'argument', 31);
       if (reception > 0) meaningfulTime(life, person, 'time', 4);
-      const story = `${conversationStory(life, person)}${reception === 0 ? ' They had a lot on their mind, so we kept it short.' :
-        shared ? ` We also traded ideas about ${skills[shared].name}.` : ''}`;
-      remember(life, person, story);
+      const intro = conversationStory(life, person);
+      const remote = inPersonIssue(life, person) ? ' We caught up by phone.' : '';
+      const story = unavailable ? `I checked in with ${person.name}. ${unavailable.reason}` :
+        `${intro}${remote} ${outcome.note}${shared && reception > 0 ? ` We also traded ideas about ${skills[shared].name}.` : ''}`;
+      remember(life, person, story, reception <= -.60);
+      friendshipExperience(life, person, reception);
       const notice = recordNotice(life, isWorkContact(person) ? 'career' : 'friend' in person ? 'community' : 'family',
         'A Conversation', story, { energy: -8, happiness: Math.round(3 * reception) });
       notice.meter = resultMeter('Affection', previousAffection, person.bond.affection);
@@ -435,22 +462,7 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       const issue = befriendIssue(life, action.person);
       if (issue) return { error: issue };
       const person = findContact(life, action.person)!;
-      if (!('friend' in person)) return { error: 'This contact cannot become a friend.' };
-      const previousAffection = person.bond.affection;
-      const work = isWorkContact(person);
-      const newWorkFriend = work && !person.friend;
-      const relationship = ensureNpc(life, person);
-      relationship.formerFriend = false;
-      relationship.friendsSince ??= life.year;
-      person.friend = true;
-      person.bond.affection = newWorkFriend ? coworkerFriendAffection : clamp(person.bond.affection + 8);
-      person.bond.trust = clamp(person.bond.trust + 5);
-      person.bond.familiarity = clamp(person.bond.familiarity + 6);
-      const story = friendshipStory(life, person);
-      remember(life, person, story);
-      const notice = recordNotice(life, work ? 'career' : 'stage' in person ? 'school' : 'community', 'A New Friend', story,
-        { energy: -friendshipEnergyCost, happiness: 5 });
-      notice.meter = resultMeter('Affection', previousAffection, person.bond.affection);
+      friendshipResponse(life, person, friendshipEnergyCost);
       break;
     }
     case 'seek-work': case 'work-harder': case 'request-raise': case 'resign': case 'retire':

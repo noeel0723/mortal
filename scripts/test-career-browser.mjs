@@ -102,7 +102,8 @@ try {
   const savedSlot = await page.evaluate(saveSlot, { id: slotId });
   const workplaceFixture = JSON.parse(savedSlot.payload);
   const coworker = workplaceFixture.career.contacts.find(({ name }) => name === coworkerName);
-  coworker.bond.affection = 67;
+  Object.assign(coworker.bond, { affection: 67, trust: 92, respect: 89, familiarity: 90, compatibility: 94, resentment: 0 });
+  workplaceFixture.character.attributes.stress = 0;
   await page.evaluate(saveSlot, { id: slotId, entry: { ...savedSlot, payload: JSON.stringify(workplaceFixture) } });
   await page.reload();
   await colleague.waitFor();
@@ -113,7 +114,8 @@ try {
   assert.ok(await button('Become Friends').isDisabled());
   await click('Have a Conversation');
   const conversation = page.getByRole('dialog', { name: 'A Conversation' });
-  assert.equal(await conversation.getByRole('progressbar', { name: 'Affection' }).getAttribute('value'), '70');
+  const afterConversation = Number(await conversation.getByRole('progressbar', { name: 'Affection' }).getAttribute('value'));
+  assert.ok(afterConversation > 67 && afterConversation <= 70);
   await acknowledgeEvents(page);
   await button('Have a Conversation').getByText('Already done this year.', { exact: true }).waitFor();
   assert.ok(await button('Become Friends').isDisabled());
@@ -127,15 +129,16 @@ try {
   const acquaintances = groups.filter({ has: page.getByRole('heading', { name: 'Acquaintances', exact: true }) });
   await acquaintances.getByRole('button', { name: coworkerName, exact: true }).getByText(/Acquaintance ·/).waitFor();
   await click(coworkerName);
+  const affectionBeforeFriendship = (await read()).career.contacts.find(({ id }) => id === coworker.id).bond.affection;
   await click('Become Friends');
   const friendship = page.getByRole('dialog', { name: 'A New Friend' });
-  assert.equal(await friendship.getByRole('progressbar', { name: 'Affection' }).getAttribute('value'), '50');
+  assert.equal(Number(await friendship.getByRole('progressbar', { name: 'Affection' }).getAttribute('value')), affectionBeforeFriendship);
   await acknowledgeEvents(page);
   await openRelationships();
   const friends = groups.filter({ has: page.getByRole('heading', { name: 'Friends', exact: true }) });
   await friends.getByRole('button', { name: coworkerName, exact: true }).waitFor();
   assert.equal(await acquaintances.getByRole('button', { name: coworkerName, exact: true }).count(), 0);
-  assert.equal((await read()).career.contacts.find(({ id }) => id === coworker.id).bond.affection, 50);
+  assert.equal((await read()).career.contacts.find(({ id }) => id === coworker.id).bond.affection, affectionBeforeFriendship);
   await page.goto(coworkersUrl);
   await click(coworkerName);
   await click('Give a Compliment');

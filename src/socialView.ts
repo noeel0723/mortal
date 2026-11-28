@@ -175,13 +175,6 @@ export function hookupControl(life: Life) {
   return intimacy(life, { type: 'intimacy', encounter: 'hookup' }, 'Hook Up', 'blackHeart', searchDetail(life, 'hookup', 'Find a one-night match'));
 }
 
-export function meetingControls(life: Life) {
-  return [
-    love(life, { type: 'meet', source: 'neighborhood' }, 'Meet a Neighbor', 'location', 'Get to know someone nearby'),
-    love(life, { type: 'meet', source: 'hobbies' }, 'Join a Hobby Group', 'art', 'Meet people with shared interests'),
-  ];
-}
-
 export function firstDateControls(life: Life, person: Contact) {
   return (Object.keys(firstDateVenues) as FirstDateVenue[]).map((venue) => {
     const { label, icon } = firstDateVenues[venue];

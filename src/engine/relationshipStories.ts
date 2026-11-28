@@ -88,7 +88,7 @@ export function conversationStory(life: Life, person: Contact) {
     ];
     stories = topics.map((topic) => `I talked with ${person.name} about ${topic}.`);
   }
-  return pickStory(life, `${person.id}:conversation`, stories);
+  return pickStory(life, `${person.id}:conversation`, stories, true);
 }
 
 export function timeTogetherStory(life: Life, person: Contact, remote = false, used?: Set<string>) {
@@ -170,13 +170,13 @@ export function timeTogetherStory(life: Life, person: Contact, remote = false, u
   if (!remote && 'hobby' in person) stories.push(`I spent an afternoon ${person.hobby} with ${name}.`);
   const pattern = (story: string) => story.replaceAll(name, '{person}');
   const unused = used && stories.filter((story) => !used.has(pattern(story)));
-  const story = pickStory(life, `${person.id}:together`, unused?.length ? unused : stories);
+  const story = pickStory(life, `${person.id}:together`, unused?.length ? unused : stories, true);
   used?.add(pattern(story));
   return story;
 }
 
 export function friendshipStory(life: Life, person: Contact) {
-  const where = isWorkContact(person) ? 'at work' : 'in class';
+  const where = isWorkContact(person) ? 'at work' : 'stage' in person ? 'in class' : 'in the neighborhood';
   return pickStory(life, `${person.id}:friendship`, [
     `I became friends with ${person.name} after we found something in common ${where}.`,
     `I became friends with ${person.name} when a short chat ${where} turned into a long one.`,
@@ -251,5 +251,5 @@ export function interactionStory(life: Life, person: Contact, activity: Relation
       `I hid ${name}’s pen as a joke, then gave it back when they got upset.`,
     ],
   } satisfies Record<Exclude<RelationshipActivity, TogetherActivity>, readonly string[]>;
-  return pickStory(life, `${person.id}:${activity}`, stories[activity]);
+  return pickStory(life, `${person.id}:${activity}`, stories[activity], true);
 }

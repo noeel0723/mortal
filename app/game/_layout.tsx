@@ -51,7 +51,7 @@ export default function GameLayout() {
             const path = student ? '/game/education' : tab.path;
             const icon = student ? 'school' : tab.icon;
             const label = student ? educationTab(slot.life) : tab.label;
-            const active = path !== null && (pathname.startsWith(path) || (path === '/game/activities' && pathname === '/game/doctor') ||
+            const active = path !== null && (pathname.startsWith(path) || (path === '/game/activities' && (pathname === '/game/doctor' || pathname === '/game/social')) ||
               (path === '/game/assets' && (pathname === '/game/property' || pathname === '/game/wealth')));
             const disabled = path === null && (busy || !!popup);
             return (
