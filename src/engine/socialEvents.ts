@@ -6,6 +6,8 @@ import { recordNotice } from './eventNotices.ts';
 import { answerIntimacy, isIntimacyEvent, prepareIntimacy } from './intimacy.ts';
 import { clamp, record } from './journal.ts';
 import { activeRomances, canPropose, changeRomance, endRomance, loveIssue, romanceFor, romanceHistory } from './love.ts';
+import { consumeLoveSearch, discardSearchMatch } from './loveSearch.ts';
+import { answerMeeting } from './meetings.ts';
 import { allContacts, ensureNpc, makeNpc, npcProfile, npcRandom, remember } from './npcs.ts';
 import { activeFor, agreementFor, agreementPhrase, boundaryEvidence, concernLabels, inPersonIssue, knownRelationship, meaningfulTime, negotiateAgreement, relationshipMemory,
   relationshipSatisfaction, relationshipState, setAgreement, visibleConcerns } from './relationships.ts';
@@ -71,11 +73,12 @@ export function applyDatingMatch(life: Life, action: Extract<SocialAction, { typ
   const issue = loveIssue(life, action);
   if (issue) return issue;
   const { source, preferences } = action;
-  const random = npcRandom(life, `match:${source}`, life.year);
+  const attempt = consumeLoveSearch(life, source);
+  const random = npcRandom(life, `match:${source}:${attempt}`, life.year);
   const age = preferences && datingAgeOptions[preferences.age];
   const matchAge = age && 'range' in age ? random.integer(age.range[0], age.range[1]) :
     Math.min(114, Math.max(source === 'spotlight' ? 22 : 18, life.character.age + random.integer(-4, 4)));
-  const person = makeNpc(life, `npc-dating-${life.year}`, matchAge, 'Acquaintance');
+  const person = makeNpc(life, `npc-dating-${source}-${life.year}-${attempt}`, matchAge, 'Acquaintance');
   life.social.people.push(person);
   relationshipMemory(life, person.id, 'meeting', 2);
   const profile = ensureNpc(life, person);
@@ -92,7 +95,6 @@ export function applyDatingMatch(life: Life, action: Extract<SocialAction, { typ
   const note = source === 'spotlight' ? ' They were featured in a recent local arts showcase.' :
     hobby ? ` The matchmaker introduced us because we both enjoy ${skills[hobby].name}.` : '';
   const story = `I met ${person.name} ${matchIntroductions[source]}.${note}`;
-  life.usedActions.push('dating-match');
   remember(life, person, story);
   record(life, 'community', story);
   queueSocialEvent(life, source === 'casual' ? 'social-casual-match' : 'social-dating-match', person.id);
@@ -210,14 +212,19 @@ function answerBreach(life: Life, person: Contact, choice: string) {
 }
 
 export function answerSocialEvent(life: Life, id: string, choice: string) {
+  const accepted = choice === 'accept';
+  if (id === 'social-meeting') {
+    answerMeeting(life, accepted);
+    return;
+  }
   const person = findContact(life, life.social.pendingPerson ?? undefined);
   const guest = findContact(life, life.social.pendingGuest);
   life.social.pendingPerson = null;
   delete life.social.pendingGuest;
   if (!person?.alive) return;
-  const accepted = choice === 'accept';
   if (isIntimacyEvent(id)) {
     answerIntimacy(life, id, person, guest, accepted);
+    if (id === 'social-hookup' && !accepted) discardSearchMatch(life, person.id);
     return;
   }
   if (id === 'social-dating-match' || id === 'social-casual-match') {
@@ -233,7 +240,8 @@ export function answerSocialEvent(life: Life, id: string, choice: string) {
       if (dating) changeRomance(life, person.id, 'dating', text);
       else boundaryEvidence(life, [person.id], 'date');
     }
-    remember(life, person, text);
+    if (accepted || slow) remember(life, person, text);
+    else discardSearchMatch(life, person.id);
     if (accepted) recordNotice(life, 'community', dating ? 'A First Date' : 'A Casual Date', text, { happiness: 4 });
     else record(life, 'decision', text);
     return;

@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { eventById } from '../src/data/events.ts';
 import { assetById } from '../src/data/shops.ts';
+import { genderLabels } from '../src/data/veyra.ts';
 import { adoptionCandidates } from '../src/engine/adoption.ts';
 import { createLife } from '../src/engine/create.ts';
 import { postTransaction } from '../src/engine/journal.ts';
+import { pendingMeeting } from '../src/engine/meetings.ts';
 import { ensureNpc, makeNpc, npcRandom } from '../src/engine/npcs.ts';
 import { advance } from '../src/engine/simulation.ts';
 import { assetArtSize } from '../src/portraits/assetArt.ts';
@@ -58,12 +60,19 @@ try {
     element.getBoundingClientRect().height <= Number.parseFloat(getComputedStyle(element).lineHeight) + 1));
   await click('Go to Library');
   await dialog('A Shared Hobby').waitFor();
+  const libraryMeeting = pendingMeeting(await read('library-test'));
+  assert.ok(libraryMeeting);
+  const readerGuest = libraryMeeting.person;
+  await dialog('A Shared Hobby').getByRole('img', { name: `Portrait of ${readerGuest.name}` }).waitFor();
+  await dialog('A Shared Hobby').getByText(`Age ${readerGuest.age} · ${genderLabels[readerGuest.gender]}`, { exact: true }).waitFor();
+  for (const label of ['Health', 'Looks', 'Compatibility']) await dialog('A Shared Hobby').getByRole('progressbar', { name: label }).waitFor();
+  if (process.env.MORTAL_CAPTURE_MEETING) await page.screenshot({ path: '.expo/web-qa/social-meeting.png' });
   const hobbyStory = await dialog('A Shared Hobby').locator('.event-story').textContent();
   await page.reload();
   await dialog('A Shared Hobby').getByText(hobbyStory, { exact: true }).waitFor();
-  await click('Become Friends');
+  await click('Talk and Keep in Touch');
   await dialog('A Shared Hobby').waitFor({ state: 'hidden' });
-  await dialog('Library Visit').getByText(/I became friends with/).waitFor();
+  await dialog('A New Acquaintance').waitFor();
   await acknowledgeEvents(page);
   await click('Go to Library');
   await dialog('Library Visit').getByRole('progressbar', { name: 'Smarts' }).waitFor();
@@ -86,10 +95,11 @@ try {
   for (const name of socialLabels) assert.equal(await button(name).count(), 0);
   const readingLife = await read('library-test');
   assert.equal(readingLife.character.attributes.energy, 0);
-  const friend = readingLife.communityFriends[0];
+  const friend = readingLife.social.people.find(({ id }) => id === readerGuest.id);
+  assert.equal(friend.friend, false);
   await click(friend.name);
   await click(friend.name);
-  await dialog('Character Profile').getByText(friend.hobby, { exact: true }).waitFor();
+  await dialog('Character Profile').getByText(libraryMeeting.interest, { exact: false }).waitFor();
 
   const adult = atAge(17);
   postTransaction(adult, 'Savings', 100000, 'other');
@@ -100,9 +110,29 @@ try {
   assert.ok((await read('shopping-test')).journal.some(({ text }) => text.includes('My options are in Assets under Housing.')));
   await click('Activities');
   await click('Join a Hobby Group');
-  await dialog('Someone New').getByText(/at a hobby group/).waitFor();
+  await dialog('At the Hobby Group').getByText(/at a hobby group/).waitFor();
+  const hobbyGuest = pendingMeeting(await read('shopping-test')).person;
+  await click('Move On');
+  await dialog('At the Hobby Group').waitFor({ state: 'hidden' });
+  assert.ok(!(await read('shopping-test')).social.people.some(({ id }) => id === hobbyGuest.id));
+  await click('Meet a Neighbor');
+  await dialog('A New Neighbor').waitFor();
+  const neighbor = pendingMeeting(await read('shopping-test')).person;
+  await click('Talk and Keep in Touch');
+  await dialog('A New Acquaintance').waitFor();
   await acknowledgeEvents(page);
   await click('Close Activities');
+  await click('Family');
+  await button(neighbor.name).waitFor();
+  const beforeTime = await read('shopping-test');
+  await click('Spend Time with All');
+  await dialog('Time With Everyone').waitFor();
+  await acknowledgeEvents(page);
+  const stories = (await read('shopping-test')).journal.slice(beforeTime.journal.length);
+  for (const { name } of [...beforeTime.family.filter(({ alive }) => alive), neighbor]) {
+    assert.ok(stories.some(({ text }) => text.includes(name)));
+  }
+  await click('Close Relationships');
   await click('Assets');
   const topGroup = page.locator('.play-group').first();
   await topGroup.getByRole('heading', { name: 'Banking', exact: true }).waitFor();

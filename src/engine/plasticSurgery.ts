@@ -8,12 +8,12 @@ type Procedure = { id: string; title: string; detail: string; icon: Emoji; cost:
 export const procedures = [
   { id: 'botox', title: 'Botox', detail: 'Soften expression lines', icon: 'syringe', cost: 1900, improvement: 5 },
   { id: 'eyelid', title: 'Eyelid Surgery', detail: 'Refresh the eye area', icon: 'eye', cost: 4500, improvement: 8 },
-  { id: 'face-lift', title: 'Face Lift', detail: 'Lift facial contours', icon: 'person', cost: 7800, improvement: 14 },
-  { id: 'liposuction', title: 'Liposuction', detail: 'Change body contours', icon: 'medical', cost: 5400, improvement: 9 },
+  { id: 'face-lift', title: 'Face Lift', detail: 'Lift facial contours', icon: 'mirror', cost: 7800, improvement: 14 },
+  { id: 'liposuction', title: 'Liposuction', detail: 'Change body contours', icon: 'ruler', cost: 5400, improvement: 9 },
   { id: 'nose', title: 'Nose Reshaping', detail: 'Change the shape of your nose', icon: 'nose', cost: 5700, improvement: 10 },
-  { id: 'tummy-tuck', title: 'Tummy Tuck', detail: 'Contour the abdomen', icon: 'medical', cost: 6200, improvement: 11 },
-  { id: 'chest-augmentation', title: 'Chest Augmentation', detail: 'Add volume to the chest', icon: 'medical', cost: 6900, improvement: 10, gender: 'woman' },
-  { id: 'chest-contouring', title: 'Chest Contouring', detail: 'Define the chest profile', icon: 'medical', cost: 6900, improvement: 10, gender: 'man' },
+  { id: 'tummy-tuck', title: 'Tummy Tuck', detail: 'Contour the abdomen', icon: 'bandage', cost: 6200, improvement: 11 },
+  { id: 'chest-augmentation', title: 'Chest Augmentation', detail: 'Add volume to the chest', icon: 'blouse', cost: 6900, improvement: 10, gender: 'woman' },
+  { id: 'chest-contouring', title: 'Chest Contouring', detail: 'Define the chest profile', icon: 'shirt', cost: 6900, improvement: 10, gender: 'man' },
 ] as const satisfies readonly Procedure[];
 export type ProcedureId = typeof procedures[number]['id'];
 

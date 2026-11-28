@@ -27,6 +27,7 @@ import { performSurgery } from './plasticSurgery.ts';
 import { seededRandom } from './random.ts';
 import { relocate } from './relocation.ts';
 import { conversationStory, friendshipStory } from './relationshipStories.ts';
+import { spendTimeWithAll } from './relationshipTime.ts';
 import { answerSocialEvent, applyDatingMatch, applyIntimacy, isSocialEvent, offerSocialEvent } from './socialEvents.ts';
 import { advanceRelationships, applyRelationshipCare, meaningfulTime, responseScale, takingSpace } from './relationships.ts';
 import { advanceContactOccupation, currentClass, findContact, isPeer, isSchoolStage } from './school.ts';
@@ -426,6 +427,11 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
     case 'seek-work': case 'work-harder': case 'request-raise': case 'resign': case 'retire':
     case 'apply-job': case 'accept-job': case 'decline-job': case 'work-hours': {
       const issue = performCareerAction(life, action);
+      if (issue) return { error: issue };
+      break;
+    }
+    case 'spend-time-all': {
+      const issue = spendTimeWithAll(life);
       if (issue) return { error: issue };
       break;
     }

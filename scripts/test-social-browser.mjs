@@ -290,6 +290,15 @@ try {
   await acknowledgeEvents(page);
   assert.ok((await read()).social.people.some(({ id }) => id === matchId));
   assert.deepEqual((await read()).social.romances, casualPartners);
+  for (let search = 0; search < 4; search++) {
+    await click('Hook Up');
+    await dialog('Hook Up').waitFor();
+    const skipped = (await read()).social.pendingPerson;
+    await click('Pass');
+    await dialog('Hook Up').waitFor({ state: 'hidden' });
+    assert.ok(!(await read()).social.people.some(({ id }) => id === skipped));
+  }
+  assert.ok(await button('Hook Up').isDisabled());
   await click('Back to Activities');
   await click('Close Activities');
 

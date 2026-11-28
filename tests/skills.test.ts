@@ -157,7 +157,8 @@ test('shared hobbies reuse contacts and improve compatibility, conversations, an
   const met = apply(hobby, { type: 'meet', source: 'hobbies' });
   assert.equal(met.social.people.length, 1);
   assert.match(met.journal.at(-1)?.text ?? '', /ran into.*Chess/);
-  const talked = apply(met, { type: 'talk', person: contact.id });
+  const caughtUp = apply(met, { type: 'choose', event: 'social-meeting', choice: 'accept' });
+  const talked = apply(caughtUp, { type: 'talk', person: contact.id });
   assert.match(talked.journal.at(-1)?.text ?? '', /traded ideas about Chess/);
   const practice = { type: 'share-hobby', person: contact.id, skill: 'chess' } as const;
   const together = apply(talked, practice);

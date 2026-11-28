@@ -154,6 +154,7 @@ export function Play({ life, page, personId, go, home, newLife }: {
         {popup.match?.looks !== undefined && <div className="event-result-meter">
           <PageMeter label="Looks" value={popup.match.looks} />
         </div>}
+        {popup.profileMeters && <div className="detail-bond meeting-stats">{popup.profileMeters.map((row) => <PageMeter key={row.label} {...row} />)}</div>}
         {popup.enjoyment && <div className="event-enjoyment">
           {popup.enjoyment.map(({ key, label, value }) => <PageMeter key={key} label={label} value={value} />)}
         </div>}

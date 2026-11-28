@@ -361,6 +361,7 @@ button.play-row:disabled .play-row-icon { background: #edf2f7; opacity: .65; }
 :is(.event-dialog--enjoyment, .event-dialog--death, .event-dialog--match, .event-dialog--family) .event-options .button { justify-content: center; text-align: center; }
 .event-match-stat { margin-bottom: .8rem; padding: 0 .65rem; border-radius: .55rem; background: var(--blue-soft); }
 .event-match-stat .data-row { border-bottom: 0; }
+.meeting-stats { margin-bottom: .8rem; }
 .event-enjoyment { display: grid; gap: .45rem; margin-bottom: .8rem; padding: .58rem .68rem; background: #f4f9f8; border-radius: .6rem; }
 .event-enjoyment .play-meter { width: 100%; margin: 0; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr) 2.15rem; font-size: .78rem; }
 .event-enjoyment .play-meter > span:first-child { overflow-wrap: anywhere; }

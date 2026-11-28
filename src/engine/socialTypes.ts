@@ -21,10 +21,12 @@ export type Romance = { person: string; status: typeof romanceStatuses[number]; 
   wedding: number | null; ended: number | null; history: { year: number; text: string }[] };
 export const socialEvents = ['social-dinner', 'social-time', 'social-proposal', 'social-support', 'social-school', 'social-finances',
   'social-dating-match', 'social-casual-match', 'social-affair', 'social-make-love', 'social-hookup', 'social-threesome',
-  'social-expectations', 'social-space', 'social-concern', 'social-reconnect'] as const;
+  'social-expectations', 'social-space', 'social-concern', 'social-reconnect', 'social-meeting'] as const;
 export type SocialEventId = typeof socialEvents[number];
 export const datingSources = ['spotlight', 'date', 'app', 'lgbtq', 'casual', 'matchmaking'] as const;
 export type DatingSource = typeof datingSources[number];
+export const meetingSources = ['neighborhood', 'hobbies', 'library'] as const;
+export type MeetingSource = typeof meetingSources[number];
 export type VehicleKind = 'cars' | 'motorcycles';
 export type ChildRecord = { year: number; adopted: boolean; wellbeing: number; learning: number; confidence: number; supportEnded: boolean; driving?: VehicleKind[] };
 export type Pregnancy = { mother: string; father: string; dueYear: number };
@@ -33,6 +35,7 @@ export type SocialState = {
   parents: Record<string, string[]>; children: Record<string, ChildRecord>;
   romances: Romance[]; relationships: Record<string, RelationshipState>; pendingPerson: string | null; pendingGuest?: string;
   pregnancies?: Pregnancy[];
+  pendingMeeting?: MeetingSource;
 };
 export const romanticActivities = ['date', 'gift', 'dinner', 'movie', 'support', 'future', 'apologize'] as const;
 export const parentingActivities = ['care', 'read', 'school', 'hobby', 'lesson', 'gift', 'support', 'future'] as const;

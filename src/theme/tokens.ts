@@ -24,6 +24,7 @@ export const emoji = {
   laptop: '💻', computer: '🖥️', medical: '🩺', blueprint: '📐', files: '🗃️', calculator: '🧮',
   ambulance: '🚑', eye: '👁️', thoughts: '🧠', blood: '🩸', syringe: '💉',
   hat: '🧢', glasses: '👓', adoption: '🧸', surgery: '✂️', nose: '👃',
+  mirror: '🪞', ruler: '📏', bandage: '🩹', blouse: '👚', shirt: '👕',
   court: '⚖️', restaurant: '🍽️', cooking: '🍳', cart: '🛒', camera: '🎥',
   car: '🚗', motorcycle: '🏍️',
   rose: '🌹', loveLetter: '💌', ring: '💍', brokenHeart: '💔', bottle: '🍼', baby: '👶', pregnancy: '🤰',

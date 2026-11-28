@@ -1,9 +1,11 @@
 import { eventById } from './data/events.ts';
+import { libraryFriendEvent } from './data/libraryEvents.ts';
 import { genderLabels } from './data/veyra.ts';
 import { eventTitle } from './engine/eventNotices.ts';
 import { drivingIssue } from './engine/familyDriving.ts';
 import { birthParents, surname } from './engine/familyNames.ts';
-import { eventStory } from './engine/library.ts';
+import { eventStory, libraryGuest } from './engine/library.ts';
+import { pendingMeeting } from './engine/meetings.ts';
 import { npcLooks, npcNetWorth } from './engine/dating.ts';
 import { isSocialEvent, socialEventText } from './engine/socialEvents.ts';
 import { visibleConcerns } from './engine/relationships.ts';
@@ -33,26 +35,35 @@ type EventPopup = {
   portrait?: { appearance: Appearance; name: string; age: number; role: string };
   cause?: string;
   match?: { looks?: number; netWorth?: string };
+  profileMeters?: { label: string; value: number }[];
 };
 
 export function eventPopup(life: Life): EventPopup | undefined {
   const event = life.pending ? eventById.get(life.pending) : undefined;
   if (event?.choices?.length) {
     const hookup = event.id === 'social-hookup';
+    const meeting = event.id === 'social-meeting' ? pendingMeeting(life) : undefined;
+    const guest = meeting?.person ?? (event.id === libraryFriendEvent ? libraryGuest(life) : undefined);
     const person = (hookup || event.id === 'social-dating-match') ? findContact(life, life.social.pendingPerson ?? undefined) : undefined;
     return {
-      key: `decision-${event.id}`, title: event.id === 'social-affair' ? 'Caught Dating' :
-        hookup ? 'Hook Up' : eventTitle(event.id.replace(/^social-/, '')),
-      text: person ? `${person.name} ${event.text}` : isSocialEvent(event.id) ? socialEventText(life, event) : eventStory(life, event),
+      key: `decision-${event.id}`, title: meeting?.title ?? (event.id === 'social-affair' ? 'Caught Dating' :
+        hookup ? 'Hook Up' : eventTitle(event.id.replace(/^social-/, ''))),
+      text: meeting?.intro ?? (person ? `${person.name} ${event.text}` : isSocialEvent(event.id) ? socialEventText(life, event) : eventStory(life, event)),
       category: categories[event.category],
       ...(person && {
         special: 'match',
         portrait: { appearance: person.appearance, name: person.name, age: person.age, role: `${en.age(person.age)} · ${person.occupation}` },
         match: hookup ? { looks: npcLooks(life, person) } : { netWorth: money(npcNetWorth(life, person)) },
       }),
+      ...(guest && {
+        special: 'match',
+        portrait: { appearance: guest.appearance, name: guest.name, age: guest.age, role: `${en.age(guest.age)} · ${genderLabels[guest.gender]}` },
+        profileMeters: [{ label: 'Health', value: guest.health }, { label: 'Looks', value: npcLooks(life, guest) },
+          { label: 'Compatibility', value: guest.bond.compatibility }],
+      }),
       actions: event.choices.filter((choice) => event.id !== 'social-affair' || choice.id !== 'space' ||
         visibleConcerns(life, life.social.pendingPerson ?? '').some((entry) => entry.breach?.discovered)).map((choice) => ({
-        label: choice.label, icon: choice.emoji, tone: person && choice.id === 'accept' ? 'primary' : undefined,
+        label: choice.label, icon: choice.emoji, tone: (person || guest) && choice.id === 'accept' ? 'primary' : undefined,
         action: { type: 'choose', event: event.id, choice: choice.id },
       })),
     };

@@ -2,11 +2,12 @@ import { libraryEvents, libraryFriendEvent, libraryHobbies } from '../data/libra
 import { contactIdentity, generateAppearance } from './appearance.ts';
 import { personalizedLibraryHobbies } from './hobbies.ts';
 import { record } from './journal.ts';
+import { meetingIssue, startMeeting } from './meetings.ts';
 import { npcNamePicker } from './npcNames.ts';
 import { seededRandom } from './random.ts';
 import type { CommunityFriend, Life, LifeEvent } from './types.ts';
 
-function libraryGuest(life: Life): CommunityFriend {
+export function libraryGuest(life: Life): CommunityFriend {
   const id = `library-${life.year}`;
   const random = seededRandom(life.seed ^ Math.imul(life.year, 0xa14df399));
   const identity = npcNamePicker(life)(random);
@@ -37,12 +38,16 @@ export function visitLibrary(life: Life) {
   const random = seededRandom(life.random);
   const roll = random.next();
   const available = libraryEvents.filter((event) => life.character.age >= event.ages[0] &&
-    (event.id === libraryFriendEvent || !life.seen.includes(event.id)) && roll < event.probability);
+    (event.id === libraryFriendEvent ? !meetingIssue(life, 'library') : !life.seen.includes(event.id)) && roll < event.probability);
   const event = available.length ? available[random.integer(0, available.length - 1)] : undefined;
   life.random = random.state;
   if (!event) return false;
   life.usedActions.push('library-encounter');
   if (!life.seen.includes(event.id)) life.seen.push(event.id);
+  if (event.id === libraryFriendEvent) {
+    startMeeting(life, 'library');
+    return true;
+  }
   record(life, event.category, eventStory(life, event));
   life.pending = event.id;
   return true;

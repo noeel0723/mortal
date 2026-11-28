@@ -17,6 +17,7 @@ import { educationStatus } from '../src/engine/academics';
 import { workAge, workHours } from '../src/engine/career';
 import { industries } from '../src/engine/careerTypes';
 import { currentClass, findContact, isPeer, isSchoolStage } from '../src/engine/school';
+import { spendTimeAllIssue } from '../src/engine/relationshipTime';
 import { romanceLabels } from '../src/engine/love';
 import { intimacyGuests, intimacyIssue } from '../src/engine/intimacy';
 import { isDatingApp } from '../src/engine/dating';
@@ -618,7 +619,7 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
   const canFindJob = character.age >= workAge && !character.causeOfDeath && life.career.retiredYear === null;
   const activityRow = (item: ActivityControl) => <MenuRow key={item.label} icon={item.icon} title={item.label}
     detail={item.issue ?? item.detail} disabled={busy || !!item.issue}
-    opensDialog={item.action.type === 'dating-match' || item.action.type === 'intimacy'}
+    opensDialog={item.action.type === 'dating-match' || item.action.type === 'intimacy' || item.action.type === 'meet'}
     onClick={() => {
       if (item.action.type === 'dating-match' && isDatingApp(item.action.source)) setDatingApp(item.action.source);
       else void dispatch(item.action);
@@ -793,7 +794,12 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
     }
     case 'relationships': {
       const groups = relationshipGroups(life);
+      const issue = spendTimeAllIssue(life);
       return <>
+        <div className="play-group-content">
+          <MenuRow icon="together" title="Spend Time with All" detail={issue ?? 'Catch up with your relationships'}
+            disabled={busy || !!issue} onClick={() => void dispatch({ type: 'spend-time-all' })} />
+        </div>
         <PageGroup title="Family">
           {groups.family.map((relative) => <PersonRow key={relative.id} life={life} person={relative} onClick={() => go('person', relative.id)} />)}
           <MenuRow icon="tree" title="Family Tree" onClick={() => go('family-tree')} />

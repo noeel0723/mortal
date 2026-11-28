@@ -15,6 +15,8 @@ import { annualFinance } from '../src/engine/finance.ts';
 import { canAccompany, startIllness } from '../src/engine/health.ts';
 import { postTransaction } from '../src/engine/journal.ts';
 import { activeRomance, activeRomances, loveIssue, romanceFor } from '../src/engine/love.ts';
+import { annualLoveSearches } from '../src/engine/loveSearch.ts';
+import { pendingMeeting } from '../src/engine/meetings.ts';
 import { advanceNpcLives, allContacts, ensureNpc, makeNpc, npcRandom, syncNpcs } from '../src/engine/npcs.ts';
 import { createSchoolClass, findContact } from '../src/engine/school.ts';
 import { agreementFor, attraction, openConcern, relationshipState, setAgreement, visibleConcerns } from '../src/engine/relationships.ts';
@@ -226,6 +228,73 @@ function acceptMatch(life: Life, source: 'date' | 'app') {
   return act(matched, { type: 'choose', event: 'social-dating-match', choice: 'accept' });
 }
 
+test('five annual searches per Love activity give different candidates and declined matches do not fill Relationships', () => {
+  let life = adult();
+  const search = [
+    { type: 'intimacy', encounter: 'hookup' },
+    { type: 'dating-match', source: 'app' },
+    { type: 'dating-match', source: 'lgbtq' },
+    { type: 'dating-match', source: 'date' },
+  ] as const;
+  for (const action of search) {
+    const ids = new Set<string>();
+    for (let attempt = 0; attempt < annualLoveSearches; attempt++) {
+      const invited = decodeLife(JSON.stringify(act(life, action)));
+      const id = invited.social.pendingPerson!;
+      assert.ok(!relationshipGroups(invited).acquaintances.some((person) => person.id === id));
+      ids.add(id);
+      life = act(invited, { type: 'choose', event: invited.pending!, choice: 'pass' });
+      assert.equal(findContact(life, id), undefined);
+    }
+    assert.equal(ids.size, 5);
+    assert.match(advance(life, action).error ?? '', /all 5 searches this year/);
+  }
+  life = age(life);
+  assert.ok(advance(life, search[0]!).life);
+});
+
+test('a social activity stages a full profile and adds the newcomer only when you talk', () => {
+  const initial = adult();
+  const met = act(initial, { type: 'meet', source: 'neighborhood' });
+  const popup = eventPopup(met)!;
+  const guest = pendingMeeting(met)!.person;
+  assert.ok(popup.portrait?.role.includes('Age'));
+  assert.deepEqual(popup.profileMeters?.map(({ label }) => label), ['Health', 'Looks', 'Compatibility']);
+  assert.equal(findContact(met, guest.id), undefined);
+  assert.deepEqual(eventPopup(decodeLife(JSON.stringify(met))), popup);
+  const declined = act(met, popup.actions[1]!.action);
+  assert.equal(declined.social.pendingMeeting, undefined);
+  assert.equal(findContact(declined, guest.id), undefined);
+  const accepted = act(met, popup.actions[0]!.action);
+  assert.equal(relationshipGroups(accepted).acquaintances[0]?.id, guest.id);
+  assert.deepEqual(findContact(accepted, guest.id)?.appearance, guest.appearance);
+  assert.equal(advance(accepted, { type: 'meet', source: 'hobbies' }).life?.pending, 'social-meeting');
+});
+
+test('spending time with all writes a different story for each available contact and includes remote calls', () => {
+  const { life, id } = marry();
+  const far = makeNpc(life, 'npc-remote', 24, 'Acquaintance');
+  far.city = cities.find((city) => city !== life.character.city)!;
+  const nearby = makeNpc(life, 'npc-neighbor', 25, 'Acquaintance');
+  const deceased = makeNpc(life, 'npc-deceased', 25, 'Acquaintance');
+  deceased.alive = false;
+  life.social.people.push(far, nearby, deceased);
+  syncNpcs(life);
+  life.character.attributes.energy = 0;
+  const batch = act(life, { type: 'spend-time-all' });
+  const stories = batch.journal.slice(life.journal.length, -1);
+  const spouse = findContact(life, id)!;
+  for (const person of [...life.family, spouse, far, nearby]) {
+    assert.equal(stories.filter(({ text }) => text.includes(person.name)).length, 1);
+  }
+  assert.ok(stories.some(({ text }) => text.includes(far.name) && /call|phone/.test(text)));
+  assert.ok(stories.every(({ text }) => !text.includes(deceased.name)));
+  assert.equal(batch.character.attributes.energy, 0);
+  assert.equal(batch.notices.at(-1)?.title, 'Time With Everyone');
+  assert.match(advance(batch, { type: 'spend-time-all' }).error ?? '', /next year/);
+  assert.deepEqual(decodeLife(JSON.stringify(batch)), batch);
+});
+
 test('Make Love works with a current partner or adult friend and respects a refusal', () => {
   const single = adult();
   const friend = knownFriend(single);
@@ -284,11 +353,12 @@ test('Hook Up keeps the match and choice through reload and remains a one-night 
   assert.ok(result.enjoyment.every(({ value }) => Number.isInteger(value) && value >= 0 && value <= 100));
   assert.equal(romanceFor(accepted, id), undefined);
   assert.deepEqual(accepted.social.children, {});
-  assert.match(advance(accepted, action).error ?? '', /this year/);
+  assert.ok(advance(accepted, action).life);
   assert.ok(advance(accepted, { type: 'dating-match', source: 'app' }).life);
   const passed = act(invited, { type: 'choose', event: 'social-hookup', choice: 'pass' });
   assert.equal(passed.character.attributes.happiness, invited.character.attributes.happiness);
   assert.equal(passed.social.pendingPerson, null);
+  assert.equal(findContact(passed, id), undefined);
 });
 
 test('dating app preferences match adult ages and NPC net worth without debiting the player', () => {
@@ -364,7 +434,7 @@ test('Love introductions are adult-only and keep the match and response after re
     const result = act(restored, { type: 'choose', event: restored.pending!, choice: source === 'casual' ? 'accept' : 'pass' });
     assert.equal(result.social.pendingPerson, null);
     assert.equal(activeRomances(result).length, 0);
-    assert.match(advance(result, { type: 'dating-match', source: 'app' }).error ?? '', /this year/);
+    assert.ok(advance(result, { type: 'dating-match', source: 'app' }).life);
   }
   assert.equal(stories.size, datingSources.length);
 });

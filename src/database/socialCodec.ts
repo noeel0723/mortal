@@ -2,6 +2,8 @@ import { jobById } from '../data/jobs.ts';
 import { cities, genders } from '../data/veyra.ts';
 import { allContacts, newPeopleLimit } from '../engine/npcs.ts';
 import { isActiveRomance } from '../engine/love.ts';
+import { validSearchMatchId } from '../engine/loveSearch.ts';
+import { validPendingMeeting } from '../engine/meetings.ts';
 import { canShareInvitation, isIntimacyContact, isIntimacyEvent } from '../engine/intimacy.ts';
 import { validateRelationships } from './relationshipCodec.ts';
 import { inPersonIssue, knownRelationship, visibleConcerns } from '../engine/relationships.ts';
@@ -96,13 +98,15 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
     if ((entry.status === 'engaged' || entry.status === 'married') && ++commitments > 1) return false;
   }
   if (life.pending !== 'social-threesome' && social.pendingGuest !== undefined) return false;
+  if (!validPendingMeeting(life)) return false;
+  if (life.pending === 'social-meeting') return !character.causeOfDeath;
   if (!socialEvents.some((event) => event === life.pending)) return social.pendingPerson === null;
   const participant = contacts.find(({ id, alive }) => id === social.pendingPerson && alive);
   if (!participant) return false;
   if (isIntimacyEvent(life.pending)) {
     if (character.age < 18 || participant.age < 18 || inPersonIssue(life, participant)) return false;
     if (life.pending === 'social-hookup') {
-      return participant.id === `npc-hookup-${year}` && participant.role === 'Acquaintance' && !seen.has(participant.id) &&
+      return validSearchMatchId(participant.id, year, 'hookup') && participant.role === 'Acquaintance' && !seen.has(participant.id) &&
         social.profiles[participant.id]!.preferences.includes(character.gender);
     }
     if (!isIntimacyContact(life, participant)) return false;
@@ -117,7 +121,7 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
         contacts.some(({ id, alive }) => alive && id !== participant.id && partners.some(({ person }) => person === id)));
   }
   if (life.pending === 'social-dating-match' || life.pending === 'social-casual-match') {
-    return character.age >= 18 && participant.age >= 18 && participant.id === `npc-dating-${year}` &&
+    return character.age >= 18 && participant.age >= 18 && validSearchMatchId(participant.id, year, 'dating') &&
       !seen.has(participant.id) && social.profiles[participant.id]!.preferences.includes(character.gender);
   }
   if (life.pending === 'social-proposal') {

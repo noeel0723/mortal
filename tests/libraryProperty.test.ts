@@ -40,18 +40,19 @@ test('library visits can repeat without energy and a shared hobby choice persist
   const popup = eventPopup(restored)!;
   assert.equal(popup.title, 'A Shared Hobby');
   assert.equal(popup.text, encounter.journal.at(-1)?.text);
-  const ignored = apply(restored, { type: 'choose', event: 'a-shared-hobby', choice: 'read' });
+  const ignored = apply(restored, { type: 'choose', event: 'social-meeting', choice: 'pass' });
   assert.deepEqual(ignored.communityFriends, []);
+  assert.equal(ignored.social.people.length, restored.social.people.length);
   const accepted = apply(restored, popup.actions[0]!.action);
-  const friend = accepted.communityFriends[0]!;
-  assert.ok(popup.text.includes(friend.name) && popup.text.includes(friend.hobby));
+  const friend = accepted.social.people.find(({ id }) => id.startsWith('npc-meet-library-'))!;
+  assert.ok(popup.text.includes(friend.name) && popup.text.includes(accepted.social.profiles[friend.id]!.interests[0]!));
+  assert.equal(friend.friend, false);
   assert.equal(findContact(accepted, friend.id), friend);
-  assert.ok(canAccompany(accepted, friend));
   assert.deepEqual(decodeLife(JSON.stringify(accepted)), accepted);
   const again = apply(apply(accepted, visit), visit);
   assert.equal(again.pending, null);
   assert.equal(again.character.attributes.energy, 0);
-  assert.equal(again.communityFriends.length, 1);
+  assert.equal(again.social.people.filter(({ id }) => id === friend.id).length, 1);
   const older = apply(again, { type: 'age' });
   assert.equal(findContact(older, friend.id)?.age, friend.age + 1);
 });
@@ -60,14 +61,18 @@ test('an unresolved library encounter keeps the name shown in a save made before
   const life = atAge(5);
   life.random = 7;
   const encounter = apply(life, { type: 'activity', activity: 'go-to-library' });
+  encounter.pending = 'a-shared-hobby';
+  delete encounter.social.pendingMeeting;
   const intro = encounter.journal.at(-1)!;
-  intro.text = intro.text.replace(/^I met .+? while browsing/, 'I met Mara Forrest while browsing');
+  intro.text = 'I met Mara Forrest while browsing the library shelves.';
   const restored = decodeLife(JSON.stringify(encounter));
   const popup = eventPopup(restored)!;
-  assert.equal(popup.text, intro.text);
-  const friend = apply(restored, popup.actions[0]!.action).communityFriends[0]!;
+  assert.ok(popup.text.startsWith(intro.text));
+  const accepted = apply(restored, popup.actions[0]!.action);
+  const friend = accepted.communityFriends[0]!;
   assert.equal(friend.name, 'Mara Forrest');
   assert.equal(friend.gender, 'woman');
+  assert.ok(canAccompany(accepted, friend));
 });
 
 test('adult housing choices honor age, parent affordability, and willingness', () => {

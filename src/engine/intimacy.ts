@@ -2,6 +2,7 @@ import { recordNotice } from './eventNotices.ts';
 import { chanceOfPregnancy } from './familyLife.ts';
 import { clamp, record } from './journal.ts';
 import { isActiveRomance, romanceFor, romanceHistory } from './love.ts';
+import { consumeLoveSearch, loveSearchIssue } from './loveSearch.ts';
 import { allContacts, ensureNpc, isFamily, makeNpc, newPeopleLimit, npcProfile, npcRandom, remember } from './npcs.ts';
 import { findContact } from './school.ts';
 import { boundaryEvidence, inPersonIssue, meaningfulTime, relationshipMemory } from './relationships.ts';
@@ -46,7 +47,8 @@ export function intimacyIssue(life: Life, action: IntimacyAction | { encounter: 
   if (life.pending) return 'Resolve the pending decision first.';
   if (life.character.age < 18) return 'Available from age 18.';
   if (action.encounter === 'hookup') {
-    if (findContact(life, `npc-hookup-${life.year}`)) return 'You already received a one-night match this year.';
+    const limit = loveSearchIssue(life, 'hookup');
+    if (limit) return limit;
     return life.social.people.filter(({ role }) => role === 'Acquaintance').length >= newPeopleLimit - 8 ? 'Your social circle is full.' : null;
   }
   if (action.encounter === 'make-love') return contactIssue(life, findContact(life, action.person));
@@ -62,8 +64,10 @@ export function prepareIntimacy(life: Life, action: IntimacyAction) {
   if (issue) return issue;
   if (action.encounter === 'make-love') return { event: 'social-make-love', person: action.person } as const;
   if (action.encounter === 'threesome') return { event: 'social-threesome', person: action.first, guest: action.second } as const;
-  const random = npcRandom(life, 'hookup-introduction', life.year);
-  const person = makeNpc(life, `npc-hookup-${life.year}`, Math.min(114, Math.max(18, life.character.age + random.integer(-5, 5))), 'Acquaintance');
+  const attempt = consumeLoveSearch(life, 'hookup');
+  const random = npcRandom(life, `hookup-introduction:${attempt}`, life.year);
+  const person = makeNpc(life, `npc-hookup-${life.year}-${attempt}`,
+    Math.min(114, Math.max(18, life.character.age + random.integer(-5, 5))), 'Acquaintance');
   life.social.people.push(person);
   relationshipMemory(life, person.id, 'meeting', 2);
   const profile = ensureNpc(life, person);

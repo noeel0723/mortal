@@ -1,5 +1,6 @@
 import { jobById } from '../data/jobs.ts';
 import type { RelationshipActivity } from './interactions.ts';
+import { activeFor } from './relationships.ts';
 import { pickStory } from './stories.ts';
 import type { Contact, Life, Person, SchoolContact } from './types.ts';
 import { isWorkContact } from './workplace.ts';
@@ -90,11 +91,39 @@ export function conversationStory(life: Life, person: Contact) {
   return pickStory(life, `${person.id}:conversation`, stories);
 }
 
-function timeTogetherStory(life: Life, person: Contact) {
+export function timeTogetherStory(life: Life, person: Contact, remote = false, used?: Set<string>) {
   const { age, city } = life.character;
   const name = person.name;
   let stories: string[];
-  if (isWorkContact(person)) {
+  if (remote) {
+    stories = [
+      `I caught up with ${name} on a video call and we showed each other what our day looked like.`,
+      `I called ${name} from a quiet spot. An ordinary check-in turned into a long catch-up.`,
+      `I showed ${name} a few old photos on a video call. We ended up telling stories about each one.`,
+      `I caught up with ${name} over the phone while the sun went down.`,
+      `${name} and I shared our favorite moments of the week on a call.`,
+    ];
+  } else if (person.role === 'Child') {
+    stories = person.age < 5 ? [
+      `I read a picture book with ${name}, and we stayed on the page with the biggest animals.`,
+      `I rolled a soft ball back and forth with ${name} on the living room rug.`,
+      `I took ${name} to the park and we stopped to watch a pair of ducks.`,
+      `I stacked blocks with ${name} and laughed when our tower fell over.`,
+    ] : [
+      `I let ${name} choose what we made for lunch and helped them try out their recipe.`,
+      `I went for a walk with ${name} and asked them to show me their favorite spot nearby.`,
+      `I worked on a little project with ${name}. We took a break when our plan needed a rethink.`,
+      `I went to the market with ${name} and we picked something to bring home.`,
+    ];
+  } else if (activeFor(life, person.id)) {
+    stories = [
+      `I cooked dinner with ${name}, and we played the music we used to listen to together.`,
+      `${name} and I took a walk at sunset and talked about where we first met.`,
+      `I shared pastries with ${name} and took turns choosing places to visit next weekend.`,
+      `I wandered through a small gallery with ${name} and learned which piece they would take home.`,
+      `I spent a quiet evening with ${name} putting together a puzzle and sharing stories.`,
+    ];
+  } else if (isWorkContact(person)) {
     stories = life.career.current?.employerId === person.employerId ? [
       `I had coffee with ${name} after work and we stayed until the café was nearly empty.`,
       `I ate lunch with ${name} in the park instead of staying at work.`,
@@ -131,11 +160,19 @@ function timeTogetherStory(life: Life, person: Contact) {
       `I had a movie night with ${name} and we spent more time guessing the ending than watching it.`,
       `I browsed a street market with ${name} and we picked out the strangest thing at each stall.`,
       `I met ${name} for a walk around the neighborhood and we ended up talking for hours.`,
+      `${name} and I tried a new card game and had to look up the rules twice.`,
+      `I joined ${name} for a relaxed afternoon watching a local match.`,
+      `I helped ${name} pick a secondhand book, and they chose one for me in return.`,
+      `${name} and I took turns picking songs while we put together a snack for ourselves.`,
       ...(age >= 18 ? [`I joined ${name} at a local café for a long catch-up.`] : []),
     ];
   }
-  if ('hobby' in person) stories.push(`I spent an afternoon ${person.hobby} with ${name}.`);
-  return pickStory(life, `${person.id}:together`, stories);
+  if (!remote && 'hobby' in person) stories.push(`I spent an afternoon ${person.hobby} with ${name}.`);
+  const pattern = (story: string) => story.replaceAll(name, '{person}');
+  const unused = used && stories.filter((story) => !used.has(pattern(story)));
+  const story = pickStory(life, `${person.id}:together`, unused?.length ? unused : stories);
+  used?.add(pattern(story));
+  return story;
 }
 
 export function friendshipStory(life: Life, person: Contact) {
