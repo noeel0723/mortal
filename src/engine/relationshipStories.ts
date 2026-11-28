@@ -215,11 +215,6 @@ export function interactionStory(life: Life, person: Contact, activity: Relation
       `I compared notes with ${name} and we filled in the points we had each missed.`,
       `I worked through a tricky problem with ${name} and we talked through two ways to solve it.`,
     ],
-    gift: [
-      `I bought a small box of sweets to give ${name}.`,
-      `I picked out a bookmark for ${name} and wrote a short note to go with it.`,
-      `I bought ${name} a little plant after spotting it in a shop window.`,
-    ],
     'academic-help': [
       `I showed ${name} where I got stuck and we worked through the first step together.`,
       `I asked ${name} to review an assignment and they pointed out one change I could make.`,

@@ -3,6 +3,7 @@ import { cityEconomies } from '../data/cityEconomies.ts';
 import { jobById } from '../data/jobs.ts';
 import { postTransaction, record } from './journal.ts';
 import { annualChildcare } from './familyLife.ts';
+import { householdCosts, settleChildSupport } from './household.ts';
 import { settleAssets, ownedAssets } from './property.ts';
 import { settleLoans, settleSavings } from './banking.ts';
 import { settlePension } from './pension.ts';
@@ -71,6 +72,9 @@ export function annualFinance(life: Life, elapsedAge: number) {
   settlePension(life, gross, elapsedAge);
   settleSavings(life);
   settleBondIncome(life);
+  const childcare = localExpense(life.world, life.character.city, annualChildcare(life));
+  householdCosts(life, bills.housing, bills['food-utilities'], childcare);
+  settleChildSupport(life);
   for (const category of livingCategories) {
     const debt = life.finance.arrears[category];
     if (debt) life.finance.arrears[category] += postTransaction(life, `${financeLabels[category]} arrears`, -debt, category);
@@ -79,7 +83,6 @@ export function annualFinance(life: Life, elapsedAge: number) {
     const paid = -postTransaction(life, financeLabels[category], -bills[category], category);
     life.finance.arrears[category] += bills[category] - paid;
   }
-  const childcare = localExpense(life.world, life.character.city, annualChildcare(life));
   if (childcare) life.finance.arrears.personal += childcare + postTransaction(life, 'Childcare', -childcare, 'personal');
   settleLoans(life);
   if (outstanding(life)) record(life, 'finance', 'I could not cover all my living costs. The unpaid bills carried forward.', { stress: 3 });

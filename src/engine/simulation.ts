@@ -2,10 +2,11 @@ import { eventById, events } from '../data/events.ts';
 import { libraryEvents, libraryFriendEvent } from '../data/libraryEvents.ts';
 import { advanceAcademics, chooseEducationPath, isTuitionDue, performAcademicAction } from './academics.ts';
 import { activityStory } from './activityStories.ts';
-import { adoptChild } from './adoption.ts';
+import { adoptChild, advanceAdoption } from './adoption.ts';
 import { accessoryIssue, appearanceChanged, appearanceIssue, mergeAppearance, validFace, validHair } from './appearance.ts';
 import { advanceCareer, applyCareerEffect, closeCareerYear, endEmployment, performCareerAction, studyWorkload } from './career.ts';
 import { developChildInterests } from './childSkills.ts';
+import { advanceConnections, applyConnection } from './connectionActions.ts';
 import { discoveryEvent, searchDatingPool, updateDatingProfile } from './datingDiscovery.ts';
 import { answerCasualFollowup } from './casualConnections.ts';
 import { recordContactDeath, recordPlayerDeath, respondToDeath } from './death.ts';
@@ -15,8 +16,10 @@ import { applyFamilyDriving, offerFirstDrivingLessons } from './familyDriving.ts
 import { ageFamilyOpportunities, applyFamily, deliverPregnancies } from './familyLife.ts';
 import { respondToSurname } from './familyNames.ts';
 import { friendshipExperience, friendshipResponse } from './friendships.ts';
+import { giveGift } from './gifts.ts';
 import { advanceIllnesses, startIllness, visitHealthcare } from './health.ts';
 import { playerPatient } from './healthTypes.ts';
+import { applyHousehold } from './household.ts';
 import { sharedHobbies, spendTimeOnHobby } from './hobbies.ts';
 import { skills } from '../data/skills.ts';
 import { contactIssue, performRelationshipActivity } from './interactions.ts';
@@ -83,6 +86,7 @@ function ageUp(life: Life) {
   character.age += 1;
   life.year += 1;
   life.usedActions = [];
+  advanceConnections(life);
   delete life.social.datingCycle;
   ageSkills(life);
   character.attributes.stress = clamp(character.attributes.stress - 5);
@@ -139,6 +143,7 @@ function ageUp(life: Life) {
     life.scheduled = [];
     endEmployment(life, 'died');
     deliverPregnancies(life);
+    advanceAdoption(life);
     recordPlayerDeath(life, character.causeOfDeath);
     recordValuation(life);
     life.random = random.state;
@@ -146,6 +151,7 @@ function ageUp(life: Life) {
   }
   studyWorkload(life);
   deliverPregnancies(life);
+  advanceAdoption(life);
   offerFirstDrivingLessons(life);
   ageFamilyOpportunities(life);
   const graduated = advanceAcademics(life, random);
@@ -349,6 +355,16 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
       if (issue) return { error: issue };
       break;
     }
+    case 'connection': {
+      const issue = applyConnection(life, action);
+      if (issue) return { error: issue };
+      break;
+    }
+    case 'household': {
+      const issue = applyHousehold(life, action);
+      if (issue) return { error: issue };
+      break;
+    }
     case 'plan-child': case 'parent-child': {
       const issue = applyFamily(life, action);
       if (issue) return { error: issue };
@@ -465,6 +481,11 @@ export function advance(previous: Life, action: Action): { life: Life; error?: n
     }
     case 'spend-time-all': {
       const issue = spendTimeWithAll(life);
+      if (issue) return { error: issue };
+      break;
+    }
+    case 'give-gift': {
+      const issue = giveGift(life, action.person, action.gift);
       if (issue) return { error: issue };
       break;
     }

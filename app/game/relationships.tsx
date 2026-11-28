@@ -1,36 +1,61 @@
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Portrait } from '../../src/components/portrait';
 import { ActionButton, Heading, Page } from '../../src/components/ui';
 import { spendTimeAllIssue } from '../../src/engine/relationshipTime';
+import { relationshipCondition, relationshipSatisfaction } from '../../src/engine/relationships';
+import { DetailModal } from '../../src/components/detailModal';
 import { useGame } from '../../src/stores/game';
-import { relationshipSections, socialRole } from '../../src/socialView';
+import { directoryCategories, directorySorts, relationshipSections, socialRole, type DirectoryCategory, type DirectorySort } from '../../src/socialView';
 import { colors, radius, space } from '../../src/theme/tokens';
 
 export default function Relationships() {
   const { slot, busy, dispatch } = useGame();
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState<DirectoryCategory>('All');
+  const [sort, setSort] = useState<DirectorySort>('closeness');
+  const [filters, setFilters] = useState(false);
   const life = slot?.life;
   if (!life) return null;
   const issue = spendTimeAllIssue(life);
+  const sections = relationshipSections(life, query, category, sort);
   return (
     <Page inGame>
       <Heading title="Relationships" back={() => router.dismissTo('/game')} />
+      <View style={styles.tools}>
+        <TextInput style={styles.search} value={query} onChangeText={setQuery} placeholder="Search contacts" accessibilityLabel="Search contacts" />
+        <Pressable accessibilityRole="button" style={styles.filter} onPress={() => setFilters(true)}>
+          <Text style={styles.filterText}>Filters</Text>
+        </Pressable>
+      </View>
+      <DetailModal title="Contact Filters" open={filters} onDismiss={() => setFilters(false)}>
+        <Text style={styles.detail}>Category</Text>
+        {directoryCategories.map((item) => <ActionButton key={item} icon="files" label={item} detail={category === item ? 'Selected' : undefined}
+          onPress={() => setCategory(item)} />)}
+        <Text style={styles.detail}>Sort by</Text>
+        {directorySorts.map((item) => <ActionButton key={item} icon="options" label={item === 'recent' ? 'Recent interaction' : `${item[0]!.toUpperCase()}${item.slice(1)}`}
+          detail={sort === item ? 'Selected' : undefined} onPress={() => setSort(item)} />)}
+        <ActionButton icon="accept" label="Apply Filters" variant="primary" onPress={() => setFilters(false)} />
+      </DetailModal>
       <View style={styles.directory}>
-        {relationshipSections(life).map(({ title, people, loveLife }) => <View key={title}>
+        {!sections.length && <Text style={styles.empty}>No contacts match these filters.</Text>}
+        {sections.map(({ title, people, loveLife }) => <View key={title}>
           <Text accessibilityRole="header" style={styles.sectionTitle}>{title}</Text>
           {people.map((person) => {
             const role = socialRole(life, person);
-            const { affection } = person.bond;
+            const quality = relationshipSatisfaction(life, person);
+            const condition = relationshipCondition(life, person);
             return <Pressable key={person.id} accessibilityRole="button" accessibilityLabel={`${person.name}, ${role}`}
-              accessibilityHint={person.alive ? `Relationship ${affection}%` : 'Deceased'}
+              accessibilityHint={person.alive ? `${condition}, relationship quality ${quality}%` : 'Deceased'}
               style={({ pressed }) => [styles.row, pressed && styles.pressed]}
               onPress={() => router.push({ pathname: '/game/person', params: { id: person.id, source: 'relationships' } })}>
               <Portrait appearance={person.appearance} age={person.age} size={44} />
               <View style={styles.info}>
                 <Text style={styles.name}>{person.name} <Text style={styles.role}>{role}</Text></Text>
                 {person.alive ? <View style={styles.meter}>
-                  <Text style={styles.detail}>Relationship</Text>
-                  <View style={styles.track}><View style={[styles.fill, { width: `${affection}%` }]} /></View>
+                  <Text style={styles.detail}>{condition}</Text>
+                  <View style={styles.track}><View style={[styles.fill, { width: `${quality}%` }]} /></View>
                 </View> : <Text style={styles.detail}>Deceased</Text>}
               </View>
               <Text accessible={false} style={styles.chevron}>›</Text>
@@ -48,6 +73,11 @@ export default function Relationships() {
 }
 
 const styles = StyleSheet.create({
+  tools: { flexDirection: 'row', gap: space.sm },
+  search: { flex: 1, height: 42, paddingHorizontal: space.md, borderWidth: 1, borderRadius: radius.sm, borderColor: colors.blueRule, color: colors.ink },
+  filter: { justifyContent: 'center', paddingHorizontal: space.md, borderRadius: radius.sm, backgroundColor: colors.softBlue },
+  filterText: { color: colors.action, fontWeight: '700', fontSize: 13 },
+  empty: { padding: space.md, fontSize: 13, color: colors.muted },
   directory: { borderWidth: 1, borderColor: colors.blueRule, borderRadius: radius.md, overflow: 'hidden' },
   sectionTitle: { backgroundColor: colors.softBlue, color: colors.action, fontSize: 12, fontWeight: '800', paddingHorizontal: space.md,
     paddingVertical: space.sm, borderBottomWidth: 1, borderColor: colors.blueRule },

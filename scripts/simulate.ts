@@ -476,12 +476,7 @@ function socialChoice(life: Life, seed: number, strategy: RelationshipStrategy) 
     }
     const family = { type: 'plan-child', person: romance.person, method: seed % 2 ? 'adoption' : 'family' } as const;
     if (age <= 43 && Object.keys(life.social.children).length < 2 && !familyIssue(life, family)) {
-      const prior = Object.keys(life.social.children).length;
       life = apply(life, family);
-      if (Object.keys(life.social.children).length > prior) {
-        children++;
-        if (family.method === 'adoption') adoptions++;
-      }
     }
     const child = life.social.people.find((person) => person.alive && person.role === 'Child' && person.age < 18);
     const care = child && { type: 'parent-child', person: child.id, action: 'care' } as const;
@@ -523,7 +518,13 @@ for (let seed = 1; seed <= count; seed++) {
       }
     }
     const ageStart = performance.now();
+    const priorChildren = life.social.children;
     life = apply(life, { type: 'age' });
+    for (const [id, child] of Object.entries(life.social.children)) {
+      if (Object.hasOwn(priorChildren, id)) continue;
+      children++;
+      if (child.adopted) adoptions++;
+    }
     if (life.character.age >= 50) lateTurnTimings.push(performance.now() - ageStart);
     const currentEconomy = national(life.world);
     assert.equal(currentEconomy.year, elapsed.year + 1);
@@ -663,7 +664,13 @@ for (let seed = 1; seed <= count; seed++) {
       assert.ok(enrollment.yearsFunded >= enrollment.yearsCompleted && enrollment.yearsFunded <= enrollment.yearsCompleted + 1);
     }
   }
-  if (seed % 47 === 0) assert.deepEqual(decodeLife(JSON.stringify(life)), life);
+  if (seed % 47 === 0) {
+    try {
+      assert.deepEqual(decodeLife(JSON.stringify(life)), life);
+    } catch (error) {
+      throw new Error(`Save round trip failed for seed ${seed} at age ${life.character.age}.`, { cause: error });
+    }
+  }
   relationshipStats.lives++;
   relationshipStats.withMarriage += Number(life.social.romances.some(({ wedding }) => wedding !== null) ||
     Object.values(life.social.relationships).some((state) => !!state.milestones.marriage));

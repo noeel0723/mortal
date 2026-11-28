@@ -1,6 +1,7 @@
 import { assetById } from '../data/shops.ts';
 import { livingCategories } from './financeTypes.ts';
 import { currentAssetValue, ownedAssets } from './property.ts';
+import { partnerAssetShare, playerJointSavings } from './household.ts';
 import { investmentPrice, tradeInvestment } from './investments.ts';
 import { applyForLoan, bankAvailability, repayLoan, respondToLoan, transferSavings } from './banking.ts';
 import type { Life } from './types.ts';
@@ -20,12 +21,13 @@ export function estate(life: Life): WealthValue {
   let property = 0;
   let vehicles = 0;
   for (const asset of ownedAssets(life)) {
-    const value = currentAssetValue(life, asset);
+    const gross = currentAssetValue(life, asset);
+    const value = gross - partnerAssetShare(life, asset.ownershipId, gross);
     if (assetById.get(asset.id)?.kind === 'houses') property += value;
     else vehicles += value;
   }
   const cash = life.character.bank;
-  const savings = life.wealth.savings;
+  const savings = life.wealth.savings + playerJointSavings(life);
   const portfolio = Object.entries(life.wealth.portfolio).reduce((sum, [id, holding]) =>
     sum + holding.units * investmentPrice(life, id as InstrumentId), 0);
   const loans = life.wealth.loans.reduce((sum, loan) => sum + loan.balance + loan.interestDue, 0);

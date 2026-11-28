@@ -5,7 +5,9 @@ import { isSocialPage, localSocialGroups, localSocialTitle, socialActivityLinks,
 import { assetById, assetKinds } from '../src/data/shops';
 import type { AssetListing } from '../src/data/shops';
 import { backgroundLabels, genderLabels, talentLabels } from '../src/data/veyra';
-import { contactBondRows, contactHistory, contactInteractions, contactProfileRows, contactRole } from '../src/contactView';
+import { contactBondRows, contactConnectionGroups, contactHistory, contactInteractions, contactProfileRows, contactRole } from '../src/contactView';
+import { householdGroups } from '../src/householdView';
+import { communicationEnded, relationshipCondition, relationshipSatisfaction } from '../src/engine/relationships';
 import {
   canShowRetirement, careerCard, careerControl, careerRows, careerSummary, careerTimeline, defaultJobFilters, employmentLabels,
   financeEntries, financeOverview, financeYears, hiringOverview, jobIcon, jobListings, jobRatings, lifetimeEarnings, vacancyActions, vacancyRows,
@@ -19,12 +21,13 @@ import { workAge, workHours } from '../src/engine/career';
 import { industries } from '../src/engine/careerTypes';
 import { currentClass, findContact, isPeer, isSchoolStage } from '../src/engine/school';
 import { spendTimeAllIssue } from '../src/engine/relationshipTime';
+import { giftIssue } from '../src/engine/gifts';
 import { intimacyGuests, intimacyIssue } from '../src/engine/intimacy';
 import { isDatingApp } from '../src/engine/dating';
 import type { DatingAppSource } from '../src/engine/dating';
-import { childParents, datingCandidates, datingControls, datingSummary, familyTreeGroups, hookupControl, relationshipCareControls,
+import { childParents, datingCandidates, datingControls, datingSummary, directoryCategories, directorySorts, familyTreeGroups, hookupControl, relationshipCareControls,
   relationshipControls, relationshipDialog, relationshipGroups, relationshipOverview, relationshipSections } from '../src/socialView';
-import type { RelationshipDialogKind } from '../src/socialView';
+import type { DirectoryCategory, DirectorySort, RelationshipDialogKind } from '../src/socialView';
 import { accessoryIssue, accessoryOptions, canEditFace, noAccessories } from '../src/engine/appearance';
 import type { Accessories } from '../src/engine/appearance';
 import { adoptionCandidates, adoptionIssue } from '../src/engine/adoption';
@@ -54,6 +57,7 @@ import { activitySkillCategories, annualTrainingSummary, skillCategory, skillDet
 import { cityFromSlug, cityReport, compareCities, currentNews, industryReport, relocationDescription, worldHistory, worldOverview, worldReports } from '../src/worldView';
 import { Achievements, Settings } from './menu';
 import { AppearancePage, Portrait } from './portraits';
+import { GiftPicker } from './giftPicker';
 import { DetailDialog } from './detailDialog';
 import { DatingDialog, DatingProfileForm } from './datingDialog';
 import { Button, Feedback, Icon, Rows } from './ui';
@@ -580,6 +584,9 @@ function AdoptionPage({ life }: { life: Life }) {
   const candidate = candidates.find(({ person }) => person.id === selected);
   const profile = candidate && adoptionProfile(candidate);
   const issue = adoptionIssue(life);
+  if (life.social.adoption) return <PageGroup title="Application Under Review">
+    <MenuRow icon="calendar" title={`Review in ${life.social.adoption.due}`} detail="The agency will respond when you age up." />
+  </PageGroup>;
   return <>
     <PageGroup title="Children Available">
       {candidates.map(({ person, behavior }) =>
@@ -599,7 +606,7 @@ function AdoptionPage({ life }: { life: Life }) {
       <Button kind="primary" icon="adoption" className="personal-care-action" disabled={busy || !!issue} onClick={() => {
         setSelected(undefined);
         void dispatch({ type: 'adopt-child', person: candidate.person.id });
-      }}>Adopt Child</Button>
+      }}>Submit Application</Button>
     </DetailDialog>}
   </>;
 }
@@ -633,6 +640,12 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
   const { busy, dispatch, save } = useGame();
   const [datingApp, setDatingApp] = useState<DatingAppSource>();
   const [relationshipSelection, setRelationshipSelection] = useState<{ person: string; kind: RelationshipDialogKind }>();
+  const giftRound = useRef(0);
+  const [giftShop, setGiftShop] = useState<{ person: string; round: number }>();
+  const [directoryQuery, setDirectoryQuery] = useState('');
+  const [directoryCategory, setDirectoryCategory] = useState<DirectoryCategory>('All');
+  const [directorySort, setDirectorySort] = useState<DirectorySort>('closeness');
+  const [expandedHousehold, setExpandedHousehold] = useState<{ person: string; title: string }>();
   const { character } = life;
   const job = life.career.current;
   const canFindJob = character.age >= workAge && !character.causeOfDeath && life.career.retiredYear === null;
@@ -821,16 +834,27 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
     }
     case 'relationships': {
       const issue = spendTimeAllIssue(life);
+      const sections = relationshipSections(life, directoryQuery, directoryCategory, directorySort);
       return <div className="relationship-list">
         <div className="relationship-directory">
-          {relationshipSections(life).map(({ title, people, loveLife }) => <PageGroup key={title} title={title}>
+          <div className="directory-tools">
+            <input type="search" aria-label="Search contacts" placeholder="Search contacts" value={directoryQuery} onChange={(event) => setDirectoryQuery(event.target.value)} />
+            <select aria-label="Contact category" value={directoryCategory} onChange={(event) => setDirectoryCategory(event.target.value as DirectoryCategory)}>
+              {directoryCategories.map((item) => <option key={item} value={item}>{item === 'All' ? 'All categories' : item}</option>)}
+            </select>
+            <select aria-label="Sort contacts" value={directorySort} onChange={(event) => setDirectorySort(event.target.value as DirectorySort)}>
+              {directorySorts.map((item) => <option key={item} value={item}>{item === 'recent' ? 'Recent' : `${item[0]!.toUpperCase()}${item.slice(1)}`}</option>)}
+            </select>
+          </div>
+          {!sections.length && <p className="play-empty">No contacts match these filters.</p>}
+          {sections.map(({ title, people, loveLife }) => <PageGroup key={title} title={title}>
             {people.map((person) => <button key={person.id} type="button" className="relationship-entry" aria-label={person.name}
               aria-describedby={`relationship-role-${person.id}`} onClick={() => go('person', person.id)}>
               <span className="relationship-avatar" aria-hidden="true"><Portrait appearance={person.appearance} age={person.age} /></span>
               <span className="relationship-copy">
                 <span className="relationship-name"><strong>{person.name}</strong> <span id={`relationship-role-${person.id}`}>{contactRole(person, life)}</span></span>
                 {person.alive ? <span className="relationship-meter">
-                  <span>Relationship</span><progress aria-label="Relationship" max={100} value={person.bond.affection} />
+                  <span>{relationshipCondition(life, person)}</span><progress aria-label="Relationship" max={100} value={relationshipSatisfaction(life, person)} />
                 </span> : <span className="relationship-meter">Deceased</span>}
               </span>
               <span className="relationship-chevron" aria-hidden="true">›</span>
@@ -915,6 +939,10 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
       const overview = relationshipOverview(life, contact);
       const memories = contactHistory(life, contact);
       const interactions = contactInteractions(life, contact);
+      const showGift = contact.alive && !communicationEnded(life, contact.id);
+      const connections = contactConnectionGroups(life, contact, [...interactions, ...social, ...care].map(({ label }) => label));
+      const household = householdGroups(life, contact);
+      const giftUnavailable = giftIssue(life, contact);
       const dialog = relationshipSelection?.person === contact.id ? relationshipDialog(life, contact, relationshipSelection.kind) : undefined;
       const socialRow = (item: (typeof social)[number]) => <MenuRow key={item.label} icon={item.icon} title={item.label}
         detail={item.issue ?? item.detail} disabled={busy || !!item.issue} opensDialog={!!item.dialog || item.action.type === 'intimacy'}
@@ -928,7 +956,8 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           page === 'tree-person' || page === 'tree-person-info' ? 'tree-person' : 'person';
       return <>
         <PageGroup title="Character">
-          <PersonRow person={contact} life={life} detail={overview?.summary} opensDialog onClick={() => go(`${base}-info`, contact.id)} />
+          <PersonRow person={contact} life={life} detail={contact.alive ? `${overview?.summary ?? en.age(contact.age)} · ${relationshipCondition(life, contact)} · ${relationshipSatisfaction(life, contact)}%` : 'Deceased'}
+            opensDialog onClick={() => go(`${base}-info`, contact.id)} />
         </PageGroup>
         {social.length > 0 && <PageGroup title={contact.role === 'Child' ? 'Parenting' : 'Love Life'}>
           {social.map(socialRow)}
@@ -939,15 +968,35 @@ export function PlayPage({ life, page, person, detail, go, home, newLife }: {
           {overview?.concerns.map(({ label, value }) => <MenuRow key={label} title={label} detail={value} />)}
           {care.map(socialRow)}
         </PageGroup>}
-        {interactions.length > 0 && <PageGroup title="Interactions">
+        {(interactions.length > 0 || showGift) && <PageGroup title="Interactions">
           {interactions.map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label}
             detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onClick={() => void dispatch(item.action)} />)}
+          {showGift && <MenuRow icon="gift" title="Give a Gift" detail={giftUnavailable ?? undefined}
+            disabled={busy || !!giftUnavailable} opensDialog onClick={() => setGiftShop({ person: contact.id, round: giftRound.current++ })} />}
         </PageGroup>}
+        {connections.map(({ title, rows }) => <PageGroup key={title} title={title}>
+          {rows.map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label} detail={item.issue ?? undefined}
+            disabled={busy || !!item.issue} onClick={() => void dispatch(item.action)} />)}
+        </PageGroup>)}
+        {household.map(({ title, summary, controls }) => {
+          const open = expandedHousehold?.person === contact.id && expandedHousehold.title === title;
+          return <PageGroup key={title} title={title}>
+            <MenuRow icon="files" title={open ? 'Hide Options' : 'Manage Options'} detail={summary}
+              onClick={() => setExpandedHousehold(open ? undefined : { person: contact.id, title })} />
+            {open && controls.map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label} detail={item.issue ?? item.detail}
+              disabled={busy || !!item.issue} onClick={() => void dispatch(item.action)} />)}
+          </PageGroup>;
+        })}
         {dialog && <DetailDialog title={dialog.title} onDismiss={() => setRelationshipSelection(undefined)}>
           {dialog.options.map((item) => <MenuRow key={item.label} icon={item.icon} title={item.label}
             detail={[item.detail, item.issue].filter(Boolean).join(' · ')} disabled={busy || !!item.issue}
             onClick={() => { setRelationshipSelection(undefined); void dispatch(item.action); }} />)}
         </DetailDialog>}
+        {giftShop?.person === contact.id && <GiftPicker life={life} person={contact} round={giftShop.round} busy={busy}
+          onCancel={() => setGiftShop(undefined)} onGive={(gift) => {
+            setGiftShop(undefined);
+            void dispatch({ type: 'give-gift', person: contact.id, gift });
+          }} />}
         {showingProfile && <DetailDialog title="Character Profile" onDismiss={() => go(base, contact.id, true)}>
           <div className="detail-identity"><Portrait appearance={contact.appearance} age={contact.age} label={`Portrait of ${contact.name}`} />
             <div><strong>{contact.name}</strong><p>{contactRole(contact, life)}</p></div>

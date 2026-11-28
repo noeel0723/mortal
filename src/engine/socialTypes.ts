@@ -4,12 +4,14 @@ import type { RelationshipCareAction, RelationshipState } from './relationshipTy
 import type { FirstDateVenue } from './firstDates.ts';
 import type { IntimacyEvent } from './intimacy.ts';
 import type { Friendship, LocalSocialAction, LocalSocialState, SocialEdge } from './localSocialTypes.ts';
+import type { AdoptionApplication, Custody, Household, HouseholdAction, JointTitle } from './householdTypes.ts';
+import type { ConnectionAction } from './connectionActions.ts';
 
 export const traits = ['ambition', 'loyalty', 'empathy', 'sociability', 'discipline', 'confidence', 'temperament', 'materialism', 'riskTolerance'] as const;
 export type Traits = Record<typeof traits[number], number>;
 export const npcEducation = ['Early childhood', 'School', 'High school', 'Vocational', 'Undergraduate', 'Postgraduate'] as const;
 export const employment = ['student', 'seeking', 'employed', 'retired'] as const;
-export type SocialPerson = Person<'Sibling' | 'Grandparent' | 'Child' | 'Acquaintance'> & { friend: boolean };
+export type SocialPerson = Person<'Sibling' | 'Grandparent' | 'Child' | 'Relative' | 'Acquaintance'> & { friend: boolean };
 export type NpcProfile = {
   traits: Traits; interests: string[]; preferences: Gender[];
   education: typeof npcEducation[number]; educationProgram?: string; status: typeof employment[number];
@@ -21,6 +23,8 @@ export type NpcProfile = {
   casualContact?: 'connected' | 'closed';
   friendship?: Friendship;
   localHousehold?: 'alone' | 'family' | 'shared';
+  introduced?: true;
+  familyStudies?: { program: string; started: number; graduation: number };
 };
 export const activeRomanceStatuses = ['dating', 'committed', 'engaged', 'married'] as const;
 export const romanceStatuses = ['getting-to-know', 'interest', ...activeRomanceStatuses, 'contact-ended', 'broken-up', 'divorced', 'widowed'] as const;
@@ -36,8 +40,9 @@ export type DatingCycle = { year: number; viewed: number[]; background?: 2; pend
 export const meetingSources = ['neighborhood', 'hobbies', 'library'] as const;
 export type MeetingSource = typeof meetingSources[number];
 export type VehicleKind = 'cars' | 'motorcycles';
-export type ChildRecord = { year: number; adopted: boolean; wellbeing: number; learning: number; confidence: number; supportEnded: boolean; driving?: VehicleKind[] };
-export type Pregnancy = { mother: string; father: string; dueYear: number };
+export type ChildRecord = { year: number; adopted: boolean; wellbeing: number; learning: number; confidence: number; supportEnded: boolean;
+  driving?: VehicleKind[]; atHome?: boolean };
+export type Pregnancy = { mother: string; father: string; dueYear: number; name?: string };
 export type SocialState = {
   people: SocialPerson[]; profiles: Record<string, NpcProfile>;
   parents: Record<string, string[]>; children: Record<string, ChildRecord>;
@@ -49,12 +54,17 @@ export type SocialState = {
   datingCycle?: DatingCycle;
   local?: LocalSocialState;
   graph?: SocialEdge[];
+  unions?: { people: [string, string]; since: number; married?: number }[];
+  household?: Household;
+  jointTitles?: JointTitle[];
+  custody?: Record<string, Custody>;
+  adoption?: AdoptionApplication;
 };
-export const paidRomanticActivities = ['date', 'gift', 'dinner', 'movie'] as const;
+export const paidRomanticActivities = ['date', 'dinner', 'movie'] as const;
 export type PaidRomanticActivity = typeof paidRomanticActivities[number];
 export const dateTiers = ['simple', 'standard', 'premium'] as const;
 export type DateTier = typeof dateTiers[number];
-export const parentingActivities = ['care', 'read', 'school', 'hobby', 'lesson', 'gift', 'support', 'future'] as const;
+export const parentingActivities = ['care', 'read', 'school', 'hobby', 'lesson', 'support', 'future'] as const;
 export type IntimacyAction =
   | { type: 'intimacy'; encounter: 'make-love'; person: string }
   | { type: 'intimacy'; encounter: 'hookup' }
@@ -62,6 +72,8 @@ export type IntimacyAction =
 export type SocialAction =
   | IntimacyAction
   | RelationshipCareAction
+  | HouseholdAction
+  | ConnectionAction
   | LocalSocialAction
   | { type: 'social-introduction'; person: string }
   | { type: 'meet'; source: 'neighborhood' | 'hobbies' | 'date' | 'app' }

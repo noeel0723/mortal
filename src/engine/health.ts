@@ -4,6 +4,7 @@ import { findContact } from './school.ts';
 import { seededRandom } from './random.ts';
 import { clamp, record } from './journal.ts';
 import { recordNotice } from './eventNotices.ts';
+import { easeGrief } from './connectionActions.ts';
 import { illnessLevels, illnesses, playerPatient } from './healthTypes.ts';
 import type { HealthVisit, IllnessCase, IllnessId, IllnessLevel, PatientService } from './healthTypes.ts';
 import type { Contact, Life } from './types.ts';
@@ -120,6 +121,7 @@ export function visitHealthcare(life: Life, visit: HealthVisit) {
   } else if (visit.service === 'psychiatrist') {
     const visits = life.usedActions.filter((key) => key === 'psychiatry').length;
     if (visits < 4) life.usedActions.push('psychiatry');
+    if (visits < 4) easeGrief(life, 6);
     recordNotice(life, 'health', 'Psychiatry Session', 'I talked through some of my stress during a psychiatry session.',
       { stress: -Math.max(4, 18 - visits * 4), happiness: Math.max(0, 4 - visits), bank: -fee }, 'medical');
   } else {

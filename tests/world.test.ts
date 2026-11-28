@@ -211,7 +211,8 @@ test('relocation moves the household and local vehicles while preserving homes a
   assert.deepEqual(relocated.property.owned[0], life.property.owned[0]);
   assert.deepEqual(relocated.property.owned[1], { ...life.property.owned[1], city: destination });
   assert.equal(life.property.owned[1]?.city, origin);
-  assert.equal(findContact(relocated, spouse.id)?.city, destination);
+  assert.equal(findContact(relocated, spouse.id)?.city, origin);
+  assert.equal(relocated.social.household?.living, 'separate');
   assert.equal(findContact(relocated, child.id)?.city, destination);
   assert.equal(relocated.family[0]?.city, origin);
   assert.equal(relocated.character.bank, life.character.bank - relocationQuote(life, destination));

@@ -4,7 +4,7 @@ import { outstanding } from './finance.ts';
 import { sharedHobbies } from './hobbies.ts';
 import { skills } from '../data/skills.ts';
 import { clamp } from './journal.ts';
-import { ensureNpc, npcProfile, npcRandom, remember } from './npcs.ts';
+import { ensureNpc, isFamily, npcProfile, npcRandom, remember } from './npcs.ts';
 import { localExpense } from './pricing.ts';
 import { findContact } from './school.ts';
 import { activeRomanceStatuses } from './socialTypes.ts';
@@ -31,10 +31,10 @@ export const communicationEnded = (life: Life, id: string) => life.social.profil
   life.social.romances.some((entry) => entry.person === id && entry.status === 'contact-ended');
 export const casualConnection = (life: Life, id: string) => life.social.profiles[id]?.casualContact === 'connected';
 export const knownRelationship = (life: Life, person: Contact) => !communicationEnded(life, person.id) &&
-  (activeFor(life, person.id) || earlyConnection(life, person.id) || casualConnection(life, person.id) ||
+  (isFamily(life, person.id) || activeFor(life, person.id) || earlyConnection(life, person.id) || casualConnection(life, person.id) ||
     ('friend' in person && person.friend && !npcProfile(life, person).formerFriend));
 
-function stateFor(life: Life, id: string): RelationshipState {
+export function stateFor(life: Life, id: string): RelationshipState {
   return life.social.relationships[id] ??= { agreement: 'legacy', conflicts: [], memories: [], milestones: {} };
 }
 
@@ -132,9 +132,29 @@ export function attraction(life: Life, person: Contact) {
 
 export function relationshipSatisfaction(life: Life, person: Contact) {
   const { affection, trust, respect, compatibility, resentment, familiarity } = person.bond;
-  const strain = visibleConcerns(life, person.id)[0]?.severity ?? 0;
-  return clamp(Math.round(affection * .27 + trust * .30 + respect * .17 + compatibility * .16 + familiarity * .10 -
-    resentment * .26 - strain * .25));
+  const state = relationshipState(life, person.id);
+  const [primary, secondary] = visibleConcerns(life, person.id);
+  const family = isFamily(life, person.id) && !activeFor(life, person.id);
+  const affinity = family ? affection * .32 + trust * .27 + respect * .18 + compatibility * .05 + familiarity * .18 :
+    affection * .25 + trust * .32 + respect * .17 + compatibility * .16 + familiarity * .10;
+  const recency = life.year - (state?.lastMeaningful ?? npcProfile(life, person).lastInteraction);
+  const sharedHistory = Math.min(6, (state?.memories.filter(({ impact }) => impact > 0).length ?? 0));
+  const perspective = state?.perspective;
+  const attachment = perspective ? (perspective.npc - 50) * .09 : 0;
+  const imbalance = perspective?.player === undefined ? 0 : Math.abs(perspective.player - perspective.npc) * .07;
+  return clamp(Math.round(affinity - resentment * .28 - (primary?.severity ?? 0) * .25 - (secondary?.severity ?? 0) * .08 +
+    sharedHistory + attachment - imbalance + (state?.lastMeaningful === life.year ? 2 : 0) - Math.min(12, Math.max(0, recency - 1) * 2)));
+}
+
+export function recordConnectionPerspective(life: Life, person: Contact, impact: number, playerInitiated = false) {
+  const state = stateFor(life, person.id);
+  const { traits } = npcProfile(life, person);
+  const { affection, trust, resentment } = person.bond;
+  const view = state.perspective ?? { npc: Math.round(affection * .48 + trust * .32 + traits.loyalty * .20), willingness: trust, updated: life.year };
+  const npcChange = Math.round(impact * (impact > 0 ? (.55 + traits.empathy / 180) : (1.4 - traits.temperament / 160)));
+  state.perspective = { ...view, npc: clamp(view.npc + npcChange), updated: life.year,
+    willingness: clamp(Math.round(view.willingness * .72 + trust * .21 + traits.loyalty * .07 - resentment * .08 + npcChange)),
+    ...(playerInitiated ? { player: clamp((view.player ?? 45) + Math.max(1, Math.round(Math.max(0, impact) / 2))) } : {}) };
 }
 
 export function relationshipCondition(life: Life, person: Contact) {
@@ -142,11 +162,16 @@ export function relationshipCondition(life: Life, person: Contact) {
   const visible = visibleConcerns(life, person.id);
   const severity = visible[0]?.severity ?? 0;
   const score = relationshipSatisfaction(life, person);
-  if (visible.some((entry) => entry.breach && entry.severity >= 45) && person.bond.trust < 62) return 'Broken Trust';
+  if (communicationEnded(life, person.id) || npcProfile(life, person).formerFriend ||
+    (isFamily(life, person.id) && person.bond.resentment >= 75 && person.bond.trust < 22)) return 'Estranged';
+  if ((visible.some((entry) => entry.breach && entry.severity >= 45) && person.bond.trust < 62) ||
+    (person.bond.resentment >= 52 && person.bond.trust < 25)) return 'Broken Trust';
   if (score < 36 || (state?.apartUntil ?? 0) > life.year) return 'Unstable';
   if (severity >= 35 || person.bond.resentment >= 34) return 'Strained';
-  if (activeFor(life, person.id) && attraction(life, person) < 30) return 'One-Sided';
-  if (activeFor(life, person.id) && life.year - (state?.lastMeaningful ?? npcProfile(life, person).lastInteraction) >= 2) return 'Emotionally Distant';
+  const perspective = state?.perspective;
+  if ((perspective?.player !== undefined && Math.abs(perspective.player - perspective.npc) >= 32) ||
+    ((activeFor(life, person.id) || earlyConnection(life, person.id)) && attraction(life, person) < 30)) return 'One-Sided';
+  if (life.year - (state?.lastMeaningful ?? npcProfile(life, person).lastInteraction) >= (activeFor(life, person.id) ? 2 : 4)) return 'Distant';
   if (score >= 82 && person.bond.trust >= 78 && person.bond.familiarity >= 70) return 'Deeply Connected';
   return score >= 66 ? 'Healthy' : 'Stable';
 }
@@ -168,6 +193,8 @@ export function meaningfulTime(life: Life, person: Contact, act: 'time' | 'suppo
   if (!knownRelationship(life, person)) return;
   const state = stateFor(life, person.id);
   state.lastMeaningful = life.year;
+  // Persistence records choices and observed reactions without rewriting the six established bond values.
+  if (repair > 0 && state.perspective?.updated !== life.year) recordConnectionPerspective(life, person, Math.min(7, repair), true);
   if (act === 'support') relationshipMemory(life, person.id, 'support', 4);
   if (state.promise?.status === 'pending' && state.promise.kind === act) {
     state.promise.status = 'kept';
@@ -397,7 +424,8 @@ export function applyRelationshipCare(life: Life, action: RelationshipCareAction
   } else if (kind === 'relocation') {
     const profile = npcProfile(life, person);
     const readiness = person.bond.trust * .45 + profile.traits.riskTolerance * .32 + relationshipSatisfaction(life, person) * .24 -
-      (profile.status === 'employed' ? 24 : 0) - Math.min(18, profile.commitments / 650);
+      (profile.status === 'employed' ? 24 : profile.status === 'student' ? 30 : 0) - Math.min(18, profile.commitments / 650) -
+      (life.property.residence === 'family' ? 10 : 0);
     const accepts = readiness >= 30 && npcRandom(life, `relocation-talk:${id}`, life.year).next() * 100 < readiness;
     title = 'A Conversation About Moving';
     if (accepts) {
@@ -451,6 +479,7 @@ export function advanceRelationships(life: Life) {
       if (city && city === life.character.city && person.city !== city && activeFor(life, id) && !inConflict(life, id)) {
         life.social.profiles[id]!.movedFrom = person.city;
         person.city = city;
+        if (life.social.household?.spouse === id) life.social.household.living = 'together';
         recordNotice(life, 'community', 'A Move Together', `${person.name} followed through on our conversation and moved to ${city}.`);
       }
       delete state.move;

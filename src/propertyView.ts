@@ -1,10 +1,11 @@
 import { assetById, assetCatalog, assetKinds, starterHome } from './data/shops.ts';
 import type { AssetKind } from './data/shops.ts';
 import { drivingIssue } from './engine/familyDriving.ts';
-import { householdMembers } from './engine/household.ts';
+import { householdMembers, jointTitle, partnerAssetShare } from './engine/household.ts';
 import { assetActionLabels, assetSaleQuote, currentAssetValue, isHouse, ownedAssets, propertyIssue, propertyQuote, rentalQuote, rentMovingFee, upkeepQuote } from './engine/property.ts';
 import type { AssetOperation, OwnedAsset, PropertyAction } from './engine/property.ts';
 import type { Action, Life } from './engine/types.ts';
+import { findContact } from './engine/school.ts';
 import { money } from './i18n/en.ts';
 import type { Emoji } from './theme/tokens.ts';
 
@@ -76,12 +77,16 @@ const operationIcons: Record<AssetOperation, Emoji> = { maintain: 'vocational', 
 export function assetDetails(life: Life, asset: OwnedAsset) {
   const house = isHouse(asset);
   const rental = asset.rental;
+  const title = jointTitle(life, asset.ownershipId);
+  const marketValue = currentAssetValue(life, asset);
   const ownership = life.property.residence === asset.ownershipId ? 'Current home' : asset.sale ? `Sold in ${asset.sale.year}` : 'Owned';
   const displayRows = [
     { label: 'Ownership', value: ownership }, { label: 'Location', value: asset.city }, { label: 'Acquisition year', value: asset.year },
     { label: 'Acquisition price', value: asset.acquisition ? money(asset.acquisition.price) : 'Unknown' },
     ...(asset.sale ? [{ label: 'Sale proceeds', value: money(asset.sale.proceeds) }, { label: 'Transaction fee', value: money(asset.sale.fee) }] :
-      [{ label: 'Current market value', value: money(currentAssetValue(life, asset)) }]),
+      [{ label: 'Current market value', value: money(marketValue) }]),
+    ...(title ? [{ label: 'Co-owner', value: findContact(life, title.partner)?.name ?? 'Joint title' },
+      { label: 'Your share of value', value: money(marketValue - partnerAssetShare(life, asset.ownershipId, marketValue)) }] : []),
     { label: 'Condition', value: `${asset.condition}%` },
     ...(house ? [{ label: 'Major improvements', value: asset.improvements }] : [{ label: 'Reliability', value: `${asset.reliability}%` }]),
   ];
@@ -98,7 +103,8 @@ export function assetDetails(life: Life, asset: OwnedAsset) {
     const action = { type: 'manage-asset', id: asset.ownershipId, operation } as const;
     const label = operation === 'sell' ? house ? 'Sell Property' : 'Sell Vehicle' : assetActionLabels[operation];
     const upkeep = upkeepQuote(life, asset, operation);
-    const detail = operation === 'sell' ? `${money(sale.proceeds)} proceeds · ${money(sale.fee)} fee` : upkeep ? money(upkeep) :
+    const proceeds = sale.proceeds - partnerAssetShare(life, asset.ownershipId, sale.proceeds);
+    const detail = operation === 'sell' ? `${money(proceeds)} ${title ? 'your proceeds' : 'proceeds'} · ${money(sale.fee)} fee` : upkeep ? money(upkeep) :
       operation === 'offer-rental' ? `${money(rentalQuote(life, asset).rent)}/occupied year` : undefined;
     return { action: action as PropertyAction, label, icon: operationIcons[operation], detail, issue: propertyIssue(life, action) };
   });

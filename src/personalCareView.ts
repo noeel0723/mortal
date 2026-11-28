@@ -1,5 +1,5 @@
 import { genderLabels } from './data/veyra.ts';
-import type { adoptionCandidates } from './engine/adoption.ts';
+import { adoptionApplicationFee, type adoptionCandidates } from './engine/adoption.ts';
 import { adoptionCost } from './engine/familyLife.ts';
 import { surgeons, surgeryFee, surgeryIssue } from './engine/plasticSurgery.ts';
 import type { findProcedure } from './engine/plasticSurgery.ts';
@@ -20,7 +20,8 @@ export function adoptionProfile(candidate: Candidate) {
       { label: 'Gender identity', value: genderLabels[person.gender] },
       { label: 'Age', value: person.age },
       { label: 'Birthplace', value: birthplace },
-      { label: 'Adoption fee', value: money(adoptionCost) },
+      { label: 'Application fee', value: money(adoptionApplicationFee) },
+      { label: 'Placement fee if approved', value: money(adoptionCost - adoptionApplicationFee) },
     ],
     meters: [
       { label: 'Health', value: person.health }, { label: 'Smarts', value: smarts },

@@ -5,6 +5,7 @@ import { initialCareer } from './career.ts';
 import { initialFinance } from './finance.ts';
 import { initialProperty } from './property.ts';
 import { newSocial, syncNpcs } from './npcs.ts';
+import { olderSiblingAtBirth } from './familyNetwork.ts';
 import { newSkills } from './skills.ts';
 import { newWorld } from './world.ts';
 import { initialWealth } from './wealth.ts';
@@ -116,5 +117,6 @@ export function createLife(seed: number, profile?: ProfileInput): Life {
     transactions: bank ? [{ year: input.birthYear, label: 'Birth savings', amount: bank }] : [],
   };
   syncNpcs(life);
+  olderSiblingAtBirth(life);
   return life;
 }

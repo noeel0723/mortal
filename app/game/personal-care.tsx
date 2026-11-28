@@ -45,6 +45,10 @@ function AdoptionAgency({ life }: { life: Life }) {
   const candidate = candidates.find(({ person }) => person.id === selected);
   const profile = candidate && adoptionProfile(candidate);
   const issue = adoptionIssue(life);
+  if (life.social.adoption) return <Section title="Application Under Review">
+    <DataRow label="Review year" value={life.social.adoption.due} />
+    <Text style={shared.small}>The agency will respond when you age up.</Text>
+  </Section>;
   return <>
     <Section title="Children Available">{candidates.map(({ person, behavior }) => <View key={person.id} style={styles.candidate}>
       <ActionButton icon="adoption" label={person.name} detail={en.age(person.age)}
@@ -59,7 +63,7 @@ function AdoptionAgency({ life }: { life: Life }) {
       <View>{profile.details.map((row) => <DataRow key={row.label} {...row} />)}</View>
       {profile.meters.map((row) => <DetailMeter key={row.label} {...row} />)}
       {issue && <Text style={shared.small}>{issue}</Text>}
-      <ActionButton icon="adoption" label="Adopt Child" variant="primary" disabled={busy || !!issue} onPress={() => {
+      <ActionButton icon="adoption" label="Submit Application" variant="primary" disabled={busy || !!issue} onPress={() => {
         setSelected(undefined);
         void dispatch({ type: 'adopt-child', person: candidate.person.id });
       }} />

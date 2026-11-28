@@ -11,7 +11,10 @@ export default defineConfig({
     outDir: '../dist/web',
     emptyOutDir: true,
     rolldownOptions: {
-      output: { codeSplitting: { groups: [{ name: 'vendor', test: /[\\/]node_modules[\\/]/ }] } },
+      output: { codeSplitting: { groups: [
+        { name: 'vendor', test: /[\\/]node_modules[\\/]/ },
+        { name: 'gift-catalog', test: /[\\/]src[\\/]data[\\/]gifts\.ts$/ },
+      ] } },
     },
   },
   plugins: [{

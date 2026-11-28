@@ -3,6 +3,7 @@ import { offerCasualFollowup } from './casualConnections.ts';
 import { chanceOfPregnancy } from './familyLife.ts';
 import { clamp, record } from './journal.ts';
 import { isActiveRomance, romanceFor, romanceHistory } from './love.ts';
+import { closeKin } from './kinship.ts';
 import { consumeLoveSearch, hookupCandidateLimit, loveSearchIssue } from './loveSearch.ts';
 import { allContacts, ensureNpc, isFamily, makeNpc, newPeopleLimit, npcProfile, npcRandom, remember } from './npcs.ts';
 import { findContact } from './school.ts';
@@ -32,9 +33,7 @@ function contactIssue(life: Life, person: Contact | undefined) {
 }
 
 export function canShareInvitation(life: Life, first: Contact, second: Contact) {
-  const parents = life.social.parents;
-  return first.id !== second.id && first.city === second.city && !parents[first.id]?.includes(second.id) && !parents[second.id]?.includes(first.id) &&
-    !parents[first.id]?.some((parent) => parents[second.id]?.includes(parent));
+  return first.id !== second.id && first.city === second.city && !closeKin(life, first.id, second.id);
 }
 
 export function intimacyGuests(life: Life, first?: Contact) {

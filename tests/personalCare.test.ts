@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decodeLife } from '../src/database/codec.ts';
-import { adoptionCandidates } from '../src/engine/adoption.ts';
+import { adoptionApplicationFee, adoptionCandidates } from '../src/engine/adoption.ts';
 import { accessoryOptions, noAccessories } from '../src/engine/appearance.ts';
 import { createLife } from '../src/engine/create.ts';
 import { adoptionCost } from '../src/engine/familyLife.ts';
@@ -57,15 +57,19 @@ test('a single adult can adopt the exact shortlisted child after reload', () => 
   const selected = candidates[2]!;
   const action = { type: 'adopt-child', person: selected.person.id } as const;
   assert.match(advance(createLife(4), action).error ?? '', /age 18/);
-  const adopted = act(life, action);
+  const application = act(life, action);
+  assert.equal(application.character.bank, life.character.bank - adoptionApplicationFee);
+  assert.equal(application.social.children[selected.person.id], undefined);
+  assert.match(advance(application, action).error ?? '', /reviewed/);
+  const adopted = act(decodeLife(JSON.stringify(application)), { type: 'age' });
   const child = adopted.social.people.find(({ id }) => id === selected.person.id);
-  assert.deepEqual(child, selected.person);
-  assert.equal(adopted.character.bank, life.character.bank - adoptionCost);
+  assert.deepEqual(child, { ...selected.person, age: selected.person.age + 1 });
+  assert.equal(adopted.transactions.filter(({ label }) => /applied to adopt|adopted/.test(label)).reduce((sum, { amount }) => sum + amount, 0), -adoptionCost);
   assert.deepEqual(adopted.social.parents[selected.person.id], ['self']);
   assert.equal(adopted.social.children[selected.person.id]?.learning, selected.smarts);
   assert.equal(adopted.social.children[selected.person.id]?.adopted, true);
   assert.equal(adoptionCandidates(adopted).some(({ person }) => person.id === selected.person.id), false);
-  assert.match(advance(adopted, action).error ?? '', /next year/);
+  assert.equal(adopted.social.adoption, undefined);
   assert.deepEqual(decodeLife(JSON.stringify(adopted)), adopted);
 });
 

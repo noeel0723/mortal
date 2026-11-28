@@ -4,6 +4,7 @@ import { assetById } from '../src/data/shops.ts';
 import { genderLabels } from '../src/data/veyra.ts';
 import { adoptionCandidates } from '../src/engine/adoption.ts';
 import { createLife } from '../src/engine/create.ts';
+import { outstanding } from '../src/engine/finance.ts';
 import { postTransaction } from '../src/engine/journal.ts';
 import { pendingMeeting } from '../src/engine/meetings.ts';
 import { membership, neighbors } from '../src/engine/localSocial.ts';
@@ -294,7 +295,7 @@ try {
   assert.equal(familySaved.property.owned[0].history.at(-1).action, 'borrow');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth === innerWidth), true);
 
-  postTransaction(familySaved, 'Savings for personal care', 50000, 'other');
+  postTransaction(familySaved, 'Savings for personal care and the next year’s household bills', outstanding(familySaved) + 150000, 'other');
   await open('care-test', familySaved);
   await click('Activities');
   await click('Accessories');
@@ -324,13 +325,23 @@ try {
   const adoptionBounds = await adoption.boundingBox();
   assert.ok(adoptionBounds && adoptionBounds.x >= 0 && adoptionBounds.x + adoptionBounds.width <= 321);
   if (process.env.MORTAL_CAPTURE_CARE) await page.screenshot({ path: '.expo/web-qa/adoption-profile.png' });
-  await click('Adopt Child');
+  await click('Submit Application');
+  await dialog('Application Submitted').waitFor();
+  await acknowledgeEvents(page);
+  await click('Back to Activities');
+  await click('Close Activities');
+  await click('Age Up');
+  await page.locator('dialog[data-life-event][open]').waitFor();
+  const reviewed = await read('care-test');
+  assert.ok(reviewed.social.children[selected.id], JSON.stringify({ review: reviewed.social.adoption, pending: reviewed.pending,
+    notices: reviewed.notices.map(({ title }) => title), bank: reviewed.character.bank, city: reviewed.character.city, age: reviewed.character.age }));
+  await acknowledgeEvents(page, true, 'Adoption Day');
   await dialog('Adoption Day').waitFor();
   await acknowledgeEvents(page);
   const adopted = (await read('care-test')).social.people.find(({ id }) => id === selected.id);
   assert.equal(adopted.name, selected.name);
   assert.deepEqual(adopted.appearance, selected.appearance);
-  await click('Back to Activities');
+  await click('Activities');
 
   await page.setViewportSize({ width: 390, height: 844 });
   await click('Plastic Surgery');

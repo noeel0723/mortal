@@ -20,6 +20,11 @@ const links: Readonly<Record<string, readonly SkillId[]>> = {
   'making paper crafts': ['drawing', 'painting'], 'reading about animals': ['writing'],
 };
 
+export function interestsMatch(interests: readonly string[], topics: readonly string[]) {
+  const relevant = new Set<string>(topics.flatMap((topic) => [topic, ...skillsForInterest(topic)]));
+  return interests.some((interest) => relevant.has(interest) || skillsForInterest(interest).some((skill) => relevant.has(skill)));
+}
+
 export function skillsForInterest(interest: string): readonly SkillId[] {
   const exact = Object.hasOwn(links, interest) ? links[interest] : undefined;
   return [...new Set([...(exact ?? []), ...(isSkillId(interest) ? [interest] : [])])];

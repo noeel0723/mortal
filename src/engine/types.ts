@@ -153,6 +153,7 @@ export type Action =
   | { type: 'talk'; person: string }
   | { type: 'befriend'; person: string }
   | { type: 'interact'; person: string; activity: RelationshipActivity }
+  | { type: 'give-gift'; person: string; gift: string }
   | { type: 'spend-time-all' }
   | { type: 'change-appearance'; choices: AppearanceChoices }
   | { type: 'change-hair'; choices: HairChoice }

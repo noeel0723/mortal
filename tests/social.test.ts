@@ -10,14 +10,16 @@ import type { DatingPreferences } from '../src/engine/dating.ts';
 import { eventById } from '../src/data/events.ts';
 import { employers } from '../src/data/employers.ts';
 import { jobById } from '../src/data/jobs.ts';
+import { gifts } from '../src/data/gifts.ts';
 import { npcGivenNames, npcSurnames } from '../src/data/npcNames.ts';
 import { createLife } from '../src/engine/create.ts';
 import { ageFamilyOpportunities, annualChildcare } from '../src/engine/familyLife.ts';
 import { annualFinance } from '../src/engine/finance.ts';
 import { canAccompany, startIllness } from '../src/engine/health.ts';
 import { firstDateOutcome, firstDatePrice, firstDateVenues } from '../src/engine/firstDates.ts';
+import { giftAppreciation, giftOffers, giftPrice } from '../src/engine/gifts.ts';
 import { postTransaction } from '../src/engine/journal.ts';
-import { activeRomance, activeRomances, changeRomance, endRomance, loveIssue, partnerDatePrice, romanceFor } from '../src/engine/love.ts';
+import { activeRomance, activeRomances, changeRomance, endRomance, loveIssue, partnerDateOutcome, partnerDatePrice, romanceFor } from '../src/engine/love.ts';
 import { annualLoveSearches, consumeLoveSearch } from '../src/engine/loveSearch.ts';
 import { pendingMeeting } from '../src/engine/meetings.ts';
 import { advanceNpcLives, allContacts, ensureNpc, initialNpcProfile, makeNpc, npcRandom, syncNpcs } from '../src/engine/npcs.ts';
@@ -798,11 +800,10 @@ test('a severe betrayal can end a marriage while preserving the other relationsh
     }
   }
   assert.ok(discovered);
-  const amount = Math.min(5000, Math.floor(discovered.character.bank * .08));
   const divorced = act(discovered, { type: 'choose', event: 'social-affair', choice: 'deny' });
   assert.equal(romanceFor(divorced, id)?.status, 'divorced');
   assert.equal(romanceFor(divorced, other)?.status, 'dating');
-  assert.equal(divorced.character.bank, discovered.character.bank - amount);
+  assert.equal(divorced.character.bank, discovered.character.bank);
   assert.equal(divorced.transactions.reduce((sum, entry) => sum + entry.amount, 0), divorced.character.bank);
   assert.deepEqual(decodeLife(JSON.stringify(divorced)), divorced);
 });
@@ -915,6 +916,79 @@ test('partner date choices show ordered prices and debit only the selected affor
   assert.equal(dated.character.bank, 0);
   assert.equal(dated.transactions.at(-1)?.amount, -costs[0]!);
   assert.match(dated.journal.at(-1)?.text ?? '', /neighborhood diner/);
+});
+
+test('gift offers rotate seven at a time across a catalog of 200 and keep prices deterministic', () => {
+  const life = adult();
+  const person = life.family[0]!;
+  assert.equal(gifts.length, 200);
+  assert.equal(new Set(gifts.map(({ id }) => id)).size, 200);
+  for (const name of ['PlayStation 5 (PS5)', 'Fresh Lily Bouquet', 'Fresh Rose Bouquet', 'Nike Hoodie', 'Coach Card Case', 'Casio Digital Watch']) {
+    assert.ok(gifts.some((gift) => gift.name === name));
+  }
+  const first = giftOffers(life, person, 0);
+  const next = giftOffers(life, person, 1);
+  assert.equal(first.length, 7);
+  assert.equal(next.length, 7);
+  assert.ok(next.every(({ gift }) => !first.some((offer) => offer.gift.id === gift.id)));
+  assert.deepEqual(giftOffers(decodeLife(JSON.stringify(life)), person, 0), first);
+  assert.deepEqual(first.map(({ price }) => price), first.map(({ gift }) => giftPrice(life, person, gift)));
+  const toddler = makeNpc(life, 'npc-young-gift-recipient', 3, 'Child');
+  assert.ok(giftOffers(life, toddler, 0).every(({ gift }) => gift.childFriendly));
+});
+
+test('gift appreciation follows interests and persists independently of a partner’s affection', () => {
+  const { life, id } = marry();
+  life.notices = [];
+  const partner = findContact(life, id)!;
+  const profile = ensureNpc(life, partner);
+  profile.interests = ['reading', 'gardening'];
+  partner.bond.affection = 100;
+  const book = gifts.find(({ name }) => name === 'Mystery Paperback')!;
+  const console = gifts.find(({ name }) => name === 'PlayStation 5 (PS5)')!;
+  assert.ok(giftAppreciation(life, partner, book) > giftAppreciation(life, partner, console));
+  const action = { type: 'give-gift', person: id, gift: book.id } as const;
+  const given = act(life, action);
+  const saved = decodeLife(JSON.stringify(given));
+  assert.equal(saved.character.bank, life.character.bank - giftPrice(life, partner, book));
+  assert.equal(saved.transactions.length, life.transactions.length + 1);
+  const appreciation = eventPopup(saved)?.meter;
+  assert.equal(appreciation?.label, 'Appreciation');
+  assert.equal(appreciation.value, giftAppreciation(life, partner, book));
+  assert.match(romanceFor(saved, id)!.history.at(-1)?.text ?? '', /Mystery Paperback/);
+  assert.match(advance(life, { ...action, gift: 'unknown' }).error ?? '', /catalog/);
+});
+
+test('partner outings can have high or low enjoyment across price tiers even at full affection', () => {
+  const { life, id } = marry();
+  const partner = findContact(life, id)!;
+  const profile = ensureNpc(life, partner);
+  partner.bond.affection = 100;
+  profile.interests = ['reading', 'writing'];
+  profile.traits.sociability = 24;
+  const seen = new Set<number>();
+  for (const activity of ['date', 'movie'] as const) {
+    const results = Array.from({ length: 40 }, (_, index) => {
+      life.seed = index + 1;
+      const simple = partnerDateOutcome(life, partner, activity, 'simple').quality;
+      const premium = partnerDateOutcome(life, partner, activity, 'premium').quality;
+      seen.add(simple);
+      seen.add(premium);
+      return { simple, premium };
+    });
+    assert.ok(results.some(({ simple, premium }) => simple > premium + 20));
+    assert.ok(results.some(({ simple, premium }) => simple >= 75 && premium < 45));
+  }
+  assert.ok(seen.size > 25);
+  life.character.attributes.stress = 100;
+  partner.health = 45;
+  partner.bond.resentment = 60;
+  const action = { type: 'romance', person: id, action: 'movie', tier: 'premium' } as const;
+  const outing = act(life, action);
+  const meter = decodeLife(JSON.stringify(outing)).notices.at(-1)?.meter;
+  assert.equal(meter?.label, 'Movie Enjoyment');
+  assert.ok(meter.value < 42);
+  assert.equal(findContact(outing, id)?.bond.affection, 97);
 });
 
 test('cross-city mutual matches communicate, book an accepted visit, and keep their history after closing contact', () => {
@@ -1199,8 +1273,15 @@ test('marriage, both child paths, parenting, childcare, and divorce preserve fam
   const married = marry();
   let { life } = married;
   const { id } = married;
-  forceRoll(life, `planning:${id}`);
+  const parent = findContact(life, id)!;
+  life.character.gender = 'man';
+  parent.gender = 'woman';
+  let seed = life.seed;
+  while (npcRandom(life, `planning:${id}`, life.year).next() >= .25 ||
+    npcRandom(life, `pregnancy:${id}:${life.journal.length}`, life.year).next() >= .18) life.seed = ++seed;
   life = act(life, { type: 'plan-child', person: id, method: 'family', name: 'Ari' });
+  assert.equal(life.social.pregnancies?.[0]?.name, 'Ari');
+  life = age(life);
   const first = life.social.people.find(({ role }) => role === 'Child')!;
   assert.deepEqual(life.social.parents[first.id], ['self', id]);
   const groups = relationshipGroups(decodeLife(JSON.stringify(life)));
@@ -1220,11 +1301,13 @@ test('marriage, both child paths, parenting, childcare, and divorce preserve fam
   assert.equal(life.transactions.filter(({ year, label }) => year === life.year && label === 'Childcare').length, 1);
   forceRoll(life, `planning:${id}`);
   life = act(life, { type: 'plan-child', person: id, method: 'adoption' });
+  assert.ok(life.social.adoption);
+  life = age(life);
   assert.equal(Object.values(life.social.children).filter(({ adopted }) => adopted).length, 1);
   const balance = life.character.bank;
   life = act(life, { type: 'romance', action: 'divorce', person: id });
   assert.equal(romanceFor(life, id)?.status, 'divorced');
-  assert.ok(balance > life.character.bank);
+  assert.equal(balance, life.character.bank);
   assert.equal(life.character.bank, life.transactions.reduce((sum, { amount }) => sum + amount, 0));
   assert.deepEqual(life.social.parents[first.id], ['self', id]);
   assert.equal(allContacts(life).filter((person) => person.id === id).length, 1);

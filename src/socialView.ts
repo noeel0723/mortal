@@ -1,15 +1,17 @@
-import { familyIssue, parenting } from './engine/familyLife.ts';
+import { familyIssue, parenting, parentingAgeIssue } from './engine/familyLife.ts';
 import { dateActivities, datingCompatibility, isActiveRomance, isPaidRomanticActivity, loveIssue, partnerDateOptions, partnerDatePrice,
   romanceFor, romanceLabels, weddingPlans } from './engine/love.ts';
 import { datingGoals } from './engine/dating.ts';
+import { contactContexts } from './engine/connectionActions.ts';
 import { firstDatePrice, firstDateVenues } from './engine/firstDates.ts';
 import type { FirstDateVenue } from './engine/firstDates.ts';
-import { friendshipLabel, relationshipGroups } from './engine/relationshipDirectory.ts';
+import { friendshipLabel, lostContact, relationshipGroups } from './engine/relationshipDirectory.ts';
+import { familyRelation, familyRole } from './engine/kinship.ts';
 import { allContacts, isFamily, npcProfile } from './engine/npcs.ts';
 import { intimacyIssue, isIntimacyContact } from './engine/intimacy.ts';
 import { annualLoveSearches, loveSearchCount } from './engine/loveSearch.ts';
 import { activeFor, agreementFor, agreementLabels, careIssue, casualConnection, communicationEnded, concernLabels, counselingFee, earlyConnection, knownRelationship, relationshipCondition,
-  relationshipState, togetherInPerson, visibleConcerns, visitFee } from './engine/relationships.ts';
+  relationshipSatisfaction, relationshipState, togetherInPerson, visibleConcerns, visitFee } from './engine/relationships.ts';
 import type { MemoryKind, RelationshipCareAction } from './engine/relationshipTypes.ts';
 import { findContact } from './engine/school.ts';
 import { isWorkAcquaintance } from './engine/workplace.ts';
@@ -22,27 +24,47 @@ import type { Emoji } from './theme/tokens.ts';
 
 export { friendshipLabel, relationshipGroups };
 
-export function relationshipSections(life: Life) {
+export const directorySorts = ['closeness', 'name', 'recent'] as const;
+export const directoryCategories = ['All', 'Family', 'Neighborhood', 'School', 'University', 'Workplace', 'Community', 'Library', 'Mutual Connections', 'Dating', 'Other Encounters', 'Archived'] as const;
+export type DirectorySort = typeof directorySorts[number];
+export type DirectoryCategory = typeof directoryCategories[number];
+
+export function relationshipSections(life: Life, query = '', category: DirectoryCategory = 'All', sort: DirectorySort = 'closeness'):
+  { title: string; people: Contact[]; loveLife?: boolean }[] {
   const groups = relationshipGroups(life);
-  return [
+  const sections = [
     { title: 'Parents', people: groups.parents },
     { title: 'Family', people: groups.family },
-    { title: 'Siblings', people: groups.relatives.filter(({ role }) => role === 'Sibling') },
-    { title: 'Grandparents', people: groups.relatives.filter(({ role }) => role === 'Grandparent') },
+    { title: 'Siblings', people: groups.relatives.filter(({ id }) => familyRelation(life, id) !== 'grandparent') },
+    { title: 'Grandparents', people: groups.relatives.filter(({ id }) => familyRelation(life, id) === 'grandparent') },
+    { title: 'Extended Family', people: groups.extended },
     { title: 'Love Life', people: groups.partners, loveLife: true },
     { title: 'Friends', people: groups.friends },
     { title: 'Acquaintances', people: groups.acquaintances },
     { title: 'Former Relationships', people: groups.former },
-  ].filter(({ people, loveLife }) => people.length || loveLife);
+    { title: 'Remembered Loved Ones', people: groups.remembered },
+  ];
+  function matches(person: Contact) {
+    return person.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()) &&
+      (category === 'All' || category === 'Archived' || contactContexts(life, person).includes(category));
+  }
+  const sorting = (a: Contact, b: Contact) => sort === 'recent' ? npcProfile(life, b).lastInteraction - npcProfile(life, a).lastInteraction :
+    sort === 'closeness' ? relationshipSatisfaction(life, b) - relationshipSatisfaction(life, a) : a.name.localeCompare(b.name);
+  if (category === 'Archived') return [{ title: 'Archived Contacts', people: groups.archived.filter(matches).sort(sorting) }].filter(({ people }) => people.length);
+  return sections.map((group) => ({ ...group, loveLife: group.loveLife && !query && category === 'All',
+    people: group.people.filter((person) => (group.title === 'Remembered Loved Ones' || person.alive) && matches(person)).sort(sorting) }))
+    .filter(({ people, loveLife }) => people.length || loveLife);
 }
 
 export function socialRole(life: Life, person: Contact) {
   const relationship = romanceFor(life, person.id);
   if (relationship?.status === 'married') return { woman: 'Wife', man: 'Husband', nonbinary: 'Spouse' }[person.gender];
   if (relationship) return romanceLabels[relationship.status];
-  if (isFamily(life, person.id)) return person.role;
+  const relative = familyRole(life, person);
+  if (relative) return relative;
   if (communicationEnded(life, person.id)) return 'Communication Ended';
   if (casualConnection(life, person.id)) return 'Keeping in Touch';
+  if (lostContact(life, person)) return 'Lost Contact';
   const status = friendshipLabel(life, person);
   return status === 'Acquaintance' && !isWorkAcquaintance(person) ? person.role : status;
 }
@@ -60,12 +82,13 @@ export function personalityLabels(life: Life, person: Contact) {
 export function familyTreeGroups(life: Life) {
   const groups = relationshipGroups(life);
   return [
-    { label: 'Grandparents', people: groups.relatives.filter(({ role }) => role === 'Grandparent') },
+    { label: 'Grandparents', people: groups.relatives.filter(({ id }) => familyRelation(life, id) === 'grandparent') },
     { label: 'Parents', people: groups.parents },
-    { label: 'Siblings', people: groups.relatives.filter(({ role }) => role === 'Sibling') },
-    { label: 'Spouse and former spouses', people: [...groups.family, ...groups.former].filter((person) => {
+    { label: 'Siblings', people: groups.relatives.filter(({ id }) => familyRelation(life, id) !== 'grandparent') },
+    { label: 'Extended Family', people: groups.extended },
+    { label: 'Spouse and former spouses', people: allContacts(life).filter((person) => {
       const entry = romanceFor(life, person.id);
-      return entry?.wedding != null;
+      return entry?.wedding != null || !!relationshipState(life, person.id)?.milestones.marriage;
     }) },
     { label: 'Children', people: groups.family.filter(({ role }) => role === 'Child') },
   ].filter(({ people }) => people.length);
@@ -207,20 +230,21 @@ export function firstDateControls(life: Life, person: Contact) {
   });
 }
 
-const romanceIcons = { date: 'rose', gift: 'gift', dinner: 'restaurant', movie: 'camera', support: 'support', apologize: 'thanks' } as const;
-const parentingIcons = { care: 'bottle', read: 'library', school: 'study', hobby: 'art', lesson: 'classroom', gift: 'gift', support: 'support', future: 'talk' } as const;
+const romanceIcons = { date: 'rose', dinner: 'restaurant', movie: 'camera', support: 'support', apologize: 'thanks' } as const;
+const parentingIcons = { care: 'bottle', read: 'library', school: 'study', hobby: 'art', lesson: 'classroom', support: 'support', future: 'talk' } as const;
 
 export function relationshipDialog(life: Life, person: Contact, kind: RelationshipDialogKind) {
   if (kind === 'first-date') return { title: 'Choose a Date Venue', options: firstDateControls(life, person) };
   if (kind === 'conversation') return { title: 'Have a Conversation', options: conversationOptions(life, person) };
   return { title: dateActivities[kind].label, options: dateTiers.map((tier) =>
-    love(life, { type: 'romance', person: person.id, action: kind, tier }, partnerDateOptions[kind][tier], romanceIcons[kind],
+    love(life, { type: 'romance', person: person.id, action: kind, tier }, partnerDateOptions[kind][tier].label, romanceIcons[kind],
       money(partnerDatePrice(life, person, kind, tier)))) };
 }
 
 export function relationshipControls(life: Life, person: Contact) {
   const { id } = person;
-  if (life.social.parents[id]?.includes('self')) return (Object.keys(parenting) as (keyof typeof parenting)[]).map((action) =>
+  if (life.social.parents[id]?.includes('self')) return (person.alive ? (Object.keys(parenting) as (keyof typeof parenting)[]) : [])
+    .filter((action) => !parentingAgeIssue(person, action)).map((action) =>
     family(life, { type: 'parent-child', person: id, action }, parenting[action].label, parentingIcons[action],
       parenting[action].cost ? money(parenting[action].cost) : undefined));
 
@@ -235,13 +259,16 @@ export function relationshipControls(life: Life, person: Contact) {
       return isPaidRomanticActivity(action) ? { ...item, issue: loveIssue(life, request, false), dialog: action } : item;
     });
     const rows = [...privateEvening, ...dates];
+    if (status === 'married' && life.social.household?.familyPlan?.answer === 'ready') {
+      rows.push(family(life, { type: 'plan-child', person: id, method: 'family' }, 'Try for a Child', 'baby'));
+    }
     if (status === 'dating' || status === 'committed') rows.push(love(life, { type: 'romance', person: id, action: 'propose' }, 'Propose Marriage', 'ring'));
     if (status === 'engaged') for (const plan of Object.keys(weddingPlans) as (keyof typeof weddingPlans)[]) {
       rows.push(love(life, { type: 'wedding', person: id, plan }, weddingPlans[plan].label, 'ring', money(weddingPlans[plan].cost)));
     }
     rows.push(love(life, { type: 'romance', person: id, action: status === 'married' ? 'divorce' : 'breakup' },
       status === 'married' ? 'Divorce' : 'Break Up', 'brokenHeart',
-      status === 'married' ? 'Settlement is 8% of savings, up to $50. Assets stay in your inventory.' : undefined));
+      status === 'married' ? 'Settle joint savings and arrange care for dependent children.' : undefined));
     return rows;
   }
   if (communicationEnded(life, id) || life.character.age < 18 || person.age < 18 || isFamily(life, id) || !person.alive ||

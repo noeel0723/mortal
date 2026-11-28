@@ -1,8 +1,12 @@
 import { jobById } from '../data/jobs.ts';
+import { programById } from '../data/academics.ts';
 import { cities, genders } from '../data/veyra.ts';
 import { allContacts, newPeopleLimit } from '../engine/npcs.ts';
+import { familyRelation } from '../engine/kinship.ts';
 import { validNpcProgram } from '../engine/npcQualifications.ts';
 import { isActiveRomance } from '../engine/love.ts';
+import { adoptionApplicationFee } from '../engine/adoption.ts';
+import { contributions, custodyArrangements } from '../engine/householdTypes.ts';
 import { datingGoals } from '../engine/dating.ts';
 import { discoveryEvent, validDatingState } from '../engine/datingDiscovery.ts';
 import { validSearchMatchId } from '../engine/loveSearch.ts';
@@ -30,7 +34,7 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
     value.every((item: unknown) => record(item) && date(item.year) && typeof item.text === 'string');
   if (!record(social) || !Array.isArray(social.people) || social.people.length > newPeopleLimit ||
     !social.people.every((person: unknown) => savedPerson(person) && typeof person.id === 'string' &&
-      /^npc-[a-z0-9-]+$/.test(person.id) && ['Sibling', 'Grandparent', 'Child', 'Acquaintance'].includes(String(person.role)) &&
+      /^npc-[a-z0-9-]+$/.test(person.id) && ['Sibling', 'Grandparent', 'Child', 'Relative', 'Acquaintance'].includes(String(person.role)) &&
       typeof person.friend === 'boolean') || !record(social.profiles) || !record(social.parents) || !record(social.children) ||
       !Array.isArray(social.romances)) return false;
   const contacts = allContacts(life);
@@ -49,9 +53,15 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
       (profile.datingGoal !== undefined && (typeof profile.datingGoal !== 'string' || !Object.hasOwn(datingGoals, profile.datingGoal))) ||
       (profile.casualContact !== undefined && profile.casualContact !== 'connected' && profile.casualContact !== 'closed') ||
       (profile.localHousehold !== undefined && !['alone', 'shared', 'family'].includes(profile.localHousehold)) ||
+      (profile.introduced !== undefined && profile.introduced !== true) ||
       !validateFriendship(profile.friendship, life, 'friend' in person && person.friend, profile.formerFriend) ||
       !npcEducation.includes(profile.education) || !employment.includes(profile.status) ||
       (profile.educationProgram !== undefined && !validNpcProgram(profile.educationProgram, profile.education, year - profile.born)) ||
+      (profile.familyStudies !== undefined && (!record(profile.familyStudies) || typeof profile.familyStudies.program !== 'string' ||
+        !date(profile.familyStudies.started) || profile.familyStudies.started < profile.born + 18 ||
+        !['vocational', 'undergraduate'].includes(programById.get(profile.familyStudies.program)?.level ?? '') ||
+        profile.familyStudies.graduation !== profile.familyStudies.started + programById.get(profile.familyStudies.program)!.duration ||
+        profile.familyStudies.graduation <= year)) ||
       (profile.job !== null && !jobById.has(profile.job)) ||
       ![profile.income, profile.expenses, profile.savings, profile.commitments, profile.experience, profile.conflicts].every(amount) ||
       !integer(profile.born, 1800, year) || !date(profile.met) || !date(profile.lastInteraction) || profile.lastInteraction < profile.met ||
@@ -70,7 +80,8 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
       if (!record(item) || typeof item.mother !== 'string' || typeof item.father !== 'string' ||
         (item.mother === 'self') === (item.father === 'self') || gender(item.mother) !== 'woman' || gender(item.father) !== 'man' ||
         year - born(item.mother) < 18 || year - born(item.mother) > 45 || year - born(item.father) < 18 ||
-        item.dueYear !== year + 1 || mothers.has(item.mother) || character.causeOfDeath) return false;
+        item.dueYear !== year + 1 || (item.name !== undefined && (typeof item.name !== 'string' || !/^\p{L}[\p{L}\p{M} '’.-]{0,27}$/u.test(item.name))) ||
+        mothers.has(item.mother) || character.causeOfDeath) return false;
       mothers.add(item.mother);
       return true;
     }))) return false;
@@ -82,26 +93,39 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
     if (!exists(child) || !Array.isArray(parents) || parents.length === 0 || parents.length > 2 || new Set(parents).size !== parents.length ||
       !parents.every((parent) => typeof parent === 'string' && parent !== child && exists(parent) && parentYear - born(parent) >= 18)) return false;
   }
+  const checkedAncestry = new Set<string>();
+  const activeAncestry = new Set<string>();
+  function acyclic(id: string): boolean {
+    if (checkedAncestry.has(id)) return true;
+    if (activeAncestry.has(id)) return false;
+    activeAncestry.add(id);
+    if (!(social.parents[id] ?? []).every(acyclic)) return false;
+    activeAncestry.delete(id);
+    checkedAncestry.add(id);
+    return true;
+  }
+  if (!Object.keys(social.parents).every(acyclic)) return false;
+  const unionPeople = new Set<string>();
+  if (social.unions !== undefined && (!Array.isArray(social.unions) || social.unions.length > 14 || !social.unions.every((union) => {
+    if (!record(union) || !date(union.since) || !Array.isArray(union.people) || union.people.length !== 2 ||
+      new Set(union.people).size !== 2 || union.people.some((id) => !ids.has(id) || unionPeople.has(id) || union.since - born(id) < 18) ||
+      (union.married !== undefined && (!date(union.married) || union.married < union.since))) return false;
+    union.people.forEach((id) => unionPeople.add(id));
+    return true;
+  }))) return false;
   for (const [id, child] of Object.entries(social.children)) {
     if (!social.people.some((person) => person.id === id && person.role === 'Child') ||
       !record(child) || !date(child.year) || child.year < born(id) || typeof child.adopted !== 'boolean' || typeof child.supportEnded !== 'boolean' ||
       ![child.wellbeing, child.learning, child.confidence].every((value) => integer(value, 0, 100)) ||
+      (child.atHome !== undefined && (typeof child.atHome !== 'boolean' || year - born(id) < 18)) ||
       (child.driving !== undefined && (!Array.isArray(child.driving) || new Set(child.driving).size !== child.driving.length ||
         child.driving.some((kind) => kind !== 'cars' && kind !== 'motorcycles') || year - born(id) < 15)) ||
       !social.parents[id]?.includes('self') || (!child.adopted && social.parents[id]?.length !== 2)) return false;
   }
-  for (const person of social.people) {
-    if (person.role === 'Child' && !Object.hasOwn(social.children, person.id)) return false;
-    if (person.role === 'Sibling' && (social.parents[person.id]?.length !== social.parents.self.length ||
-      !social.parents.self.every((id) => social.parents[person.id]!.includes(id)))) return false;
-    if (person.role === 'Grandparent' && !social.parents.self.some((id) => social.parents[id]?.includes(person.id))) return false;
-  }
-  const relatives = new Set([...social.parents.self, ...social.parents.self.flatMap((id) => social.parents[id] ?? []),
-    ...social.people.filter(({ role }) => role !== 'Acquaintance').map(({ id }) => id)]);
   const seen = new Set<string>();
   let commitments = 0;
   for (const entry of social.romances) {
-    if (!record(entry) || !ids.has(entry.person) || relatives.has(entry.person) || seen.has(entry.person) || !romanceStatuses.includes(entry.status) ||
+    if (!record(entry) || !ids.has(entry.person) || seen.has(entry.person) || !romanceStatuses.includes(entry.status) ||
       !date(entry.started) || entry.started < character.birthYear + 18 || entry.started < born(entry.person) + 18 ||
       !history(entry.history, 30) ||
       ![entry.engagement, entry.wedding, entry.ended].every((value) => value === null || (date(value) && value >= entry.started)) ||
@@ -111,6 +135,35 @@ export function validateSocial(life: Life, savedPerson: (value: unknown) => valu
     seen.add(entry.person);
     if ((entry.status === 'engaged' || entry.status === 'married') && ++commitments > 1) return false;
   }
+  for (const person of social.people) {
+    if (person.role === 'Child' && !Object.hasOwn(social.children, person.id)) return false;
+    if (person.role === 'Sibling' && !['sibling', 'half-sibling'].includes(familyRelation(life, person.id) ?? '')) return false;
+    if (person.role === 'Grandparent' && !social.parents.self.some((id) => social.parents[id]?.includes(person.id))) return false;
+  }
+  if (social.romances.some(({ person, ended }) => ended === null && familyRelation(life, person))) return false;
+  const household = social.household;
+  if (household !== undefined && (!record(household) || !social.romances.some(({ person, status }) => person === household.spouse && status === 'married') ||
+    !['together', 'separate'].includes(household.living) || !contributions.includes(household.contribution) ||
+    (household.duties !== undefined && !['shared', 'player', 'partner'].includes(household.duties)) ||
+    !record(household.savings) || !amount(household.savings.player) || !amount(household.savings.partner) ||
+    (household.familyPlan !== undefined && (!record(household.familyPlan) || !date(household.familyPlan.year) ||
+      !['ready', 'wait'].includes(household.familyPlan.answer))))) return false;
+  if (social.jointTitles !== undefined) {
+    const titles = social.jointTitles;
+    if (!Array.isArray(titles) || titles.length > 12 || !titles.every((title) => record(title) && ids.has(title.partner) &&
+      life.property.owned.some(({ ownershipId, sale }) => ownershipId === title.asset && !sale) &&
+      integer(title.basis, 1, Number.MAX_SAFE_INTEGER) && integer(title.contribution, 1, title.basis)) ||
+      new Set(titles.map(({ asset }) => asset)).size !== titles.length) return false;
+  }
+  if (social.custody !== undefined && (!record(social.custody) || !Object.entries(social.custody).every(([child, arrangement]) =>
+    Object.hasOwn(social.children, child) && record(arrangement) && social.parents[child]?.includes(arrangement.other) &&
+    arrangement.other !== 'self' && custodyArrangements.includes(arrangement.residence) && date(arrangement.since) &&
+    arrangement.since >= social.children[child]!.year))) return false;
+  const application = social.adoption;
+  if (application !== undefined && (!record(application) || application.applied !== year || application.due !== year + 1 ||
+    typeof application.candidate !== 'string' || !new RegExp(`^npc-adoption-${year}-[1-5]$`).test(application.candidate) ||
+    ids.has(application.candidate) || !cities.includes(application.city) || application.fee !== adoptionApplicationFee ||
+    (application.partner !== undefined && !ids.has(application.partner)))) return false;
   if (life.pending === protectionEvent ? !isIntimacyEvent(social.pendingEncounter ?? null) : social.pendingEncounter !== undefined) return false;
   const encounter = life.pending === protectionEvent ? social.pendingEncounter! : life.pending;
   if (encounter !== 'social-threesome' && social.pendingGuest !== undefined) return false;

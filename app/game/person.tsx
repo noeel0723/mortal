@@ -1,12 +1,16 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { DetailMeter, DetailModal } from '../../src/components/detailModal';
+import { GiftPicker } from '../../src/components/giftPicker';
 import { Portrait } from '../../src/components/portrait';
 import { ActionButton, DataRow, Heading, Page, Section, shared } from '../../src/components/ui';
-import { contactBondRows, contactHistory, contactInteractions, contactProfileRows, contactRole } from '../../src/contactView';
+import { contactBondRows, contactConnectionGroups, contactHistory, contactInteractions, contactProfileRows, contactRole } from '../../src/contactView';
+import { householdGroups } from '../../src/householdView';
+import { communicationEnded, relationshipCondition, relationshipSatisfaction } from '../../src/engine/relationships';
 import { genderLabels } from '../../src/data/veyra';
 import { educationStatus } from '../../src/engine/academics';
+import { giftIssue } from '../../src/engine/gifts';
 import { findContact } from '../../src/engine/school';
 import { profileHealthRows } from '../../src/healthView';
 import { relationshipCareControls, relationshipControls, relationshipDialog, relationshipOverview } from '../../src/socialView';
@@ -19,6 +23,9 @@ export default function Person() {
   const { slot, busy, dispatch } = useGame();
   const [profileId, setProfileId] = useState<string | null>(null);
   const [selection, setSelection] = useState<{ person: string; kind: RelationshipDialogKind }>();
+  const giftRound = useRef(0);
+  const [giftShop, setGiftShop] = useState<{ person: string; round: number }>();
+  const [expanded, setExpanded] = useState<{ person: string; title: string }>();
   if (!slot) return null;
   const life = slot.life;
   const { character } = life;
@@ -46,6 +53,10 @@ export default function Person() {
   const overview = person ? relationshipOverview(life, person) : null;
   const memories = person ? contactHistory(life, person) : [];
   const interactions = person ? contactInteractions(life, person) : [];
+  const showGift = person?.alive && !communicationEnded(life, person.id);
+  const connections = person ? contactConnectionGroups(life, person, [...interactions, ...controls, ...care].map(({ label }) => label)) : [];
+  const household = person ? householdGroups(life, person) : [];
+  const giftUnavailable = person ? giftIssue(life, person) : null;
   const dialog = person && selection?.person === person.id ? relationshipDialog(life, person, selection.kind) : undefined;
   const actionRow = (item: (typeof controls)[number]) => <ActionButton key={item.label} icon={item.icon} label={item.label}
     detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onPress={() => {
@@ -59,12 +70,14 @@ export default function Person() {
       {person ? <>
         <ActionButton icon="person" label={person.name} onPress={() => setProfileId(person.id)}
           leading={<Portrait appearance={person.appearance} age={person.age} />}
-          detail={overview?.summary ?? `${person.alive ? `Age ${person.age}` : 'Deceased'} · Affection ${person.bond.affection}%`} />
-        {interactions.length > 0 && <Section title="Interactions">
+          detail={person.alive ? `${overview?.summary ?? `Age ${person.age}`} · ${relationshipCondition(life, person)} · ${relationshipSatisfaction(life, person)}%` : 'Deceased'} />
+        {(interactions.length > 0 || showGift) && <Section title="Interactions">
           {interactions.map((item) => (
             <ActionButton key={item.label} icon={item.icon} label={item.label} detail={item.issue ?? item.detail}
               disabled={busy || !!item.issue} onPress={() => void dispatch(item.action)} />
           ))}
+          {showGift && <ActionButton icon="gift" label="Give a Gift" detail={giftUnavailable ?? undefined}
+            disabled={busy || !!giftUnavailable} onPress={() => setGiftShop({ person: person.id, round: giftRound.current++ })} />}
         </Section>}
         {controls.length > 0 && <Section title={person.role === 'Child' ? 'Parenting' : 'Love Life'}>
           {controls.map(actionRow)}
@@ -75,11 +88,29 @@ export default function Person() {
           {overview?.concerns.map((row) => <DataRow key={row.label} {...row} />)}
           {care.map(actionRow)}
         </Section>}
+        {connections.map(({ title, rows }) => <Section key={title} title={title}>
+          {rows.map((item) => <ActionButton key={item.label} icon={item.icon} label={item.label} detail={item.issue ?? undefined}
+            disabled={busy || !!item.issue} onPress={() => void dispatch(item.action)} />)}
+        </Section>)}
+        {household.map(({ title, summary, controls }) => {
+          const open = expanded?.person === person.id && expanded.title === title;
+          return <Section key={title} title={title}>
+            <ActionButton icon="files" label={open ? 'Hide Options' : 'Manage Options'} detail={summary}
+              onPress={() => setExpanded(open ? undefined : { person: person.id, title })} />
+            {open && controls.map((item) => <ActionButton key={item.label} icon={item.icon} label={item.label}
+              detail={item.issue ?? item.detail} disabled={busy || !!item.issue} onPress={() => void dispatch(item.action)} />)}
+          </Section>;
+        })}
         {dialog && <DetailModal title={dialog.title} open onDismiss={() => setSelection(undefined)}>
           {dialog.options.map((item) => <ActionButton key={item.label} icon={item.icon} label={item.label}
             detail={[item.detail, item.issue].filter(Boolean).join(' · ')} disabled={busy || !!item.issue}
             onPress={() => { setSelection(undefined); void dispatch(item.action); }} />)}
         </DetailModal>}
+        {giftShop?.person === person.id && <GiftPicker life={life} person={person} round={giftShop.round} busy={busy}
+          onCancel={() => setGiftShop(undefined)} onGive={(gift) => {
+            setGiftShop(undefined);
+            void dispatch({ type: 'give-gift', person: person.id, gift });
+          }} />}
         <DetailModal title="Character Profile" open={profileId === person.id} onDismiss={() => setProfileId(null)}>
           <View style={styles.identity}>
             <Portrait appearance={person.appearance} age={person.age} size={52} label={`Portrait of ${person.name}`} />

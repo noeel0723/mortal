@@ -2,17 +2,18 @@ import { genderLabels } from './data/veyra.ts';
 import { employerById } from './data/employers.ts';
 import { isSkillId, skills } from './data/skills.ts';
 import { canShareHobby, sharedHobbies, sharedHobbyIssue } from './engine/hobbies.ts';
-import { canStudyWith, contactGroup, giftCost, relationshipActivities, relationshipIssue } from './engine/interactions.ts';
+import { canStudyWith, contactGroup, relationshipActivities, relationshipIssue } from './engine/interactions.ts';
 import type { RelationshipActivity } from './engine/interactions.ts';
 import { befriendIssue, talkIssue } from './engine/simulation.ts';
 import { canMakeFriend, isWorkContact } from './engine/workplace.ts';
 import type { Action, Contact, Life } from './engine/types.ts';
-import { money } from './i18n/en.ts';
 import { profileHealthRows } from './healthView.ts';
 import { npcProfile } from './engine/npcs.ts';
 import { introductionIssue, possibleIntroduction, socialCircle } from './engine/socialGraph.ts';
-import { isActiveRomance, romanceFor } from './engine/love.ts';
-import { activeFor, casualConnection, communicationEnded, earlyConnection, togetherInPerson } from './engine/relationships.ts';
+import { romanceFor } from './engine/love.ts';
+import { activeFor, casualConnection, communicationEnded, earlyConnection, relationshipCondition, relationshipSatisfaction, relationshipState, togetherInPerson } from './engine/relationships.ts';
+import { connectionControls, contactContexts, friendshipContexts, parentTendency, perceivedConnection } from './engine/connectionActions.ts';
+import { familyRelation } from './engine/kinship.ts';
 import { childParents, personalityLabels, relationshipOverview, socialRole } from './socialView.ts';
 import type { Emoji } from './theme/tokens.ts';
 
@@ -24,7 +25,6 @@ const presentation: Record<RelationshipActivity, { label: string; icon: Emoji; d
   compliment: { label: 'Give a Compliment', icon: 'compliment', detail: 'Tell them something you appreciate about them.' },
   'hang-out': { label: 'Hang Out', icon: 'together', detail: 'Have fun together and get to know each other better.' },
   'study-together': { label: 'Study Together', icon: 'study', detail: 'Review classwork and improve your grades.' },
-  gift: { label: 'Give a Gift', icon: 'gift', detail: `Buy them a small gift for ${money(giftCost)}.` },
   'academic-help': { label: 'Ask for Academic Help', icon: 'study', detail: 'Get feedback to improve your coursework.' },
   'mentor-guidance': { label: 'Ask for Guidance', icon: 'guidance', detail: 'Talk through your study goals and next steps.' },
   'thank-educator': { label: 'Say Thank You', icon: 'thanks', detail: 'Thank them for the support they give you.' },
@@ -44,9 +44,22 @@ export function contactProfileRows(life: Life, person: Contact) {
   const parents = childParents(life, person);
   const child = life.social.children[person.id];
   const overview = relationshipOverview(life, person);
+  const relative = familyRelation(life, person.id);
+  const state = relationshipState(life, person.id);
+  const impression = perceivedConnection(life, person);
+  const contexts = [...contactContexts(life, person), ...friendshipContexts(life, person)];
+  const recent = profile.memories.filter(({ year }) => year >= life.year - 2).at(-1);
   return [
     { label: 'Relationship', value: contactRole(person, life) },
-    ...(overview?.condition ? [{ label: 'Relationship condition', value: overview.condition }] : []),
+    ...(person.alive ? [{ label: 'Relationship condition', value: relationshipCondition(life, person) },
+      { label: 'Relationship quality', value: `${relationshipSatisfaction(life, person)}%` }] : []),
+    { label: 'Connection', value: contexts.join(' · ') },
+    ...(impression ? [{ label: 'Your impression', value: impression }] : []),
+    ...(state?.lastMeaningful !== undefined ? [{ label: 'Last meaningful interaction', value: state.lastMeaningful }] : []),
+    ...(relative === 'parent' || relative === 'step-parent' ? [{ label: 'Parenting tendency', value: parentTendency(life, person) }] : []),
+    ...(state?.grief ? [{ label: 'Remembering them', value: state.grief.intensity >= 50 ? 'Their loss still feels very recent.' :
+      state.grief.intensity >= 20 ? 'I’m finding my footing again.' : 'I can remember them with some peace.' }] : []),
+    ...(recent ? [{ label: 'Recent update', value: recent.text }] : []),
     ...(overview?.years !== undefined ? [{ label: 'Years together', value: overview.years }] : []),
     ...(overview?.agreement ? [{ label: 'Agreement', value: overview.agreement }] : []),
     { label: person.alive ? 'Age' : 'Age at death', value: person.age },
@@ -62,6 +75,7 @@ export function contactProfileRows(life: Life, person: Contact) {
     ...(profile.friendsSince !== null ? [{ label: 'Friends since', value: profile.friendsSince }] : []),
     ...(parents ? [{ label: 'Parents', value: parents }] : []),
     ...(child ? [{ label: child.adopted ? 'Adopted' : 'Born', value: child.year }] : []),
+    ...(child?.atHome !== undefined && person.alive ? [{ label: 'Home', value: child.atHome ? 'Lives with you' : 'Lives independently' }] : []),
     ...(child ? [{ label: 'Learning', value: `${child.learning}%` }, { label: 'Wellbeing', value: `${child.wellbeing}%` },
       { label: 'Confidence', value: `${child.confidence}%` }] : []),
     ...(isWorkContact(person) ? [{ label: 'Employer', value: employerById.get(person.employerId)?.name ?? person.employerId }] : []),
@@ -70,6 +84,11 @@ export function contactProfileRows(life: Life, person: Contact) {
     { label: 'Health', value: `${person.health}%` },
     ...profileHealthRows(life, person.id),
   ];
+}
+
+export function contactConnectionGroups(life: Life, person: Contact, existing: string[]) {
+  const rows = connectionControls(life, person).filter(({ label }) => !existing.includes(label));
+  return [...new Set(rows.map(({ group }) => group))].map((title) => ({ title, rows: rows.filter(({ group }) => group === title) }));
 }
 
 export function contactHistory(life: Life, person: Contact) {
@@ -87,7 +106,7 @@ export function contactBondRows(person: Contact) {
 type InteractionRow = { label: string; icon: Emoji; detail: string; issue: string | null; action: Action };
 
 export function contactInteractions(life: Life, person: Contact) {
-  if (communicationEnded(life, person.id)) return [];
+  if (!person.alive || communicationEnded(life, person.id)) return [];
   const group = contactGroup(person);
   const blocked = life.character.causeOfDeath ? 'This life has already ended.' :
     life.pending ? 'Resolve the pending decision first.' : null;
@@ -110,7 +129,6 @@ export function contactInteractions(life: Life, person: Contact) {
 
   for (const activity of Object.keys(relationshipActivities) as RelationshipActivity[]) {
     if (life.social.children[person.id]) continue;
-    if (activity === 'gift' && isActiveRomance(romanceFor(life, person.id))) continue;
     const rule = relationshipActivities[activity];
     if (!rule.groups.some((allowed) => allowed === group)) continue;
     if (activity === 'study-together' && !canStudyWith(life, person)) continue;

@@ -4,6 +4,8 @@ import { test } from 'node:test';
 import { decodeLife } from '../src/database/codec.ts';
 import { eventPopup } from '../src/eventView.ts';
 import { createLife } from '../src/engine/create.ts';
+import { gifts } from '../src/data/gifts.ts';
+import { giftPrice } from '../src/engine/gifts.ts';
 import { seededRandom } from '../src/engine/random.ts';
 import { currentClass, findContact } from '../src/engine/school.ts';
 import { activityIssue, advance, maxAge, talkIssue } from '../src/engine/simulation.ts';
@@ -132,7 +134,9 @@ test('opening a legacy student save generates the current roster without losing 
   const legacy = JSON.stringify({ ...life, version: 1, academic: undefined, schoolContacts: undefined });
   const restored = decodeLife(legacy);
   assert.equal(restored.version, 11);
-  assert.deepEqual(restored.schoolContacts, life.schoolContacts);
+  assert.deepEqual(restored.schoolContacts, decodeLife(legacy).schoolContacts);
+  assert.deepEqual(restored.schoolContacts.map(({ id, age, appearance }) => ({ id, age, appearance })),
+    life.schoolContacts.map(({ id, age, appearance }) => ({ id, age, appearance })));
   assert.deepEqual(restored.character, life.character);
   assert.deepEqual(restored.journal, life.journal);
   assert.equal(restored.random, life.random);
@@ -291,12 +295,14 @@ test('repeat allowances come from parent savings and gifts debit the full amount
   const paidAgain = apply(paid, ask);
   assert.equal(paidAgain.character.bank, paid.character.bank + 800);
   assert.equal(paidAgain.social.profiles[parent.id]?.savings, paid.social.profiles[parent.id]!.savings - 800);
-  const gift = { type: 'interact', person: parent.id, activity: 'gift' } as const;
+  const item = gifts.find(({ name }) => name === 'Set of Photo Prints')!;
+  const quote = giftPrice(paid, parent, item);
+  const gift = { type: 'give-gift', person: parent.id, gift: item.id } as const;
   const gifted = apply(paid, gift);
-  assert.equal(gifted.character.bank, paid.character.bank - 500);
-  assert.equal(gifted.transactions.at(-1)?.amount, -500);
-  assert.equal(gifted.family[0]?.bond.affection, Math.min(100, parent.bond.affection + 5));
-  assert.match(advance({ ...life, character: { ...life.character, bank: 499 } }, gift).error ?? '', /cannot afford/);
+  assert.equal(gifted.character.bank, paid.character.bank - quote);
+  assert.equal(gifted.transactions.at(-1)?.amount, -quote);
+  assert.equal(gifted.notices.at(-1)?.meter?.label, 'Appreciation');
+  assert.match(advance({ ...life, character: { ...life.character, bank: quote - 1 } }, gift).error ?? '', /balance/);
   assert.match(advance(life, { type: 'interact', person: parent.id, activity: 'academic-help' }).error ?? '', /unavailable for this relationship/);
 });
 

@@ -10,7 +10,8 @@ import { availability, contextualOutcome } from './socialContext.ts';
 import type { Life } from './types.ts';
 
 function availableContacts(life: Life) {
-  const people = Object.values(relationshipGroups(life)).flat();
+  const { archived: _archived, remembered: _remembered, ...groups } = relationshipGroups(life);
+  const people = Object.values(groups).flat();
   return [...new Map(people.map((person) => [person.id, person])).values()]
     .filter((person) => !contactIssue(life, person) && !takingSpace(life, person.id));
 }

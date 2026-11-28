@@ -10,8 +10,8 @@ import { discardSearchMatch } from './loveSearch.ts';
 import { answerMeeting } from './meetings.ts';
 import { allContacts, ensureNpc, npcProfile, npcRandom, remember } from './npcs.ts';
 import { barrierFee, protectionEvent } from './reproductiveHealth.ts';
-import { agreementFor, agreementPhrase, attraction, boundaryEvidence, careIssue, concernLabels, earlyConnection, inPersonIssue, knownRelationship, meaningfulTime, negotiateAgreement, noteAgreementTalk, relationshipMemory,
-  relationshipSatisfaction, relationshipState, setAgreement, visibleConcerns } from './relationships.ts';
+import { agreementFor, agreementPhrase, attraction, boundaryEvidence, careIssue, communicationEnded, concernLabels, earlyConnection, inPersonIssue, knownRelationship, meaningfulTime, negotiateAgreement, noteAgreementTalk, relationshipMemory,
+  relationshipSatisfaction, relationshipState, setAgreement, takingSpace, visibleConcerns } from './relationships.ts';
 import { findContact } from './school.ts';
 import { availability, contextualOutcome } from './socialContext.ts';
 import { canMakeFriend } from './workplace.ts';
@@ -94,9 +94,9 @@ export function offerSocialEvent(life: Life) {
         return;
       }
       const text = `${person.name} said ${concernLabels[concern.kind].toLowerCase()} had gone unresolved for too long. They decided to end our relationship.`;
-      const settlement = endRomance(life, person, text, concern.kind === 'neglect' ? 'neglect' : concern.kind === 'boundary' ? 'betrayal' : 'conflict');
+      endRomance(life, person, text, concern.kind === 'neglect' ? 'neglect' : concern.kind === 'boundary' ? 'betrayal' : 'conflict');
       remember(life, person, text);
-      recordNotice(life, 'community', 'Their Decision', text, { bank: -settlement, happiness: -7, stress: 4 }, 'relationships');
+      recordNotice(life, 'community', 'Their Decision', text, { happiness: -7, stress: 4 });
       return;
     }
   }
@@ -130,6 +130,11 @@ export function offerSocialEvent(life: Life) {
     !availability(life, person, { key: 'invite-dinner', location: 'local', demanding: true }) &&
     npcRandom(life, `invite:${person.id}`, life.year).next() < ensureNpc(life, person).traits.sociability / 120);
   if (friend) possibilities.push({ person: friend.id, event: 'social-dinner' });
+  const outreach = allContacts(life).find((person) => person.alive && 'friend' in person && person.friend && !takingSpace(life, person.id) &&
+    knownRelationship(life, person) && life.year - npcProfile(life, person).lastInteraction >= 2 &&
+    !availability(life, person, { key: 'catch-up', location: 'remote' }) &&
+    npcRandom(life, `catch-up:${person.id}`, life.year).next() < (relationshipState(life, person.id)?.perspective?.willingness ?? person.bond.trust) / 220);
+  if (outreach) possibilities.push({ person: outreach.id, event: 'social-time' });
   const proposer = allContacts(life).find((person) => person.alive && 'friend' in person && !person.friend && canMakeFriend(person) &&
     person.city === life.character.city && person.bond.familiarity >= 25 && friendshipWillingness(life, person) >= 51 &&
     !availability(life, person, { key: 'friendship-offer', location: 'local' }) &&
@@ -138,7 +143,8 @@ export function offerSocialEvent(life: Life) {
   const concerned = allContacts(life).find((person) => person.alive && person.age >= 18 && knownRelationship(life, person) && !earlyConnection(life, person.id) &&
     visibleConcerns(life, person.id).some((entry) => entry.severity >= 33));
   if (concerned && life.character.age >= 18) possibilities.push({ person: concerned.id, event: 'social-concern' });
-  const former = allContacts(life).find((person) => person.alive && person.age >= 18 && npcProfile(life, person).formerFriend &&
+  const former = allContacts(life).find((person) => person.alive && person.age >= 18 && !communicationEnded(life, person.id) &&
+    !takingSpace(life, person.id) && npcProfile(life, person).formerFriend &&
     person.bond.affection >= 16 && life.year - npcProfile(life, person).lastInteraction >= 3);
   if (former && life.character.age >= 18) possibilities.push({ person: former.id, event: 'social-reconnect' });
   const selection = possibilities[random.integer(0, Math.max(0, possibilities.length - 1))];
@@ -180,11 +186,10 @@ function answerBreach(life: Life, person: Contact, choice: string) {
   concern.updated = life.year;
   let text: string;
   let title: string;
-  let settlement = 0;
   if (score < 26) {
     title = status === 'married' ? 'Marriage Ended' : 'Relationship Ended';
     text = `${person.name} said the broken agreement had changed how they felt. They decided to end our relationship.`;
-    settlement = endRomance(life, person, text, 'betrayal');
+    endRomance(life, person, text, 'betrayal');
   } else if (choice === 'space' || score < 48) {
     relationshipState(life, person.id)!.apartUntil = life.year + 1;
     title = 'Time Apart';
@@ -196,7 +201,7 @@ function answerBreach(life: Life, person: Contact, choice: string) {
     if (honesty) concern.state = 'repairing';
   }
   remember(life, person, text, true);
-  recordNotice(life, 'community', title, text, { bank: -settlement, happiness: -5, stress: choice === 'deny' ? 6 : 3 }, 'relationships');
+  recordNotice(life, 'community', title, text, { happiness: -5, stress: choice === 'deny' ? 6 : 3 });
   return true;
 }
 
@@ -265,12 +270,12 @@ export function answerSocialEvent(life: Life, id: string, choice: string) {
     const response = honest ? `I took responsibility and apologized to ${person.name}.` :
       `I denied it, but ${person.name} did not believe me.`;
     const text = `${response} ${married ? 'We divorced and settled our shared expenses.' : 'Our relationship ended.'}`;
-    const settlement = endRomance(life, person, text, 'betrayal');
+    endRomance(life, person, text, 'betrayal');
     person.bond.trust = clamp(person.bond.trust - (honest ? 16 : 30));
     person.bond.resentment = clamp(person.bond.resentment + (honest ? 12 : 27));
     remember(life, person, text, true);
     recordNotice(life, 'community', married ? 'Marriage Ended' : 'Relationship Ended', text,
-      { bank: -settlement, happiness: honest ? -5 : -9, stress: honest ? 3 : 6 }, 'relationships');
+      { happiness: honest ? -5 : -9, stress: honest ? 3 : 6 });
     return;
   }
   if (id === 'social-expectations' || id === 'social-space' || id === 'social-concern' || id === 'social-reconnect') {
@@ -295,7 +300,11 @@ export function answerSocialEvent(life: Life, id: string, choice: string) {
         `${person.name} and I left the conversation for another time.`;
     } else {
       if (accepted) {
-        ensureNpc(life, person).formerFriend = false;
+        const profile = ensureNpc(life, person);
+        profile.formerFriend = false;
+        if (profile.friendship) profile.friendship = { ...profile.friendship, stage: 'casual', changed: life.year };
+        const state = relationshipState(life, person.id);
+        if (state) delete state.archived;
         person.bond.trust = clamp(person.bond.trust + 5);
         relationshipMemory(life, person.id, 'reconciliation', 5, true);
       }

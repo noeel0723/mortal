@@ -22,6 +22,14 @@ export function validateRelationships(life: Life, ids: ReadonlySet<string>) {
       !Array.isArray(state.memories) || state.memories.length > 16 || !state.memories.every(memory) || !object(state.milestones) ||
       !Object.entries(state.milestones).every(([kind, item]) => valueIn(milestoneKinds, kind) && object(item) && item.kind === kind && memory(item)) ||
       !Array.isArray(state.conflicts) || state.conflicts.length > concerns.length) return false;
+    if (state.archived !== undefined && state.archived !== true) return false;
+    if (state.perspective !== undefined && (!object(state.perspective) || !date(state.perspective.updated) ||
+      !integer(state.perspective.npc, 0, 100) || !integer(state.perspective.willingness, 0, 100) ||
+      (state.perspective.player !== undefined && !integer(state.perspective.player, 0, 100)))) return false;
+    if (state.grief !== undefined && (!object(state.grief) || !date(state.grief.since) || !integer(state.grief.intensity, 0, 100) ||
+      (state.grief.lastMemorial !== undefined && (!date(state.grief.lastMemorial) || state.grief.lastMemorial < state.grief.since)))) return false;
+    if (state.confidence !== undefined && (!object(state.confidence) || !date(state.confidence.shared) ||
+      (state.confidence.recipient !== undefined && (typeof state.confidence.recipient !== 'string' || state.confidence.recipient === id || !ids.has(state.confidence.recipient))))) return false;
     if (state.visit !== undefined && (!object(state.visit) || !date(state.visit.year) || !valueIn(cities, state.visit.city))) return false;
     if (state.move !== undefined && (!object(state.move) || !integer(state.move.year, character.birthYear, year + 1) ||
       (state.move.city !== undefined && !valueIn(cities, state.move.city)))) return false;

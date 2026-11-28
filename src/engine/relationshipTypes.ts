@@ -24,6 +24,10 @@ export type RelationshipState = {
   lastMeaningful?: number; lastAgreementTalk?: number; apartUntil?: number; visit?: { year: number; city: City }; move?: { year: number; city?: City };
   promise?: { year: number; due: number; kind: 'time' | 'support'; status: 'pending' | 'kept' | 'broken' };
   endedBecause?: 'player' | 'betrayal' | 'neglect' | 'conflict' | 'death';
+  perspective?: { player?: number; npc: number; willingness: number; updated: number };
+  archived?: true;
+  grief?: { since: number; intensity: number; lastMemorial?: number };
+  confidence?: { shared: number; recipient?: string };
 };
 
 export const careActions = ['exclusive', 'non-exclusive', 'discuss', 'promise-time', 'promise-support', 'reconcile', 'space',

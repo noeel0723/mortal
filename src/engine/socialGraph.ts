@@ -1,6 +1,6 @@
 import { recordNotice } from './eventNotices.ts';
 import { clamp } from './journal.ts';
-import { allContacts, isFamily, npcProfile, npcRandom, remember } from './npcs.ts';
+import { allContacts, ensureNpc, isFamily, npcProfile, npcRandom, remember } from './npcs.ts';
 import { contactIssue } from './interactions.ts';
 import { relationshipMemory, takingSpace } from './relationships.ts';
 import { findContact, isCurrentClassContact } from './school.ts';
@@ -128,6 +128,7 @@ export function introduceThroughFriend(life: Life, id: string) {
   const story = unavailable ? `${through.name} offered to introduce me to ${person.name}. ${unavailable.reason}` :
     `${through.name} introduced me to their friend ${person.name}. The three of us stayed to talk for a while.`;
   if (!unavailable) {
+    ensureNpc(life, person).introduced = true;
     person.bond.familiarity = clamp(person.bond.familiarity + 9);
     relationshipMemory(life, person.id, 'meeting', 3);
     remember(life, person, story);

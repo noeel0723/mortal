@@ -1,7 +1,7 @@
 import { assetById, starterHome } from '../data/shops.ts';
 import type { AssetListing } from '../data/shops.ts';
 import { recordNotice } from './eventNotices.ts';
-import { moveHousehold } from './household.ts';
+import { jointTitle, moveHousehold, settleJointAsset } from './household.ts';
 import { clamp, postTransaction } from './journal.ts';
 import { ensureNpc, isParent, npcProfile, npcRandom } from './npcs.ts';
 import { indexedCents, localExpense } from './pricing.ts';
@@ -82,6 +82,7 @@ function managementIssue(life: Life, id: string, operation: AssetOperation) {
     return asset.rental?.offered ? 'End the rental listing before selling this property.' : null;
   }
   if (operation === 'offer-rental' || operation === 'end-rental') {
+    if (operation === 'offer-rental' && jointTitle(life, asset.ownershipId)) return 'A jointly titled home cannot be rented out.';
     if (!asset.rental) return 'Only a house can be rented out.';
     if (life.property.residence === asset.ownershipId) return 'Move out before offering this home for rent.';
     if (asset.rental.offered === (operation === 'offer-rental')) return 'The rental status is already set.';
@@ -110,8 +111,10 @@ function manageAsset(life: Life, id: string, operation: AssetOperation) {
       const { fee, proceeds } = assetSaleQuote(life, asset);
       asset.sale = { year: life.year, fee, proceeds };
       amount = proceeds;
-      postTransaction(life, `Sold ${listing.name} after transaction costs`, proceeds, 'asset-sale', detail);
-      story = `I sold ${listing.name} and received the proceeds after fees.`;
+      const shared = settleJointAsset(life, asset.ownershipId, proceeds);
+      postTransaction(life, `Sold ${listing.name} after transaction costs`, proceeds - shared, 'asset-sale', detail);
+      story = shared ? `I sold ${listing.name} and the proceeds after fees were split according to its joint title.` :
+        `I sold ${listing.name} and received the proceeds after fees.`;
       break;
     }
     case 'offer-rental': case 'end-rental': {

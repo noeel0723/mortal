@@ -21,7 +21,6 @@ type Rule = {
   title: string;
 };
 
-export const giftCost = 500;
 const allowance = { 'working-class': 200, 'middle-income': 500, affluent: 800 };
 
 export const relationshipActivities = {
@@ -32,7 +31,6 @@ export const relationshipActivities = {
   compliment: { groups: ['parent', 'peer', 'educator', 'worker'], age: 6, bond: { affection: 4, respect: 2 }, title: 'A Kind Word' },
   'hang-out': { groups: ['peer'], age: 6, bond: { affection: 5, familiarity: 6, compatibility: 2 }, effects: { happiness: 5, stress: -3 }, title: 'Time Together' },
   'study-together': { groups: ['peer'], age: 6, bond: { trust: 3, familiarity: 3 }, academic: { performance: 3, attendance: 1, stress: -2 }, title: 'Study Partners' },
-  gift: { groups: ['parent', 'peer'], age: 8, bond: { affection: 5, trust: 2 }, effects: { bank: -giftCost }, title: 'A Small Gift' },
   'academic-help': { groups: ['educator'], age: 6, bond: { respect: 3, familiarity: 2 }, effects: { stress: -2 }, academic: { performance: 3, attendance: 2, stress: -4 }, title: 'Help with Coursework' },
   'mentor-guidance': { groups: ['educator'], age: 12, bond: { trust: 3, respect: 4 }, effects: { discipline: 2, stress: -3 }, title: 'Mentor Guidance' },
   'thank-educator': { groups: ['educator'], age: 6, bond: { respect: 4, affection: 2 }, title: 'A Word of Thanks' },
@@ -72,7 +70,7 @@ export function relationshipIssue(life: Life, person: Contact, activity: Relatio
   if (takingSpace(life, person.id)) return 'They’ve asked for time apart.';
   if (!rule.groups.includes(contactGroup(person))) return 'This interaction is unavailable for this relationship.';
   if (life.character.age < rule.age) return `Available from age ${rule.age}.`;
-  if (['family-time', 'hang-out', 'gift', 'study-together', 'work-break', 'mess-with'].includes(activity)) {
+  if (['family-time', 'hang-out', 'study-together', 'work-break', 'mess-with'].includes(activity)) {
     const location = inPersonIssue(life, person);
     if (location) return location;
   }
@@ -82,7 +80,6 @@ export function relationshipIssue(life: Life, person: Contact, activity: Relatio
     if (person.bond.trust < 45) return 'Build more trust before asking for pocket money.';
     if (npcProfile(life, person).savings < allowance[life.character.background]) return 'They cannot afford pocket money right now.';
   }
-  if (activity === 'gift' && life.character.bank < giftCost) return 'You cannot afford this gift.';
   if (activity === 'discuss-work' && (!isWorkContact(person) || person.employerId !== life.career.current?.employerId)) return 'Available with your current workplace.';
   if (rule.academic) {
     const enrollment = life.academic.enrollment;

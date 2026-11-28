@@ -1,10 +1,13 @@
 import { jobs, jobById } from '../data/jobs.ts';
+import { institutionById, programById, programs } from '../data/academics.ts';
 import { employers } from '../data/employers.ts';
 import { cities, genders } from '../data/veyra.ts';
 import { contactIdentity, generateAppearance } from './appearance.ts';
 import { recordContactDeath } from './death.ts';
 import { recordNotice } from './eventNotices.ts';
+import { coveredChildCommitments, hasSharedEssentials, settleHousehold } from './household.ts';
 import { clamp } from './journal.ts';
+import { familyRelation } from './kinship.ts';
 import { indexedCents, localExpense, marketSalaryFactor } from './pricing.ts';
 import { npcNamePicker } from './npcNames.ts';
 import { qualifiedNpc } from './npcQualifications.ts';
@@ -41,10 +44,7 @@ export function isParent(life: Life, id: string) {
 }
 
 export function isFamily(life: Life, id: string) {
-  if (life.family.some((person) => person.id === id) || isParent(life, id)) return true;
-  if (life.social.parents[id]?.includes('self')) return true;
-  if (life.social.people.some((person) => person.id === id && (person.role === 'Sibling' || person.role === 'Grandparent'))) return true;
-  return life.social.romances.some((entry) => entry.person === id && entry.status === 'married');
+  return !!familyRelation(life, id) || life.social.romances.some((entry) => entry.person === id && entry.status === 'married');
 }
 
 export function npcProfile(life: Life, person: Contact): NpcProfile {
@@ -99,6 +99,9 @@ export function cloneSocial(social: SocialState): SocialState {
       reading: [...social.local.reading],
     } } : {}),
     ...(social.graph ? { graph: social.graph.map((entry) => ({ ...entry, memories: [...entry.memories] })) } : {}),
+    ...(social.unions ? { unions: social.unions.map((entry) => ({ ...entry })) } : {}),
+    ...(social.household ? { household: { ...social.household, savings: { ...social.household.savings } } } : {}),
+    ...(social.custody ? { custody: { ...social.custody } } : {}),
     profiles: Object.fromEntries(Object.entries(social.profiles).map(([id, profile]) => [id, { ...profile, memories: [...profile.memories] }])),
     parents: { ...social.parents }, children: Object.fromEntries(Object.entries(social.children).map(([id, child]) => [id, { ...child }])),
     romances: social.romances.map((entry) => ({ ...entry, history: [...entry.history] })),
@@ -164,7 +167,8 @@ export function advanceNpcLives(life: Life, elapsedWorld: WorldState = life.worl
   const important = contacts.filter((person) => person.alive && (priority(person.id) ||
     ('friend' in person && person.friend) || ('stage' in person && person.stage === 'high') || 'employerId' in person ||
     person.id.startsWith('npc-venue-')));
-  important.sort((a, b) => Number(priority(b.id)) - Number(priority(a.id)));
+  important.sort((a, b) => Number(!!life.social.profiles[b.id]?.familyStudies) - Number(!!life.social.profiles[a.id]?.familyStudies) ||
+    Number(priority(b.id)) - Number(priority(a.id)));
   let updates = 0;
   for (const person of important.slice(0, npcAnnualLimit)) {
     const profile = ensureNpc(life, person);
@@ -186,11 +190,41 @@ export function advanceNpcLives(life: Life, elapsedWorld: WorldState = life.worl
       if (person.stage === 'postgraduate') profile.education = 'Postgraduate';
       if (person.stage === 'vocational') profile.education = 'Vocational';
     }
+    const directRelative = person.role === 'Sibling' || person.role === 'Child' || familyRelation(life, person.id) === 'step-sibling';
+    const child = life.social.children[person.id];
+    if (child && person.age === 18) child.atHome = person.city === life.character.city && life.social.custody?.[person.id]?.residence !== 'other';
+    if (directRelative && person.age === 18) {
+      if (updates < 2) {
+        recordNotice(life, 'family', person.role === 'Sibling' ? 'Sibling Graduation' : 'A Family Graduation', `${person.name} finished high school.`);
+        updates++;
+      }
+      const learning = life.social.children[person.id]?.learning ?? 50;
+      const choices = programs.filter((program) => (program.level === 'undergraduate' || program.level === 'vocational') &&
+        institutionById.get(program.institutionId)?.city === person.city);
+      if (choices.length && profile.traits.ambition + profile.traits.discipline + learning >= 155 && random.next() < .62) {
+        const program = choices[random.integer(0, choices.length - 1)]!;
+        profile.familyStudies = { program: program.id, started: life.year, graduation: life.year + program.duration };
+        person.occupation = 'Student';
+        profile.status = 'student';
+        remember(life, person, `Chose to study ${program.title}.`);
+      }
+    }
+    if (profile.familyStudies) {
+      if (profile.familyStudies.graduation > life.year) continue;
+      const program = programById.get(profile.familyStudies.program)!;
+      profile.education = program.level === 'vocational' ? 'Vocational' : 'Undergraduate';
+      profile.educationProgram = program.id;
+      delete profile.familyStudies;
+      remember(life, person, `Graduated from ${program.title}.`);
+      if (updates < 2) {
+        recordNotice(life, 'family', 'A Family Graduation', `${person.name} graduated from ${program.title}.`);
+        updates++;
+      }
+    }
     if (profile.status === 'student') profile.status = 'seeking';
-    if (person.age === 18 && person.role === 'Sibling') recordNotice(life, 'family', 'Sibling Graduation', `${person.name} finished high school.`);
-    const expenses = profile.status === 'retired' ? 22000 : 36000;
+    const expenses = hasSharedEssentials(life, person.id) ? 7000 : profile.status === 'retired' ? 22000 : 36000;
     profile.savings = Math.min(20000000, Math.max(0, profile.savings + profile.income -
-      localExpense(elapsedWorld, person.city, expenses) - profile.commitments));
+      localExpense(elapsedWorld, person.city, expenses) - Math.max(0, profile.commitments - coveredChildCommitments(life, person.id))));
     const market = life.world.cities[person.city];
     const economy = national(life.world);
     if (person.age >= 65 && profile.status !== 'retired' && (person.age >= 70 || random.next() < .42)) {
@@ -236,23 +270,39 @@ export function advanceNpcLives(life: Life, elapsedWorld: WorldState = life.worl
     }
     if (profile.status === 'employed') profile.experience++;
     profile.expenses = localExpense(life.world, person.city, profile.status === 'retired' ? 22000 : 36000);
-    const linked = profile.localPartner && byId.get(profile.localPartner);
+    const linked = profile.localPartner ? byId.get(profile.localPartner) : undefined;
     if (linked && !linked.alive) profile.localPartner = null;
-    if (!family && !partners.has(person.id) && person.age >= 20) {
+    const dependent = life.social.parents[person.id]?.includes('self') && person.age < 18;
+    const union = life.social.unions?.some(({ people }) => people.includes(person.id));
+    if ((!family || directRelative && !dependent) && !partners.has(person.id) && person.age >= 20) {
       const previous = person.city;
-      if (!('employerId' in person) && random.next() < .012) person.city = random.pick(cities);
-      if (previous !== person.city) {
-        profile.movedFrom = previous;
-        if (close && updates < 2) {
-          recordNotice(life, 'community', 'A Friend Relocates', `${person.name} moved to ${person.city}.`);
+      const movingHome = child && child.atHome !== true && !union && profile.status === 'seeking' &&
+        profile.savings < 3200 && person.bond.trust >= 60 && random.next() < .16;
+      if (movingHome) {
+        person.city = life.character.city;
+        child.atHome = true;
+      } else if (child?.atHome && (union || (profile.status === 'employed' && profile.savings >= 9000 && random.next() < .18))) {
+        child.atHome = false;
+        remember(life, person, 'Moved into a place of their own.');
+        if (updates < 2) {
+          recordNotice(life, 'family', 'A Place of Their Own', `${person.name} moved into a place of their own in ${person.city}.`);
           updates++;
         }
+      } else if (!('employerId' in person) && (!union || !linked?.alive) && random.next() < (directRelative ? .025 : .012)) person.city = random.pick(cities);
+      if (previous !== person.city) {
+        profile.movedFrom = previous;
+        if (child && !movingHome) child.atHome = false;
       }
-      if (profile.localPartner && random.next() < .08) {
+      if ((movingHome || previous !== person.city) && close && updates < 2) {
+        recordNotice(life, family ? 'family' : 'community', movingHome ? 'Coming Back Home' : family ? 'A Relative Relocates' : 'A Friend Relocates',
+          movingHome ? `${person.name} returned to ${person.city} while looking for work.` : `${person.name} moved to ${person.city}.`);
+        updates++;
+      }
+      if (!union && profile.localPartner && random.next() < .08) {
         const other = life.social.profiles[profile.localPartner];
         if (other) other.localPartner = null;
         profile.localPartner = null;
-      } else if (!profile.localPartner && random.next() < profile.traits.sociability / 2200) {
+      } else if (!union && !directRelative && !profile.localPartner && random.next() < profile.traits.sociability / 2200) {
         const other = important.find((candidate) => candidate.id !== person.id && candidate.age >= 21 && candidate.city === person.city && !isFamily(life, candidate.id) &&
           !partners.has(candidate.id) && !ensureNpc(life, candidate).localPartner &&
           profile.preferences.includes(candidate.gender) && ensureNpc(life, candidate).preferences.includes(person.gender));
@@ -280,6 +330,8 @@ export function advanceNpcLives(life: Life, elapsedWorld: WorldState = life.worl
   }
   for (const entry of life.social.romances) {
     if (entry.ended !== null || byId.get(entry.person)?.alive) continue;
+    const person = byId.get(entry.person);
+    if (person && entry.status === 'married') settleHousehold(life, person, true);
     entry.status = entry.status === 'interest' || entry.status === 'getting-to-know' ? 'broken-up' : 'widowed';
     entry.ended = life.year;
     entry.history = [...entry.history.slice(-29), { year: life.year, text: 'The relationship ended after their death.' }];
